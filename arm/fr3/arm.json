@@ -1,0 +1,254 @@
+{
+ "model": "fr3",
+ "about": "Visual meshes of the Fairino FR3 links, converted by scripts/convert-arm-meshes.ts. Each mesh is in its link's frame (metres); the URDF's visual origins are recorded per link.",
+ "source": {
+  "repository": "https://github.com/FAIR-INNOVATION/frcobot_ros2",
+  "commit": "867cb32bc24a73c1e60bef4e6c16762e7357c5e1",
+  "urdf": "fairino_description/urdf/fairino3_v6.urdf",
+  "meshes": "fairino_description/meshes/fairino3_v6"
+ },
+ "conversion": {
+  "keep_ratio": 0.45,
+  "max_error": 0.0015,
+  "crease_deg": 35
+ },
+ "totals": {
+  "bytes": 1922528,
+  "triangles": 52042,
+  "source_bytes": 5662688,
+  "source_triangles": 113242
+ },
+ "links": [
+  {
+   "link": "base_link",
+   "mesh": "meshes/base_link.glb",
+   "visual_origin": {
+    "xyz_m": [
+     0,
+     0,
+     0
+    ],
+    "rpy": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rgba": [
+    0.89804,
+    0.91765,
+    0.92941,
+    1
+   ],
+   "source_file": "fairino_description/meshes/fairino3_v6/base_link.STL",
+   "source_bytes": 169184,
+   "source_triangles": 3382,
+   "triangles": 2208,
+   "vertices": 2238,
+   "bytes": 81240,
+   "simplify_error": 0.00149,
+   "z_extent_m": [
+    0,
+    0.0798
+   ]
+  },
+  {
+   "link": "shoulder_link",
+   "mesh": "meshes/shoulder_link.glb",
+   "visual_origin": {
+    "xyz_m": [
+     0,
+     0,
+     0
+    ],
+    "rpy": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rgba": [
+    0.89804,
+    0.91765,
+    0.92941,
+    1
+   ],
+   "source_file": "fairino_description/meshes/fairino3_v6/shoulder_link.STL",
+   "source_bytes": 1013884,
+   "source_triangles": 20276,
+   "triangles": 9124,
+   "vertices": 9383,
+   "bytes": 335720,
+   "simplify_error": 0.00038,
+   "z_extent_m": [
+    0.0748,
+    0.19398
+   ]
+  },
+  {
+   "link": "upperarm_link",
+   "mesh": "meshes/upperarm_link.glb",
+   "visual_origin": {
+    "xyz_m": [
+     0,
+     0,
+     0
+    ],
+    "rpy": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rgba": [
+    0.89804,
+    0.91765,
+    0.92941,
+    1
+   ],
+   "source_file": "fairino_description/meshes/fairino3_v6/upperarm_link.STL",
+   "source_bytes": 2286784,
+   "source_triangles": 45734,
+   "triangles": 20580,
+   "vertices": 22063,
+   "bytes": 777516,
+   "simplify_error": 0.00018,
+   "z_extent_m": [
+    0.0488,
+    0.16998
+   ]
+  },
+  {
+   "link": "forearm_link",
+   "mesh": "meshes/forearm_link.glb",
+   "visual_origin": {
+    "xyz_m": [
+     0,
+     0,
+     0
+    ],
+    "rpy": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rgba": [
+    0.89804,
+    0.91765,
+    0.92941,
+    1
+   ],
+   "source_file": "fairino_description/meshes/fairino3_v6/forearm_link.STL",
+   "source_bytes": 902684,
+   "source_triangles": 18052,
+   "triangles": 8122,
+   "vertices": 7577,
+   "bytes": 280352,
+   "simplify_error": 0.00053,
+   "z_extent_m": [
+    -0.04946,
+    0.0582
+   ]
+  },
+  {
+   "link": "wrist1_link",
+   "mesh": "meshes/wrist1_link.glb",
+   "visual_origin": {
+    "xyz_m": [
+     0,
+     0,
+     0
+    ],
+    "rpy": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rgba": [
+    0.89804,
+    0.91765,
+    0.92941,
+    1
+   ],
+   "source_file": "fairino_description/meshes/fairino3_v6/wrist1_link.STL",
+   "source_bytes": 405684,
+   "source_triangles": 8112,
+   "triangles": 3650,
+   "vertices": 3498,
+   "bytes": 128784,
+   "simplify_error": 0.00056,
+   "z_extent_m": [
+    0.0532,
+    0.142
+   ]
+  },
+  {
+   "link": "wrist2_link",
+   "mesh": "meshes/wrist2_link.glb",
+   "visual_origin": {
+    "xyz_m": [
+     0,
+     0,
+     0
+    ],
+    "rpy": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rgba": [
+    0.89804,
+    0.91765,
+    0.92941,
+    1
+   ],
+   "source_file": "fairino_description/meshes/fairino3_v6/wrist2_link.STL",
+   "source_bytes": 405684,
+   "source_triangles": 8112,
+   "triangles": 3650,
+   "vertices": 3552,
+   "bytes": 130080,
+   "simplify_error": 0.00057,
+   "z_extent_m": [
+    0.0532,
+    0.142
+   ]
+  },
+  {
+   "link": "wrist3_link",
+   "mesh": "meshes/wrist3_link.glb",
+   "visual_origin": {
+    "xyz_m": [
+     0,
+     0,
+     0
+    ],
+    "rpy": [
+     0,
+     0,
+     0
+    ]
+   },
+   "rgba": [
+    0.89804,
+    0.91765,
+    0.92941,
+    1
+   ],
+   "source_file": "fairino_description/meshes/fairino3_v6/wrist3_link.STL",
+   "source_bytes": 478784,
+   "source_triangles": 9574,
+   "triangles": 4708,
+   "vertices": 5471,
+   "bytes": 188836,
+   "simplify_error": 0.0015,
+   "z_extent_m": [
+    0.0532,
+    0.1
+   ]
+  }
+ ]
+}

@@ -1,0 +1,1544 @@
+{
+ "name": "dvt-01 arm-right, London demo (2026-11-16/17)",
+ "units": "metres, radians",
+ "conventions": {
+  "rpy": "fixed-axis roll, pitch, yaw: R = Rz(yaw) . Ry(pitch) . Rx(roll) (as URDF); a pose maps the item's frame into its parent",
+  "mesh_frame": "each mesh is in the frame its pose places (flange frame for the flange stack and tools, the fixture's or part's own frame otherwise): metres, z up. GLB vertex data is stored in that frame as is (NOT turned to glTF's y-up).",
+  "collision_stl": "metres, same frame as the GLB; every connected component is one convex piece",
+  "table": "breadboard frame: origin at the lattice corner the cell calls (0, 0), x and y along the hole lattice, z up from the plate top",
+  "flange": "the cell's DH flange: origin on the robot flange face, +z out of the flange. On the public fairino3_v6 URDF it is wrist3_link moved 0.1 m along its +z, same orientation; the DH base frame is base_link."
+ },
+ "arm": {
+  "model": "fr3",
+  "role": "arm-right",
+  "mount_table": {
+   "xyz_m": [
+    1.125275,
+    0.525131,
+    0.011541
+   ],
+   "rpy": [
+    -0.001892,
+    -0.00137,
+    -0.396466
+   ]
+  },
+  "mount_table_source": "profile arms.right.kinematic_calibration: mount.table_from_arm_base . base (the fitted arm base, london1113bh)",
+  "mount_table_profile": {
+   "xyz_m": [
+    1.124641,
+    0.525182,
+    0.013273
+   ],
+   "rpy": [
+    0.003182,
+    -0.002777,
+    -0.38714
+   ]
+  },
+  "urdf_agreement_mm": "fairino3_v6 URDF on mount_table reproduces the cell's calibrated flange within 1.3 mm over the London poses (4.8 mm on mount_table_profile); exact poses need calibrated_chain",
+  "flange_in_urdf_wrist3_link": {
+   "xyz_m": [
+    0.0,
+    0.0,
+    0.1
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "calibrated_chain": {
+   "id": "arm-right/london1113bh",
+   "convention": "modified_dh_hayati",
+   "formula": "table_from_flange = table_from_arm_base . base . prod_j Rx(alpha_j) Tx(a_j) Ry(beta_j) Rz(q_j + e_j(q_j) + theta_j) Tz(d_j); e_j(q) = sum_k cos_k cos(k q) + sin_k sin(k q)",
+   "table_from_arm_base": [
+    [
+     0.9259890736218651,
+     0.3775314590822307,
+     -0.0037726563800701157,
+     1.1246411032923065
+    ],
+    [
+     -0.37754009609820305,
+     0.9259912925452329,
+     -0.0018978852885399254,
+     0.5251821589595524
+    ],
+    [
+     0.0027769355555569675,
+     0.003181750092452822,
+     0.9999910825078739,
+     0.013272516794184144
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "base": {
+    "rotation_wxyz": [
+     0.9999856373727769,
+     -0.0025466707872451922,
+     0.0007006071780918207,
+     -0.0046635464664303745
+    ],
+    "translation_m": [
+     0.0006018528287921043,
+     0.00018619363188610016,
+     -0.001734047498958861
+    ]
+   },
+   "joints": [
+    {
+     "a": -5.64371741070806e-05,
+     "alpha": -0.000807559575575331,
+     "beta": 0.0003356575396756109,
+     "d": 0.13993938345170487,
+     "errors": [
+      {
+       "cos": -0.00033595468878464224,
+       "kind": "harmonic",
+       "order": 1,
+       "sin": 0.0004177612305270759
+      },
+      {
+       "cos": 0.0001263135161924717,
+       "kind": "harmonic",
+       "order": 2,
+       "sin": -1.4483464903401246e-05
+      }
+     ],
+     "theta": -3.8559977800981386e-05
+    },
+    {
+     "a": 5.973486568279092e-05,
+     "alpha": 1.5709540207163852,
+     "beta": -3.910436997280173e-05,
+     "d": 4.717899607426239e-05,
+     "errors": [
+      {
+       "cos": 0.00043342625452784823,
+       "kind": "harmonic",
+       "order": 1,
+       "sin": -0.00021555252009298627
+      },
+      {
+       "cos": -0.00026470608498832825,
+       "kind": "harmonic",
+       "order": 2,
+       "sin": 5.471874267941203e-05
+      }
+     ],
+     "theta": -0.0030459789100650524
+    },
+    {
+     "a": -0.2803122829588831,
+     "alpha": -0.00015568048743801936,
+     "beta": -0.00012611652486133444,
+     "d": 4.742335744022757e-05,
+     "errors": [
+      {
+       "cos": -0.0004228261624997549,
+       "kind": "harmonic",
+       "order": 1,
+       "sin": 0.00015600573010573045
+      },
+      {
+       "cos": 0.0003215758439520726,
+       "kind": "harmonic",
+       "order": 2,
+       "sin": -0.0002053673251391135
+      }
+     ],
+     "theta": 0.0002595459885953079
+    },
+    {
+     "a": -0.240139161117218,
+     "alpha": 7.621460717019609e-05,
+     "beta": -0.00032049084979825557,
+     "d": 0.10204747291182614,
+     "errors": [],
+     "theta": 2.41127474021848e-05
+    },
+    {
+     "a": 7.658786567154693e-06,
+     "alpha": 1.5699162401817426,
+     "beta": 2.3895360577196218e-05,
+     "d": 0.10205569531435393,
+     "errors": [],
+     "theta": 0.00032436639208155915
+    },
+    {
+     "a": -3.319277107478422e-05,
+     "alpha": -1.570613038859581,
+     "beta": -0.0003001553987574232,
+     "d": 0.09996550952374601,
+     "errors": [],
+     "theta": 2.2438627373963058e-08
+    }
+   ],
+   "nominal_dh": [
+    {
+     "a": 0.0,
+     "alpha": 1.5707963267948966,
+     "d": 0.14,
+     "theta": 0.0
+    },
+    {
+     "a": -0.280291532,
+     "alpha": 0.0,
+     "d": 0.0,
+     "theta": 0.0
+    },
+    {
+     "a": -0.23998789099999998,
+     "alpha": 0.0,
+     "d": 0.0,
+     "theta": 0.0
+    },
+    {
+     "a": 0.0,
+     "alpha": 1.5707963267948966,
+     "d": 0.101909369,
+     "theta": 0.0
+    },
+    {
+     "a": 0.0,
+     "alpha": -1.5707963267948966,
+     "d": 0.102081259,
+     "theta": 0.0
+    },
+    {
+     "a": 0.0,
+     "alpha": 0.0,
+     "d": 0.100251743,
+     "theta": 0.0
+    }
+   ]
+  },
+  "start_deg": [
+   -96.7614,
+   -85.3888,
+   -86.5777,
+   -98.0352,
+   89.8929,
+   -52.5349
+  ]
+ },
+ "table": {
+  "size_m": [
+   0.9,
+   0.6
+  ],
+  "min_table_m": [
+   0.3,
+   0.0
+  ],
+  "max_table_m": [
+   1.2,
+   0.6
+  ],
+  "hole_pitch_m": 0.025,
+  "first_hole_m": 0.0125,
+  "note": "London plate = MB6090 on x 0.3..1.2 of the table frame (the frame keeps the 1200 mm plate's origin); no mesh (see MISSING.md)"
+ },
+ "guard": {
+  "operator_barrier": {
+   "name": "operator_barrier",
+   "normal": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "offset_m": -0.15
+  },
+  "envelope_mm": {
+   "x_min_mm": 0,
+   "x_max_mm": 1200,
+   "y_min_mm": 0,
+   "y_max_mm": 600,
+   "z_min_mm": 0,
+   "z_max_mm": 650
+  },
+  "wall_extensions_mm": {
+   "right_wall": 60.0
+  },
+  "operator_boundary_offset_mm": -150.0
+ },
+ "flange_stack": [
+  {
+   "id": "ft_sensor",
+   "name": "F/T sensor with its flange plate and camera bracket (Force_sense_6axis_75mm_my1)",
+   "mesh": "meshes/ft_sensor.glb",
+   "collision_mesh": "meshes/ft_sensor.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "adapter",
+   "name": "adapter plate between the F/T sensor and the changer (adapter1)",
+   "mesh": "meshes/adapter.glb",
+   "collision_mesh": "meshes/adapter.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "changer_master",
+   "name": "tool changer, robot side (interface_50mm_act1)",
+   "mesh": "meshes/changer_master.glb",
+   "collision_mesh": "meshes/changer_master.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "oak_camera",
+   "name": "OAK-D Pro wrist camera (Camera_stereo_NG9097)",
+   "mesh": "meshes/oak_camera.glb",
+   "collision_mesh": "meshes/oak_camera.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "m12_5pin_plug",
+   "name": "M12 5-pin plug of the F/T sensor cable on the wrist (vendor CAD 234947)",
+   "mesh": "meshes/m12_5pin_plug.glb",
+   "collision_mesh": "meshes/m12_5pin_plug.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  }
+ ],
+ "tools": [
+  {
+   "id": "changer_bare_p0",
+   "name": "bare changer: no tool on the flange stack",
+   "kind": "bare",
+   "mesh": null,
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tip_flange_m": [
+    0.0,
+    0.0,
+    0.06543
+   ],
+   "tip_name": "piston_tip",
+   "catalog_index": 0
+  },
+  {
+   "id": "touch_p0",
+   "name": "touch probe on the short adapter (needle)",
+   "kind": "probe",
+   "mesh": "meshes/touch_p0.glb",
+   "collision_mesh": "meshes/touch_p0.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tip_flange_m": [
+    0.0,
+    0.0,
+    0.13443
+   ],
+   "tip_name": "stylus_ball",
+   "catalog_index": 1
+  },
+  {
+   "id": "touch_prod1_p0",
+   "name": "touch probe prod1 on the 20 mm rack adapter",
+   "kind": "probe",
+   "mesh": "meshes/touch_prod1_p0.glb",
+   "collision_mesh": "meshes/touch_prod1_p0.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tip_flange_m": [
+    0.0,
+    0.0,
+    0.154433
+   ],
+   "tip_name": "stylus_ball",
+   "catalog_index": 2
+  },
+  {
+   "id": "rcup16_p0",
+   "name": "medium cup: 16 mm suction cup for the cases and the PCB",
+   "kind": "vacuum_cup",
+   "mesh": "meshes/rcup16_p0.glb",
+   "collision_mesh": "meshes/rcup16_p0.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tip_flange_m": [
+    0.016259,
+    0.000122,
+    0.156291
+   ],
+   "tip_name": "cup_tip",
+   "catalog_index": 3,
+   "vacuum": {
+    "output": "vacuum",
+    "held_input": "vacuum-held",
+    "cup_radius_m": 0.00809,
+    "lip_centre_flange_m": [
+     0.023184,
+     5e-05,
+     0.153158
+    ],
+    "lip_normal_flange": [
+     0.42198,
+     0.00047,
+     0.9066
+    ],
+    "lip_inner_radius_m": 0.00391
+   }
+  },
+  {
+   "id": "rcup6_p0",
+   "name": "small cup: 6 mm suction cup for the buttons",
+   "kind": "vacuum_cup",
+   "mesh": "meshes/rcup6_p0.glb",
+   "collision_mesh": "meshes/rcup6_p0.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tip_flange_m": [
+    0.020885,
+    2.1e-05,
+    0.15421
+   ],
+   "tip_name": "cup_tip",
+   "catalog_index": 4,
+   "vacuum": {
+    "output": "vacuum",
+    "held_input": "vacuum-held",
+    "cup_radius_m": 0.003,
+    "lip_centre_flange_m": [
+     0.023248,
+     -0.0,
+     0.153116
+    ],
+    "lip_normal_flange": [
+     0.42262,
+     -0.0,
+     0.90631
+    ],
+    "lip_inner_radius_m": 0.001
+   }
+  },
+  {
+   "id": "screwdriver_p0",
+   "name": "vacuum screwdriver (STS3032 servo drive)",
+   "kind": "screwdriver",
+   "mesh": "meshes/screwdriver_p0.glb",
+   "collision_mesh": "meshes/screwdriver_p0.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tip_flange_m": [
+    -0.0001024,
+    -0.0001557,
+    0.1559695
+   ],
+   "tip_name": "nose_face",
+   "catalog_index": 5,
+   "vacuum": {
+    "output": "screwdriver-vacuum",
+    "held_input": null,
+    "cup_radius_m": 0.00211,
+    "note": "the screw is held in the nose bore by pump B; the vacuum-held switch is on the cup line"
+   },
+   "nose": {
+    "face_z_flange_m": 0.1556,
+    "bore_radius_m": 0.00211,
+    "outer_radius_m": 0.00419,
+    "centre_xy_flange_m": [
+     9e-05,
+     0.000166
+    ]
+   },
+   "drive": {
+    "role": "gripper-right",
+    "screw_in_value": -1.0,
+    "actuator": "Feetech STS3032"
+   }
+  }
+ ],
+ "changer": {
+  "unlock_output": "changer-unlock",
+  "locked_input": null,
+  "bare_tool_id": "changer_bare_p0",
+  "unlock_interlock": {
+   "poses_deg": [
+    [
+     -27.55,
+     -93.04,
+     -110.382,
+     -66.561,
+     90.068,
+     -140.229
+    ],
+    [
+     -27.531,
+     -99.976,
+     -119.02,
+     -50.989,
+     90.062,
+     -140.21
+    ],
+    [
+     -33.388,
+     -104.825,
+     -96.203,
+     -68.954,
+     90.054,
+     -146.112
+    ],
+    [
+     -33.374,
+     -110.609,
+     -104.188,
+     -55.182,
+     90.048,
+     -146.099
+    ],
+    [
+     -37.806,
+     -116.675,
+     -79.143,
+     -74.162,
+     90.043,
+     -150.606
+    ],
+    [
+     -37.796,
+     -121.28,
+     -87.064,
+     -61.63,
+     90.038,
+     -150.596
+    ],
+    [
+     -19.559,
+     -80.512,
+     -122.096,
+     -67.37,
+     90.087,
+     -132.223
+    ],
+    [
+     -19.532,
+     -88.466,
+     -131.909,
+     -49.61,
+     90.08,
+     -132.197
+    ],
+    [
+     -19.534,
+     -87.5972,
+     -131.1848,
+     -51.2026,
+     90.0806,
+     -132.1993
+    ],
+    [
+     -27.5328,
+     -99.2535,
+     -118.4011,
+     -52.3304,
+     90.0628,
+     -140.212
+    ],
+    [
+     -37.7969,
+     -120.8027,
+     -86.5192,
+     -62.654,
+     90.0381,
+     -150.5964
+    ],
+    [
+     -33.3756,
+     -110.0176,
+     -103.6279,
+     -56.3347,
+     90.0489,
+     -146.0996
+    ]
+   ],
+   "tol_deg": 1.0
+  },
+  "stands": [
+   {
+    "index": 0,
+    "name": "stand0",
+    "fixture_id": "rack_stand0",
+    "tool_id": null,
+    "profile_tool": "bigcup_p0",
+    "pose_table": {
+     "xyz_m": [
+      1.262193,
+      0.263356,
+      0.176277
+     ],
+     "rpy": [
+      3.141591,
+      -1e-06,
+      -0.001753
+     ]
+    },
+    "pick_pose_table": {
+     "xyz_m": [
+      1.262196,
+      0.263355,
+      0.181277
+     ],
+     "rpy": [
+      3.141592,
+      -0.0,
+      -0.001745
+     ]
+    },
+    "return_deg": [
+     -19.532,
+     -88.466,
+     -131.909,
+     -49.61,
+     90.08,
+     -132.197
+    ],
+    "pick_deg": [
+     -19.534,
+     -87.5972,
+     -131.1848,
+     -51.2026,
+     90.0806,
+     -132.1993
+    ]
+   },
+   {
+    "index": 1,
+    "name": "stand1",
+    "fixture_id": "rack_stand1",
+    "tool_id": "rcup16_p0",
+    "profile_tool": "rcup16_p0",
+    "pose_table": {
+     "xyz_m": [
+      1.262496,
+      0.200911,
+      0.176526
+     ],
+     "rpy": [
+      3.141588,
+      3e-06,
+      -0.00154
+     ]
+    },
+    "pick_pose_table": {
+     "xyz_m": [
+      1.262494,
+      0.200912,
+      0.181527
+     ],
+     "rpy": [
+      3.141592,
+      0.0,
+      -0.001534
+     ]
+    },
+    "return_deg": [
+     -27.531,
+     -99.976,
+     -119.02,
+     -50.989,
+     90.062,
+     -140.21
+    ],
+    "pick_deg": [
+     -27.5328,
+     -99.2535,
+     -118.4011,
+     -52.3304,
+     90.0628,
+     -140.212
+    ]
+   },
+   {
+    "index": 2,
+    "name": "stand2",
+    "fixture_id": "rack_stand2",
+    "tool_id": "screwdriver_p0",
+    "profile_tool": "screwdriver_p0",
+    "pose_table": {
+     "xyz_m": [
+      1.262239,
+      0.075679,
+      0.176989
+     ],
+     "rpy": [
+      3.141574,
+      -1.7e-05,
+      0.000548
+     ]
+    },
+    "pick_pose_table": {
+     "xyz_m": [
+      1.262237,
+      0.075681,
+      0.181982
+     ],
+     "rpy": [
+      3.141593,
+      0.0,
+      0.00054
+     ]
+    },
+    "return_deg": [
+     -37.796,
+     -121.28,
+     -87.064,
+     -61.63,
+     90.038,
+     -150.596
+    ],
+    "pick_deg": [
+     -37.7969,
+     -120.8027,
+     -86.5192,
+     -62.654,
+     90.0381,
+     -150.5964
+    ]
+   },
+   {
+    "index": 3,
+    "name": "stand3",
+    "fixture_id": "rack_stand3",
+    "tool_id": "rcup6_p0",
+    "profile_tool": "rcup6_p0",
+    "pose_table": {
+     "xyz_m": [
+      1.262514,
+      0.138263,
+      0.176833
+     ],
+     "rpy": [
+      3.141574,
+      -4e-06,
+      -0.000752
+     ]
+    },
+    "pick_pose_table": {
+     "xyz_m": [
+      1.262511,
+      0.138264,
+      0.181828
+     ],
+     "rpy": [
+      3.141592,
+      -1e-06,
+      -0.000768
+     ]
+    },
+    "return_deg": [
+     -33.374,
+     -110.609,
+     -104.188,
+     -55.182,
+     90.048,
+     -146.099
+    ],
+    "pick_deg": [
+     -33.3756,
+     -110.0176,
+     -103.6279,
+     -56.3347,
+     90.0489,
+     -146.0996
+    ]
+   }
+  ]
+ },
+ "mounted_tool": "screwdriver_p0",
+ "mounted_tool_source": "profile grippers.right.active_index (5) at 2026-11-17T15:57:48.256567Z; the London loop starts and ends each run with rcup16_p0",
+ "demo_start_tool": "rcup16_p0",
+ "fixtures": [
+  {
+   "id": "rack_stand0",
+   "name": "tool rack stand 0 (stand2_62.5)",
+   "mesh": "meshes/rack_stand.glb",
+   "collision_mesh": "meshes/rack_stand.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.262196,
+     0.263355,
+     0.000147
+    ],
+    "rpy": [
+     0.0,
+     -0.0,
+     3.139847
+    ]
+   },
+   "collision": "mesh"
+  },
+  {
+   "id": "rack_stand1",
+   "name": "tool rack stand 1 (stand2_62.5)",
+   "mesh": "meshes/rack_stand.glb",
+   "collision_mesh": "meshes/rack_stand.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.262494,
+     0.200912,
+     0.000397
+    ],
+    "rpy": [
+     0.0,
+     -0.0,
+     3.140057
+    ]
+   },
+   "collision": "mesh"
+  },
+  {
+   "id": "rack_stand2",
+   "name": "tool rack stand 2 (stand2_62.5)",
+   "mesh": "meshes/rack_stand.glb",
+   "collision_mesh": "meshes/rack_stand.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.262237,
+     0.075681,
+     0.000852
+    ],
+    "rpy": [
+     0.0,
+     -0.0,
+     -3.141052
+    ]
+   },
+   "collision": "mesh"
+  },
+  {
+   "id": "rack_stand3",
+   "name": "tool rack stand 3 (stand2_62.5)",
+   "mesh": "meshes/rack_stand.glb",
+   "collision_mesh": "meshes/rack_stand.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.262511,
+     0.138264,
+     0.000698
+    ],
+    "rpy": [
+     0.0,
+     -0.0,
+     3.140825
+    ]
+   },
+   "collision": "mesh"
+  },
+  {
+   "id": "holder",
+   "name": "assembly holder: the wallet pocket (holder3 of Assem_holder_vacuum1)",
+   "mesh": "meshes/holder.glb",
+   "collision_mesh": "meshes/holder.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.900131,
+     0.087471,
+     0.000165
+    ],
+    "rpy": [
+     0.000151,
+     -0.00155,
+     -1.571866
+    ]
+   },
+   "collision": "mesh",
+   "pocket": {
+    "centre_on_floor_fixture_m": [
+     0.0001,
+     0.0001,
+     0.006
+    ],
+    "rim_z_fixture_m": 0.016
+   }
+  },
+  {
+   "id": "stack_north",
+   "name": "45 deg case stack, front cases (Assem_top_full__direct1_45_full)",
+   "mesh": "meshes/stack45.glb",
+   "collision_mesh": "meshes/stack45.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.977622,
+     0.162663,
+     0.02316
+    ],
+    "rpy": [
+     0.002341,
+     0.000987,
+     -3.138941
+    ]
+   },
+   "collision": "mesh",
+   "note": "CAD as drawn: the mounted print has the floor channel filled to a flat 45 deg slope (see MISSING.md)"
+  },
+  {
+   "id": "stack_south",
+   "name": "45 deg case stack, back cases (Assem_top_full__direct1_45_full)",
+   "mesh": "meshes/stack45.glb",
+   "collision_mesh": "meshes/stack45.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.977917,
+     0.06251,
+     0.02339
+    ],
+    "rpy": [
+     0.0037,
+     0.00465,
+     3.141511
+    ]
+   },
+   "collision": "mesh",
+   "note": "CAD as drawn: the mounted print has the floor channel filled to a flat 45 deg slope (see MISSING.md)"
+  },
+  {
+   "id": "button_clip",
+   "name": "button centring clip (BUTTON__LAST2)",
+   "mesh": "meshes/button_clip.glb",
+   "collision_mesh": "meshes/button_clip.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.738054,
+     0.087437,
+     -0.000331
+    ],
+    "rpy": [
+     0.00527,
+     7.9e-05,
+     0.00213
+    ]
+   },
+   "collision": "mesh"
+  },
+  {
+   "id": "button_plate",
+   "name": "green button plate (touch-measured body, no CAD)",
+   "mesh": null,
+   "pose_table": {
+    "xyz_m": [
+     0.812033,
+     0.087549,
+     0.001569
+    ],
+    "rpy": [
+     -0.00063,
+     -0.0005,
+     -0.00097
+    ]
+   },
+   "collision": "box",
+   "size_m": [
+    0.082286,
+    0.072442,
+    0.0031
+   ],
+   "geometry_source": "measured",
+   "note": "pose = the centre of the measured body; top face = where the buttons lie"
+  },
+  {
+   "id": "pcb_tray",
+   "name": "PCB tray: base plate with two 10-slot holders (Assem_pcb)",
+   "mesh": "meshes/pcb_tray.glb",
+   "collision_mesh": "meshes/pcb_tray.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.750118,
+     0.275423,
+     0.061879
+    ],
+    "rpy": [
+     0.0016,
+     0.000609,
+     1.571577
+    ]
+   },
+   "collision": "mesh",
+   "note": "stands on 60 mm standoffs that are not in the CAD (see MISSING.md)"
+  }
+ ],
+ "parts": [
+  {
+   "id": "front_case_1",
+   "name": "front case (TOP), 1 from the stop",
+   "mesh": "meshes/front_case.glb",
+   "collision_mesh": "meshes/front_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.995831,
+     0.162802,
+     0.034328
+    ],
+    "rpy": [
+     3.138284,
+     0.784409,
+     0.000313
+    ]
+   },
+   "mass_kg": 0.02003,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_north"
+  },
+  {
+   "id": "front_case_2",
+   "name": "front case (TOP), 2 from the stop",
+   "mesh": "meshes/front_case.glb",
+   "collision_mesh": "meshes/front_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.999928,
+     0.162822,
+     0.038433
+    ],
+    "rpy": [
+     3.138284,
+     0.784409,
+     0.000313
+    ]
+   },
+   "mass_kg": 0.02003,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_north"
+  },
+  {
+   "id": "front_case_3",
+   "name": "front case (TOP), 3 from the stop",
+   "mesh": "meshes/front_case.glb",
+   "collision_mesh": "meshes/front_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.004025,
+     0.162843,
+     0.042539
+    ],
+    "rpy": [
+     3.138284,
+     0.784409,
+     0.000313
+    ]
+   },
+   "mass_kg": 0.02003,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_north"
+  },
+  {
+   "id": "front_case_4",
+   "name": "front case (TOP), 4 from the stop",
+   "mesh": "meshes/front_case.glb",
+   "collision_mesh": "meshes/front_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.008122,
+     0.162863,
+     0.046644
+    ],
+    "rpy": [
+     3.138284,
+     0.784409,
+     0.000313
+    ]
+   },
+   "mass_kg": 0.02003,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_north"
+  },
+  {
+   "id": "front_case_5",
+   "name": "front case (TOP), 5 from the stop",
+   "mesh": "meshes/front_case.glb",
+   "collision_mesh": "meshes/front_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.01222,
+     0.162884,
+     0.050749
+    ],
+    "rpy": [
+     3.138284,
+     0.784409,
+     0.000313
+    ]
+   },
+   "mass_kg": 0.02003,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_north"
+  },
+  {
+   "id": "front_case_6",
+   "name": "front case (TOP), 6 from the stop",
+   "mesh": "meshes/front_case.glb",
+   "collision_mesh": "meshes/front_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.016317,
+     0.162904,
+     0.054854
+    ],
+    "rpy": [
+     3.138284,
+     0.784409,
+     0.000313
+    ]
+   },
+   "mass_kg": 0.02003,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_north"
+  },
+  {
+   "id": "back_case_1",
+   "name": "back case (BOTTOM), 1 from the stop",
+   "mesh": "meshes/back_case.glb",
+   "collision_mesh": "meshes/back_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.992454,
+     0.06269,
+     0.030959
+    ],
+    "rpy": [
+     3.136381,
+     0.780742,
+     -0.003769
+    ]
+   },
+   "mass_kg": 0.01853,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_south"
+  },
+  {
+   "id": "back_case_2",
+   "name": "back case (BOTTOM), 2 from the stop",
+   "mesh": "meshes/back_case.glb",
+   "collision_mesh": "meshes/back_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.995832,
+     0.062702,
+     0.034369
+    ],
+    "rpy": [
+     3.136381,
+     0.780742,
+     -0.003769
+    ]
+   },
+   "mass_kg": 0.01853,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_south"
+  },
+  {
+   "id": "back_case_3",
+   "name": "back case (BOTTOM), 3 from the stop",
+   "mesh": "meshes/back_case.glb",
+   "collision_mesh": "meshes/back_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.99921,
+     0.062715,
+     0.037778
+    ],
+    "rpy": [
+     3.136381,
+     0.780742,
+     -0.003769
+    ]
+   },
+   "mass_kg": 0.01853,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_south"
+  },
+  {
+   "id": "back_case_4",
+   "name": "back case (BOTTOM), 4 from the stop",
+   "mesh": "meshes/back_case.glb",
+   "collision_mesh": "meshes/back_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.002589,
+     0.062727,
+     0.041188
+    ],
+    "rpy": [
+     3.136381,
+     0.780742,
+     -0.003769
+    ]
+   },
+   "mass_kg": 0.01853,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_south"
+  },
+  {
+   "id": "back_case_5",
+   "name": "back case (BOTTOM), 5 from the stop",
+   "mesh": "meshes/back_case.glb",
+   "collision_mesh": "meshes/back_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.005967,
+     0.062739,
+     0.044598
+    ],
+    "rpy": [
+     3.136381,
+     0.780742,
+     -0.003769
+    ]
+   },
+   "mass_kg": 0.01853,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_south"
+  },
+  {
+   "id": "back_case_6",
+   "name": "back case (BOTTOM), 6 from the stop",
+   "mesh": "meshes/back_case.glb",
+   "collision_mesh": "meshes/back_case.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     1.009345,
+     0.062751,
+     0.048008
+    ],
+    "rpy": [
+     3.136381,
+     0.780742,
+     -0.003769
+    ]
+   },
+   "mass_kg": 0.01853,
+   "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
+   "on": "stack_south"
+  }
+ ],
+ "unplaced_parts": [
+  {
+   "id": "button",
+   "name": "button (plain BUTTON, surface model)",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "on": "button_plate",
+   "placement": "loose on the plate, pin up, any heading; the cell finds each one with the camera",
+   "region_table_m": [
+    0.77789,
+    0.05833,
+    0.84618,
+    0.11677
+   ],
+   "plate_top_z_table_m": 0.003119,
+   "pin_tip_above_plate_m": 0.004023
+  },
+  {
+   "id": "screw_m2x8",
+   "name": "M2x8 countersunk screw (ISO 14581)",
+   "mesh": "meshes/screw_m2x8.glb",
+   "collision_mesh": "meshes/screw_m2x8.collision.stl",
+   "on": "feeder (not in this file: no CAD)",
+   "placement": "one screw at the feeder's pick station, head up",
+   "pick_station_xy_table_m": [
+    0.737808,
+    0.419205
+   ],
+   "disc_z_table_m": 0.0784,
+   "nose_over_station_table_m": [
+    0.737808,
+    0.419205,
+    0.108211
+   ]
+  }
+ ],
+ "cameras": [
+  {
+   "name": "oak-left",
+   "parent": "flange",
+   "pose": {
+    "xyz_m": [
+     0.070888,
+     0.000464,
+     0.035836
+    ],
+    "rpy": [
+     -0.018246,
+     -0.005482,
+     1.578619
+    ]
+   },
+   "size": [
+    4056,
+    3040
+   ],
+   "K": [
+    3320.277388972051,
+    3319.7535031313228,
+    2049.3318128025667,
+    1577.9798469120044
+   ],
+   "frame": "OpenCV camera: +z along the view, +x right, +y down",
+   "stream": "colour still",
+   "D": [
+    0.0032591540964061762,
+    -0.1701826273029053,
+    0.0001551897946514738,
+    3.750622136406338e-05,
+    0.1916990837874502
+   ],
+   "distortion_model": "opencv 5-term",
+   "lens_position": 200
+  },
+  {
+   "name": "oak-left/mono-left",
+   "parent": "flange",
+   "pose": {
+    "xyz_m": [
+     0.070664,
+     -0.037701,
+     0.035413
+    ],
+    "rpy": [
+     -0.049202,
+     -0.004509,
+     1.573319
+    ]
+   },
+   "size": [
+    1280,
+    800
+   ],
+   "K": [
+    801.1154174804688,
+    801.4796752929688,
+    632.7736206054688,
+    390.5470275878906
+   ],
+   "frame": "OpenCV camera: +z along the view, +x right, +y down",
+   "stream": "mono left (global shutter)",
+   "D": [
+    25.21460723876953,
+    -39.54928970336914,
+    -0.0023162891156971455,
+    0.000619746744632721,
+    18.29759407043457,
+    24.525306701660156,
+    -37.5067253112793,
+    16.790483474731445,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01010760199278593,
+    0.0033947883639484644
+   ],
+   "distortion_model": "opencv 14-term (factory)"
+  },
+  {
+   "name": "oak-left/mono-right",
+   "parent": "flange",
+   "pose": {
+    "xyz_m": [
+     0.07039,
+     0.038006,
+     0.035173
+    ],
+    "rpy": [
+     -0.012239,
+     -0.000864,
+     1.589473
+    ]
+   },
+   "size": [
+    1280,
+    800
+   ],
+   "K": [
+    794.7510986328125,
+    794.9835205078125,
+    645.1537475585938,
+    385.4852294921875
+   ],
+   "frame": "OpenCV camera: +z along the view, +x right, +y down",
+   "stream": "mono right (global shutter)",
+   "D": [
+    25.591148376464844,
+    -40.858497619628906,
+    -0.0007665379671379924,
+    0.00046431421651504934,
+    19.48162078857422,
+    24.961252212524414,
+    -39.01252746582031,
+    18.10664939880371,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0008160884608514607,
+    0.006165793631225824
+   ],
+   "distortion_model": "opencv 14-term (factory)"
+  }
+ ],
+ "io": [
+  {
+   "name": "vacuum-held",
+   "kind": "input",
+   "function": "vacuum_held",
+   "bank": "control_box",
+   "channel": 0,
+   "active_high": true,
+   "arm_role": "arm-right"
+  },
+  {
+   "name": "changer-unlock",
+   "kind": "output",
+   "function": "changer_unlock",
+   "bank": "control_box",
+   "channel": 0,
+   "active_high": true,
+   "arm_role": "arm-right",
+   "on_stop": "safe",
+   "safe_state": false
+  },
+  {
+   "name": "screwdriver-vacuum",
+   "kind": "output",
+   "function": "vacuum_aux",
+   "bank": "control_box",
+   "channel": 3,
+   "active_high": true,
+   "arm_role": "arm-right",
+   "on_stop": "hold",
+   "safe_state": false
+  },
+  {
+   "name": "vacuum",
+   "kind": "output",
+   "function": "vacuum",
+   "bank": "control_box",
+   "channel": 1,
+   "active_high": true,
+   "arm_role": "arm-right",
+   "on_stop": "hold",
+   "safe_state": false
+  }
+ ]
+}
