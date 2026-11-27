@@ -56,6 +56,14 @@ file and body. Never hand-edit or simplify a mesh, and when physics
 says a part does not fit, compare the mesh with its STEP before
 believing it.
 
+## What physics is for
+
+Physics is there for what is meaningful to see: a released part
+dropping and settling, a hand push, a touch descent. Fine fits that add
+nothing to the picture — a screw in its hole in the feeder disc — are
+NOT simulated: place them from measured geometry and leave them. Do not
+spend effort making such contacts settle.
+
 ## Adding a new task
 
 1. Create `tasks/<name>/task.json`:

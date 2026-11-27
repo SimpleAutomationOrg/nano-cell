@@ -60,6 +60,17 @@ Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
 - `speed` is TIP speed in m/s (default 1.0 = full); joint limits are
   enforced on top.
 
+## What physics is for
+
+Simulate only what is meaningful to SEE: a released part dropping and
+coming to rest, a part pushed by hand, a touch descent stopping on
+something. Do not simulate fine fits whose contacts add nothing to the
+picture — a screw standing in its hole in the feeder disc, a pin in a
+bore. Place those from measured geometry (hole axis, hole bottom) and
+leave them there. The collision model is boxes, so a round shank in a
+round hole has no honest rest pose anyway; do not tune the physics to
+make such a fit settle.
+
 ## After any change to viewer/ or tasks/
 
 Run `./scripts/check.sh` (types + `test/motion.test.mjs`) and rerun the
