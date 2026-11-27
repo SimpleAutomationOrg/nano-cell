@@ -87,12 +87,12 @@ test('suction grasp stands off from the MEASURED face, not the CAD origin', () =
   for (let x = -0.03; x <= 0.03; x += 0.005)
     for (let y = -0.02; y <= 0.02; y += 0.005)
       for (const z of [-0.005, 0.001]) pts.push([x, y, z]);
-  const world = { items: new Map([['slab', { local: pts }]]), maxZ: 0, maxZInCorridor: () => 0, hitCapsule: () => null };
+  const points = new Map([['slab', pts]]);
   const p = createPlanner({
     cellData: cell,
     mountMat: IK.fromXyzRpy(cell.arm.mount_table.xyz_m, cell.arm.mount_table.rpy),
     getToolId: () => 'rcup16_p0',
-    world,
+    mjWorld: () => ({ probePoints: id => points.get(id) ?? null }),
   });
   const item = { id: 'slab', matrix: IK.fromXyzRpy([0.5, 0.3, 0.1], [0, 0, 0]) };
   const pose = p.suctionGrasp(item, 0.01);     // 10 mm standoff requested
@@ -106,7 +106,7 @@ test('suction grasp stands off from the MEASURED face, not the CAD origin', () =
   for (let x = -0.03; x <= 0.03; x += 0.005)
     for (let y = -0.02; y <= 0.02; y += 0.005)
       for (const z of [0.003, 0.009]) pts2.push([x, y, z]);
-  world.items.set('slab2', { local: pts2 });
+  points.set('slab2', pts2);
   const item2 = { id: 'slab2', matrix: IK.fromXyzRpy([0.5, 0.3, 0.1], [0, 0, 0]) };
   const lip2Z = IK.pos(p.suctionGrasp(item2, 0.01))[2];
   assert.ok(Math.abs(lip2Z - (0.103 - 0.01)) < 1e-6,
@@ -166,68 +166,6 @@ test('footprint azimuth follows the EDGES, not the point distribution', () => {
   const rot = IK.fromXyzRpy([0, 0, 0], [0, 0, d2r(30)]);
   const az30 = footprintAzimuth(pts, rot);
   assert.ok(Math.abs(az30 - d2r(30)) < d2r(1.1), `rotated edge at ${r2d(az30).toFixed(1)}°, true 30°`);
-});
-
-test('moveUntilTouch: firm directional contact, settles close, ignores side walls', () => {
-  // synthetic scene: a floor of points at z = 0.05 under the descent, and a
-  // WALL of points 4 mm beside one corner of the held part all the way
-  // down — a tight-pocket insertion. The wall must never stop the move;
-  // the floor must, and the part must settle within a few mm of it.
-  const FLOOR_Z = 0.05;
-  const mount = IK.fromXyzRpy(cell.arm.mount_table.xyz_m, cell.arm.mount_table.rpy);
-  const rel = IK.translate([0, 0, 0.16]);   // part frame: 160 mm out along the flange
-  const heldPts = [];
-  for (let x = -0.02; x <= 0.02; x += 0.02)
-    for (let y = -0.02; y <= 0.02; y += 0.02) heldPts.push([x, y, 0]);
-
-  // where the part's corner point travels, to plant the wall 4 mm beside it
-  const fl0 = IK.mul(mount, IK.fkFlange(HOME));
-  const pm0 = IK.mul(fl0, rel);
-  const corner = [
-    pm0[0] * 0.02 + pm0[1] * 0.02 + pm0[3],
-    pm0[4] * 0.02 + pm0[5] * 0.02 + pm0[7],
-    pm0[8] * 0.02 + pm0[9] * 0.02 + pm0[11]];
-
-  const obstacles = [];
-  for (let x = 0.6; x <= 1.1; x += 0.005)
-    for (let y = 0.0; y <= 0.5; y += 0.005) obstacles.push({ p: [x, y, FLOOR_Z], item: 'floor' });
-  for (let z = FLOOR_Z; z <= corner[2]; z += 0.003)
-    obstacles.push({ p: [corner[0] + 0.004, corner[1], z], item: 'wall' });
-
-  const fakeWorld = {
-    maxZ: FLOOR_Z, items: new Map(), maxZInCorridor: () => FLOOR_Z,
-    hitCapsule: (a, b, r) => {
-      let best = null;
-      for (const o of obstacles) {
-        const d = Math.hypot(o.p[0] - a[0], o.p[1] - a[1], o.p[2] - a[2]);
-        if (d <= r && (!best || d < best.dist)) best = { point: o.p, item: o.item, dist: d };
-      }
-      return best;
-    },
-  };
-  const p = createPlanner({
-    cellData: cell,
-    mountMat: mount,
-    getToolId: () => 'rcup16_p0',
-    world: fakeWorld,
-    getToolCapsules: () => [],
-  });
-  const held = { id: 'part', rel, pts: heldPts };
-  const res = p.planUntilTouch(HOME, [0, 0, -1], { maxDist: 0.3, held });
-  assert.equal(res.item, 'floor', `stopped on '${res.item}', the wall must not stop the move`);
-  // settle: the part's points end within a few mm of the floor, no penetration
-  const qEnd = res.path[res.path.length - 1];
-  const pmEnd = IK.mul(IK.mul(mount, IK.fkFlange(qEnd)), rel);
-  const minZ = Math.min(...heldPts.map(pt => pmEnd[8] * pt[0] + pmEnd[9] * pt[1] + pmEnd[11]));
-  const gap = minZ - FLOOR_Z;
-  assert.ok(gap > 0, 'must not penetrate the floor');
-  assert.ok(gap < 0.005, `settled ${(gap * 1000).toFixed(1)} mm above the floor — too high`);
-  // and with no obstacles at all: full travel, item null
-  const free = createPlanner({
-    cellData: cell, mountMat: mount, getToolId: () => 'rcup16_p0', getToolCapsules: () => [],
-  }).planUntilTouch(HOME, [0, 0, -1], { maxDist: 0.1, held });
-  assert.equal(free.item, null);
-  assert.ok(Math.abs(free.dist - 0.1) < 1e-9);
 });
 
 test('leg timing respects the FR3 joint velocity limits', () => {

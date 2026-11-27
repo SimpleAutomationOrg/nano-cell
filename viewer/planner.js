@@ -68,19 +68,17 @@ export class CollisionError extends Error {
 
 export function createPlanner(opts) {
   // opts: { cellData, mountMat, getToolId,
-  //         world?, armCapsules?, getToolCapsules?, guardBox?,
+  //         armCapsules?, getToolCapsules?, guardBox?,
   //         mjWorld?: () => mjWorldOrNull   (exact backend, mj-world.js),
   //         collisionCheck?: () => boolean }
   //
-  // Collision backends: when `mjWorld` returns a world, configuration
-  // contacts are EXACT (MuJoCo: box-decomposed obstacles vs arm/tool
-  // capsules, held part as a posed free body). Otherwise the sampled
-  // point-cloud world is used. The guard ceiling is analytic in both.
-  // Touch probing (planUntilTouch) stays on the sampled points — its
-  // interior-probe semantics are part of the contract.
+  // Geometry authority: MuJoCo (`mjWorld`). Collision contacts, touch
+  // probing, corridor heights and measurement points all derive from the
+  // same box-decomposed model. The guard ceiling is analytic. Without a
+  // backend (startup, or node tests that exercise pure kinematics) the
+  // collision checks are inactive and only the guard applies.
   const { cellData, mountMat } = opts;
   const invMount = IK.invRigid(mountMat);
-  const world = opts.world ?? null;
   const guardBox = opts.guardBox ?? null;
   const checkOn = opts.collisionCheck ?? (() => true);
 
@@ -144,21 +142,7 @@ export function createPlanner(opts) {
   function configHits(q, ignore, held = null) {
     const mjw = opts.mjWorld?.();
     if (mjw) return configHitsMj(mjw, q, ignore, held);
-    const found = [];
-    const mats = linkMats(q);
-    for (const c of opts.armCapsules ?? []) {
-      const m = mats[c.jointIdx];
-      const wa = applyMat(m, c.a), wb = applyMat(m, c.b);
-      const hit = world ? world.hitCapsule(wa, wb, c.r + MARGIN, ignore) : null;
-      if (hit) found.push({ ...hit, link: IK.CHAIN[c.jointIdx].link });
-    }
-    const fl = IK.mul(mountMat, IK.fkFlange(q));
-    for (const tc of opts.getToolCapsules?.() ?? []) {
-      const wa = applyMat(fl, tc.a), wb = applyMat(fl, tc.b);
-      const hit = world ? world.hitCapsule(wa, wb, tc.r + MARGIN, ignore) : null;
-      if (hit) found.push({ ...hit, link: 'tool' });
-    }
-    return found.concat(guardHits(q, ignore));
+    return guardHits(q, ignore);
   }
 
   // exact contacts via MuJoCo: arm + tool capsules and the held part
@@ -187,7 +171,7 @@ export function createPlanner(opts) {
   // held: { id, rel (flange→part Mat4), pts (part-local sample points) } | null
   function pathHit(path, ignoreIds, held = null, scene = null) {
     const mjw = opts.mjWorld?.();
-    if ((!world && !guardBox && !mjw) || !checkOn()) return null;
+    if ((!guardBox && !mjw) || !checkOn()) return null;
     const ignore = new Set(ignoreIds ?? []);
     if (held) ignore.add(held.id);
     if (mjw && scene) for (const sp of scene) mjw.setPartPose(sp.id, sp.mat);
@@ -204,16 +188,6 @@ export function createPlanner(opts) {
         const q = a.map((v, j) => v + (b[j] - v) * s / steps);
         for (const h of configHits(q, ignore, held)) {
           if (!preexisting.has(`${h.link}|${h.item}`)) return { ...h, q };
-        }
-        if (!mjw && held?.pts && held.rel) {
-          const pm = IK.mul(IK.mul(mountMat, IK.fkFlange(q)), held.rel);
-          const n = Math.max(1, Math.floor(held.pts.length / 250));
-          for (let i = 0; i < held.pts.length; i += n) {
-            const w = applyMat(pm, held.pts[i]);
-            const hit = (world ? world.hitCapsule(w, w, MARGIN + 0.002, ignore) : null)
-              ?? (ignore.has('guard') ? null : guardHit(w, w, 0.002));
-            if (hit) return { ...hit, link: `held ${held.id}`, q };
-          }
         }
       }
     }
@@ -289,64 +263,101 @@ export function createPlanner(opts) {
     return path;
   }
 
-  // Contact-seeking move: advance the tip along `dir` in small steps until
-  // the HELD PART (or the tool) makes FIRM contact, then settle onto it.
-  // Firm means >= firmContacts sample points whose contact vector points
-  // ALONG the motion (a supporting surface ahead) — a single grazing point,
-  // or pocket walls beside the part during a tight insertion, never stop
-  // the move. After detection the remaining gap to the contact points is
-  // measured and closed to ~1.5 mm, so parts rest on surfaces instead of
-  // hovering a tolerance above them.
+  // Contact-seeking move on MuJoCo contacts: advance the tip along `dir`
+  // in small steps until the HELD PART (or the tool) makes FIRM contact,
+  // then settle onto it. The semantics are unchanged from the sampled
+  // era, now computed exactly:
+  //  - directional: a contact counts only when its surface normal pushes
+  //    against the motion (a supporting surface ahead, not a side wall)
+  //  - interior: for a held part, contacts under its outline edges are
+  //    ignored (a pocket rim never stops an insertion)
+  //  - firm: >= firmContacts such contacts at once
+  //  - settle: the measured remaining gap is closed to `rest` (1.5 mm)
   // Returns { path, dist, item }; item is null when maxDist ran out.
-  // minDist: contacts are ignored before this travel (rarely needed).
-  // Probing uses only the held part's INTERIOR points (edgeShrink inset
-  // from its outline): a pocket rim under the part's edges never counts
-  // as contact, so tight insertions pass the rim with no blind zone,
-  // while a pile or floor under the part's middle always registers.
   function planUntilTouch(q0, dir, { maxDist = 0.12, minDist = 0, step = 0.002, touchTol = 0.005,
                                      firmContacts = 3, rest = 0.0015, edgeShrink = 0.006,
-                                     ignore, held } = {}) {
+                                     ignore, held, scene } = {}) {
+    const mjw = opts.mjWorld?.();
     const ig = new Set(ignore ?? []);
     if (held) ig.add(held.id);
-    const n = Math.hypot(...dir) || 1;
-    const u = dir.map(v => v / n);
+    const n0 = Math.hypot(...dir) || 1;
+    const u = dir.map(v => v / n0);
+    if (mjw && scene) for (const sp of scene) mjw.setPartPose(sp.id, sp.mat);
 
-    // interior probe subset of the held part's samples (local-frame inset)
-    let probePts = held?.pts ?? null;
-    if (probePts && edgeShrink > 0) {
-      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      for (const p of probePts) {
-        if (p[0] < minX) minX = p[0]; if (p[0] > maxX) maxX = p[0];
-        if (p[1] < minY) minY = p[1]; if (p[1] > maxY) maxY = p[1];
+    // interior-support test: a contact only counts as support when the
+    // touched BOX's footprint overlaps the held part's interior footprint
+    // (shrunk by edgeShrink). A pocket-rim wall is millimetres wide — its
+    // overlap with the interior is ~zero — while a floor, a pile or a
+    // case below overlaps broadly. Positions of box-box contact points
+    // cannot be used for this: manifolds put them at overlap corners,
+    // i.e. at the part's own edges. World-AABB approximation.
+    const worldAABB = (mat, b) => {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z1 = -Infinity;
+      const [cx, cy, cz] = b.center, [hx, hy, hz] = b.size.map(v => v / 2);
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) {
+        const px = cx + sx * hx, py = cy + sy * hy, pz = cz + sz * hz;
+        const wx = mat[0] * px + mat[1] * py + mat[2] * pz + mat[3];
+        const wy = mat[4] * px + mat[5] * py + mat[6] * pz + mat[7];
+        const wz = mat[8] * px + mat[9] * py + mat[10] * pz + mat[11];
+        x0 = Math.min(x0, wx); x1 = Math.max(x1, wx);
+        y0 = Math.min(y0, wy); y1 = Math.max(y1, wy); z1 = Math.max(z1, wz);
       }
-      const inner = probePts.filter(p =>
-        p[0] > minX + edgeShrink && p[0] < maxX - edgeShrink &&
-        p[1] > minY + edgeShrink && p[1] < maxY - edgeShrink);
-      if (inner.length >= 6) probePts = inner;
-    }
+      return { x0, x1, y0, y1, z1 };
+    };
+    const itemMat = id => {
+      if (mjw.readPartPose && (cellData.parts ?? []).some(x => x.id === id))
+        return mjw.readPartPose(id);
+      const f = (cellData.fixtures ?? []).find(x => x.id === id);
+      return f ? IK.fromXyzRpy(f.pose_table.xyz_m, f.pose_table.rpy) : null;
+    };
+    const supportsInterior = (other, pos, heldPose) => {
+      if (!held || !heldPose) return true;             // tool touch: no filter
+      const hb = mjw.getBoxes().get(held.id);
+      const ob = mjw.getBoxes().get(other);
+      const om = itemMat(other);
+      if (!hb?.length || !ob?.length || !om) return true;
+      // held interior rect (world AABB of all held boxes, shrunk)
+      let H = null;
+      for (const b of hb) {
+        const a = worldAABB(heldPose, b);
+        H = H ? { x0: Math.min(H.x0, a.x0), x1: Math.max(H.x1, a.x1), y0: Math.min(H.y0, a.y0), y1: Math.max(H.y1, a.y1) } : a;
+      }
+      H = { x0: H.x0 + edgeShrink, x1: H.x1 - edgeShrink, y0: H.y0 + edgeShrink, y1: H.y1 - edgeShrink };
+      // the touched box: the one whose AABB contains the contact point
+      for (const b of ob) {
+        const a = worldAABB(om, b);
+        if (pos[0] < a.x0 - 3e-3 || pos[0] > a.x1 + 3e-3 ||
+            pos[1] < a.y0 - 3e-3 || pos[1] > a.y1 + 3e-3 ||
+            pos[2] > a.z1 + 6e-3) continue;
+        const ox = Math.min(H.x1, a.x1) - Math.max(H.x0, a.x0);
+        const oy = Math.min(H.y1, a.y1) - Math.max(H.y0, a.y0);
+        if (ox > 0 && oy > 0 && ox * oy > 1e-4) return true;   // ≥ 100 mm²
+      }
+      return false;
+    };
 
-    // all directional contacts at config q: { along, item } per touching point
+    const probeName = held ? held.id : 'arm:flange';
     const contactsAt = q => {
-      const fl = IK.mul(mountMat, IK.fkFlange(q));
+      if (!mjw) return [];
+      mjw.setArm(q);
+      let heldPose = null;
+      if (held?.rel) {
+        heldPose = IK.mul(IK.mul(mountMat, IK.fkFlange(q)), held.rel);
+        mjw.setPartPose(held.id, heldPose);
+      }
       const found = [];
-      if (probePts && held?.rel) {
-        const pm = IK.mul(fl, held.rel);
-        const sk = Math.max(1, Math.floor(probePts.length / 400));
-        for (let i = 0; i < probePts.length; i += sk) {
-          const w = applyMat(pm, probePts[i]);
-          const hit = world?.hitCapsule(w, w, touchTol, ig);
-          if (!hit) continue;
-          const dv = [hit.point[0] - w[0], hit.point[1] - w[1], hit.point[2] - w[2]];
-          const along = dv[0] * u[0] + dv[1] * u[1] + dv[2] * u[2];
-          // supporting contact: the obstacle lies AHEAD along the motion
-          if (along > 0.4 * Math.hypot(...dv)) found.push({ along, item: hit.item });
-        }
-      } else {
-        for (const tc of opts.getToolCapsules?.() ?? []) {
-          const wa = applyMat(fl, tc.a), wb = applyMat(fl, tc.b);
-          const hit = world?.hitCapsule(wa, wb, tc.r + touchTol, ig);
-          if (hit) found.push({ along: hit.dist - tc.r, item: hit.item }, { along: hit.dist - tc.r, item: hit.item }, { along: hit.dist - tc.r, item: hit.item });
-        }
+      for (const c of mjw.contacts(touchTol, held ? [held.id] : [])) {
+        const aIs = c.a === probeName, bIs = c.b === probeName;
+        if (!aIs && !bIs) continue;
+        const other = aIs ? c.b : c.a;
+        if (ig.has(other) || other.startsWith('arm:')) continue;
+        // surface normal pushing AGAINST the motion = support ahead
+        const nTo = aIs ? c.normalAB.map(v => -v) : c.normalAB; // toward the probe
+        const along = -(nTo[0] * u[0] + nTo[1] * u[1] + nTo[2] * u[2]);
+        if (along < 0.4) continue;
+        // interior-support filter (see above)
+        if (!supportsInterior(other, c.pos, heldPose)) continue;
+        found.push({ gap: Math.max(0, c.dist), item: other });
       }
       return found;
     };
@@ -367,8 +378,8 @@ export function createPlanner(opts) {
       catch { break; }                    // reach limit — stop where we are
       const cs = d >= minDist ? contactsAt(q) : [];
       if (cs.length >= firmContacts) {
-        // settle: close the measured gap to the supporting points
-        const gap = Math.min(...cs.map(c => c.along));
+        // settle: close the measured gap to the supporting contacts
+        const gap = Math.min(...cs.map(c => c.gap));
         const dSettle = d + Math.max(0, gap - rest);
         try { path.push(IK.ikNear(tipToFlangeBase(tipAt(dSettle)), q)); dist = dSettle; }
         catch { path.push(q); dist = d; }
@@ -429,8 +440,9 @@ export function createPlanner(opts) {
     };
 
     const ignoreSet = new Set([...(ignore ?? []), ...(held ? [held.id] : [])]);
-    const hCorr = (world ? world.maxZInCorridor(p0, p1, 0.15, ignoreSet) : 0.25) + clearance;
-    const hAll = (world ? world.maxZ : 0.35) + clearance;
+    const mjw = opts.mjWorld?.();
+    const hCorr = (mjw ? mjw.corridorMaxZ(p0, p1, 0.15, ignoreSet) : 0.25) + clearance;
+    const hAll = (mjw ? mjw.maxZAll() : 0.35) + clearance;
     const candidates = [
       { name: 'direct', make: () => buildVia(lerp3(p0, p1, 8)) },
       { name: `corridor z=${Math.round(hCorr * 1000)}`, make: () => { const v = viaPts(hCorr); return buildVia(v.pts, v.settle); } },
@@ -522,12 +534,11 @@ export function createPlanner(opts) {
     // made a "2 mm" approach a 7 mm air gap that the vacuum seat then
     // closed as a visible jump
     let faceOff = 0;
-    const wi = world?.items.get(item.id);
-    if (wi?.local?.length) {
-      const step = Math.max(1, Math.floor(wi.local.length / 400));
+    const pts = opts.mjWorld?.()?.probePoints?.(item.id);
+    if (pts?.length) {
       let m = -Infinity;
-      for (let i = 0; i < wi.local.length; i += step) {
-        const w = applyMat(item.matrix, wi.local[i]);
+      for (const lp of pts) {
+        const w = applyMat(item.matrix, lp);
         const d = (w[0] - p[0]) * n[0] + (w[1] - p[1]) * n[1] + (w[2] - p[2]) * n[2];
         if (d > m) m = d;
       }

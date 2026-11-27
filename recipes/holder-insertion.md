@@ -84,5 +84,5 @@ at a move's start are allowed to persist while departing.
 - Computed drop heights and rim blind zones — superseded by
   interior-probe `moveUntilTouch`.
 
-Debugging: turn on **collision points** in the Show panel — the orange
-samples are exactly what every measurement above runs against.
+Debugging: turn on **MuJoCo boxes** in the Show panel — the teal
+boxes are exactly the geometry every check and measurement runs against.

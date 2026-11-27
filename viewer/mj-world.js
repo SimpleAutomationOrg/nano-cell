@@ -52,19 +52,20 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
     return `<geom type="capsule" ${GROUPS[group]} fromto="${vec(c.a)} ${vec(c.b)}" size="${Number(c.r.toFixed(7))}"/>`;
   };
 
-  const boxesByItem = new Map();  // id -> local-frame boxes (debug view)
+  const boxesByItem = new Map();  // id -> local-frame boxes
+  const itemBoxes = async it => it.boxes ?? await boxesFor(it.collision_mesh);
   async function buildXml(toolCaps) {
     let wb = '';
     for (const it of cellData.fixtures ?? []) {
-      if (!it.collision_mesh) continue;
-      const boxes = await boxesFor(it.collision_mesh);
+      if (!it.collision_mesh && !it.boxes) continue;
+      const boxes = await itemBoxes(it);
       boxesByItem.set(it.id, boxes);
       wb += `<body name="${it.id}" pos="${vec(it.pose_table.xyz_m)}" quat="${quatAttr(it.pose_table.rpy)}">
         ${boxGeoms(boxes, 'fixture')}</body>\n`;
     }
     for (const it of cellData.parts ?? []) {
-      if (!it.collision_mesh) continue;
-      const boxes = await boxesFor(it.collision_mesh);
+      if (!it.collision_mesh && !it.boxes) continue;
+      const boxes = await itemBoxes(it);
       boxesByItem.set(it.id, boxes);
       wb += `<body name="${it.id}" pos="${vec(it.pose_table.xyz_m)}" quat="${quatAttr(it.pose_table.rpy)}">
         <freejoint name="fj:${it.id}"/>
@@ -162,6 +163,7 @@ ${wb}
       out.push({
         a: w.geomItem[c.geom1], b: w.geomItem[c.geom2],
         dist: c.dist, pos: [c.pos[0], c.pos[1], c.pos[2]],
+        normalAB: [c.frame[0], c.frame[1], c.frame[2]],  // from a toward b
       });
       c.delete?.();
     }
@@ -225,8 +227,67 @@ ${wb}
     return { pose, traj };
   }
 
+  // MEASUREMENT points derived from the SAME boxes MuJoCo collides:
+  // corners + face centres of every box, in the item's local frame.
+  // Deterministic (no random sampling) and consistent with collision.
+  const probeCache = new Map();
+  function probePoints(id) {
+    if (probeCache.has(id)) return probeCache.get(id);
+    const boxes = boxesByItem.get(id);
+    if (!boxes) return null;
+    const pts = [];
+    for (const b of boxes) {
+      const [cx, cy, cz] = b.center;
+      const [hx, hy, hz] = b.size.map(v => v / 2);
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1])
+        pts.push([cx + sx * hx, cy + sy * hy, cz + sz * hz]);
+      pts.push([cx + hx, cy, cz], [cx - hx, cy, cz], [cx, cy + hy, cz],
+               [cx, cy - hy, cz], [cx, cy, cz + hz], [cx, cy, cz - hz]);
+    }
+    probeCache.set(id, pts);
+    return pts;
+  }
+
+  // highest box-corner z within halfWidth of the 2D segment a→b, using
+  // CURRENT poses (fixtures static, parts from qpos)
+  function corridorMaxZ(a, b, halfWidth, ignore) {
+    const ab = [b[0] - a[0], b[1] - a[1]];
+    const len2 = ab[0] * ab[0] + ab[1] * ab[1];
+    let maxZ = 0;
+    for (const [id, boxes] of boxesByItem) {
+      if (ignore?.has(id)) continue;
+      const isPart = w.partAdr.has(id);
+      const fix = !isPart ? (cellData.fixtures ?? []).find(f => f.id === id) : null;
+      const mat = isPart ? readPartPose(id)
+        : IK.mul(IK.fromXyzRpy(fix.pose_table.xyz_m, [0, 0, 0]), IK.fromXyzRpy([0, 0, 0], fix.pose_table.rpy));
+      for (const bx of boxes) {
+        const [cx, cy, cz] = bx.center;
+        const [hx, hy, hz] = bx.size.map(v => v / 2);
+        for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+          const px = cx + sx * hx, py = cy + sy * hy, pz = cz + hz;
+          const wx = mat[0] * px + mat[1] * py + mat[2] * pz + mat[3];
+          const wy = mat[4] * px + mat[5] * py + mat[6] * pz + mat[7];
+          const wz = mat[8] * px + mat[9] * py + mat[10] * pz + mat[11];
+          let t = len2 > 1e-12 ? ((wx - a[0]) * ab[0] + (wy - a[1]) * ab[1]) / len2 : 0;
+          t = Math.max(0, Math.min(1, t));
+          const d = Math.hypot(wx - a[0] - ab[0] * t, wy - a[1] - ab[1] * t);
+          if (d < halfWidth && wz > maxZ) maxZ = wz;
+        }
+      }
+    }
+    return maxZ;
+  }
+
+  let maxZAllCache = null;
+  function maxZAll() {
+    if (maxZAllCache !== null) return maxZAllCache;
+    maxZAllCache = corridorMaxZ([0, 0], [1.3, 0.6], 10, null);
+    return maxZAllCache;
+  }
+
   return {
     setArm, setPartPose, contacts, readPartPose, settlePart,
+    probePoints, corridorMaxZ, maxZAll,
     getBoxes: () => boxesByItem,
     rebuildTool: caps => rebuild(caps),
     get model() { return w.model; },

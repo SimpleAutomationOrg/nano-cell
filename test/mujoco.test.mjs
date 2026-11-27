@@ -59,6 +59,46 @@ test('MuJoCo world: dock pose near the rack, home pose clean', { skip: !mj }, as
   assert.equal(home.length, 0, `home pose contacts: ${home.map(c => c.a + '/' + c.b)}`);
 });
 
+test('touch on the exact backend: wall ignored, floor stops, settles close', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  // synthetic cell: a floor slab, a wall column 4 mm beside the falling
+  // part's corner all the way down (tight insertion), and a slab part
+  const mount = cell.arm.mount_table;
+  const HOME = [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48].map(d2r);
+  const rel = IK.translate([0, 0, 0.16]);
+  // where the part's +x+y corner travels, to plant the wall beside it
+  const mountMat = IK.fromXyzRpy(mount.xyz_m, mount.rpy);
+  const pm0 = IK.mul(IK.mul(mountMat, IK.fkFlange(HOME)), rel);
+  const corner = [
+    pm0[0] * 0.02 + pm0[1] * 0.02 + pm0[3],
+    pm0[4] * 0.02 + pm0[5] * 0.02 + pm0[7]];
+  const zeroPose = { xyz_m: [0, 0, 0], rpy: [0, 0, 0] };
+  const synth = {
+    arm: cell.arm, tools: cell.tools, cameras: [],
+    fixtures: [
+      { id: 'floor', pose_table: zeroPose, boxes: [{ center: [0.85, 0.25, 0.02], size: [0.8, 0.8, 0.06] }] },
+      { id: 'wall', pose_table: zeroPose, boxes: [{ center: [corner[0] + 0.006, corner[1], 0.2], size: [0.004, 0.04, 0.3] }] },
+    ],
+    parts: [
+      { id: 'slab', pose_table: { xyz_m: [0.3, 0.5, 0.05], rpy: [0, 0, 0] },
+        boxes: [{ center: [0, 0, 0], size: [0.04, 0.04, 0.006] }] },
+    ],
+  };
+  const world = await createMjWorld({ mj, cellData: synth, armCapsules: [], toolCapsules: [], loadStlBuffer: async () => { throw new Error('no meshes'); } });
+  const planner = createPlanner({
+    cellData: synth, mountMat, getToolId: () => 'rcup16_p0', mjWorld: () => world,
+  });
+  const res = planner.planUntilTouch(HOME, [0, 0, -1],
+    { maxDist: 0.3, held: { id: 'slab', rel } });
+  assert.equal(res.item, 'floor', `stopped on '${res.item}' — the wall must not stop the move`);
+  const qEnd = res.path[res.path.length - 1];
+  const pmEnd = IK.mul(IK.mul(mountMat, IK.fkFlange(qEnd)), rel);
+  const bottom = pmEnd[11] - 0.003;             // slab half-thickness
+  const gap = bottom - 0.05;                    // floor top
+  assert.ok(gap > 0, 'must not penetrate the floor');
+  assert.ok(gap < 0.005, `settled ${(gap * 1000).toFixed(1)} mm above the floor — too high`);
+});
+
 test('drop test: a released case falls and settles into the pocket', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const world = await createMjWorld({

@@ -14,7 +14,6 @@ export function createHost(opts) {
   //         getToolId, onLog, onJoints, collisionWorld, guardBox,
   //         armCapsules, getToolCapsules, onCollision }
   const { cellData, spins, flangeGroup, worldGroup, partNodes, mountMat } = opts;
-  const world = opts.collisionWorld ?? null;
 
   const st = {
     speed: 1,
@@ -36,7 +35,6 @@ export function createHost(opts) {
   const planner = createPlanner({
     cellData, mountMat,
     getToolId: opts.getToolId,
-    world,
     guardBox: opts.guardBox ?? null,
     armCapsules: opts.armCapsules ?? [],
     getToolCapsules: opts.getToolCapsules,
@@ -63,7 +61,6 @@ export function createHost(opts) {
     return {
       id: st.held,
       rel: [e[0], e[4], e[8], e[12], e[1], e[5], e[9], e[13], e[2], e[6], e[10], e[14], 0, 0, 0, 1],
-      pts: world?.items.get(st.held)?.local ?? null,
     };
   }
 
@@ -203,7 +200,7 @@ export function createHost(opts) {
     // touched, which is not the part's centre.
     heldFootprintCenter: (cupPose) => {
       if (!st.held) return null;
-      const pts = world?.items.get(st.held)?.local;
+      const pts = probePts(st.held);
       if (!pts?.length) return null;
       const pm = IK.mul(cupPose, api.heldInTip());
       let zMin = Infinity;
@@ -221,7 +218,7 @@ export function createHost(opts) {
     // samples, not from its frame labels. Null when empty.
     heldFootprintAzimuth: (cupPose) => {
       if (!st.held) return null;
-      const pts = world?.items.get(st.held)?.local;
+      const pts = probePts(st.held);
       if (!pts?.length) return null;
       const rel = api.heldInTip();
       return footprintAzimuth(pts, IK.mul(cupPose, rel));
@@ -285,7 +282,8 @@ export function createHost(opts) {
       checkRun('moveUntilTouch');
       emit('move_until_touch', { dir, maxDist, minDist });
       logCmd(`moveUntilTouch [${dir.join(', ')}] up to ${(maxDist * 1000).toFixed(0)} mm`);
-      const plan = planner.planUntilTouch(jointsRad(), dir, { maxDist, minDist, ignore, held: heldInfo() });
+      const plan = planner.planUntilTouch(jointsRad(), dir,
+        { maxDist, minDist, ignore, held: heldInfo(), scene: sceneInfo() });
       if (plan.path.length > 1) await animate(plan.path, speed);
       log(plan.item
         ? `  touched ${plan.item} after ${(plan.dist * 1000).toFixed(0)} mm`
@@ -306,13 +304,12 @@ export function createHost(opts) {
       if (!node) throw new Error(`grasp: unknown part '${partId}'`);
       flangeGroup.attach(node);
       st.held = partId;
-      world?.remove(partId);  // it moves with the arm now
 
       // seat the part: the vacuum pulls it flush onto the cup lip, closing
       // the approach standoff and any origin-vs-surface offset. Gap = the
       // smallest distance from the lip plane to the part's surface points
       // along the cup axis.
-      const pts = world?.items.get(partId)?.local;
+      const pts = probePts(partId);
       if (pts?.length) {
         const applyM = (m, p) => [
           m[0] * p[0] + m[1] * p[1] + m[2] * p[2] + m[3],
@@ -322,9 +319,8 @@ export function createHost(opts) {
         const lp = IK.pos(lip), zl = IK.axis(lip, 2);
         const pm = liveMatrix(node);
         let gap = Infinity;
-        const step = Math.max(1, Math.floor(pts.length / 400));
-        for (let i = 0; i < pts.length; i += step) {
-          const w = applyM(pm, pts[i]);
+        for (const lp of pts) {
+          const w = applyM(pm, lp);
           const d = (w[0] - lp[0]) * zl[0] + (w[1] - lp[1]) * zl[1] + (w[2] - lp[2]) * zl[2];
           if (d > -0.003 && d < gap) gap = d;  // in front of the lip only
         }
@@ -376,7 +372,6 @@ export function createHost(opts) {
           }
         } catch (err) { log(`  settle failed: ${err.message ?? err}`); }
       }
-      world?.place(id, mat);
       emit('release', { part: id });
       log(`release ${id}`);
       st.held = null;
@@ -417,12 +412,14 @@ export function createHost(opts) {
     m[4] * p[0] + m[5] * p[1] + m[6] * p[2] + m[7],
     m[8] * p[0] + m[9] * p[1] + m[10] * p[2] + m[11]];
 
+  const probePts = id => opts.getMjWorld?.()?.probePoints?.(id) ?? null;
+
   function topCenterOf(id, matrix) {
-    const wi = world?.items.get(id);
-    if (!wi?.local?.length) return { center: [matrix[3], matrix[7], matrix[11]], longAxis: 0 };
+    const pts = probePts(id);
+    if (!pts?.length) return { center: [matrix[3], matrix[7], matrix[11]], longAxis: 0 };
     let zMax = -Infinity;
-    for (const p of wi.local) if (p[2] > zMax) zMax = p[2];
-    const band = wi.local.filter(p => p[2] >= zMax - 0.012);
+    for (const p of pts) if (p[2] > zMax) zMax = p[2];
+    const band = pts.filter(p => p[2] >= zMax - 0.012);
     let nB = 0, zSum = 0;
     for (const p of band) { zSum += p[2]; nB++; }
     if (nB <= 10) return { center: [matrix[3], matrix[7], matrix[11]], longAxis: 0 };
@@ -471,7 +468,7 @@ export function createHost(opts) {
   };
 
   return {
-    api, ctx, update, abort, state: st, planner, world,
+    api, ctx, update, abort, state: st, planner,
     snapJointsDeg: deg => setJointsRad(deg.map(d2r)),
     pause: () => { st.paused = true; },
     resume: () => { st.paused = false; },

@@ -13,12 +13,11 @@ Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
   layer (commands → joint paths, collision checks, pose policies — node-
   testable, no three.js); `cell-host.js` animates planned paths and moves
   scene objects; `ik.js` FK/IK (5-DOF free-spin + TCP); `collision.js`
-  sampled collision world; `mj-world.js` + `boxify.js` + `stl.js` the
-  optional EXACT backend (MuJoCo, from npm; cavity-preserving box
-  decomposition); `cell.d.ts` the segment API types. The planner picks
-  the exact backend when available, sampled geometry otherwise — the
-  measurement helpers (topCenter, footprints, touch probes) always use
-  the sampled points.
+  `mj-world.js` + `boxify.js` + `stl.js` the geometry/physics backend
+  (MuJoCo wasm, REQUIRED via npm; cavity-preserving box decomposition);
+  `capsules.js` fits the arm/tool capsules; `cell.d.ts` the segment API
+  types. Collision, touch, corridor heights, measurements and gravity
+  settling all derive from the one MuJoCo model.
 - `cell/dvt01/` — the cell as data (poses in the table frame, z up, metres).
 - `arm/fr3/` — FR3 link meshes; the kinematic chain constants live in `ik.js`.
 - `tasks/<name>/` — `task.json` (tool, segment order) + `segments/*.ts`.

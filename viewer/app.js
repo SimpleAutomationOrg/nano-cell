@@ -4,7 +4,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CHAIN } from './ik.js';
 import * as IK from './ik.js';
 import { createHost } from './cell-host.js';
-import { CollisionWorld, capsuleFromObject } from './collision.js';
+import { capsuleFromObject } from './capsules.js';
 import { createMjWorld } from './mj-world.js';
 
 const status = m => document.getElementById('status').textContent = m;
@@ -389,16 +389,6 @@ async function main() {
   };
   sel.addEventListener('change', refreshToolCapsule);
 
-  // collision world from the repo's *.collision.stl files
-  const colWorld = new CollisionWorld();
-  status('loading collision meshes…');
-  const colItems = [...(cell.fixtures ?? []), ...(cell.parts ?? [])];
-  await Promise.all(colItems.map(it => {
-    const mat = IK.fromXyzRpy(it.pose_table.xyz_m, it.pose_table.rpy);
-    return it.collision_mesh
-      ? colWorld.addStl(it.id, '../cell/dvt01/' + it.collision_mesh, mat)
-      : Promise.resolve(colWorld.addBox(it.id, [0.04, 0.04, 0.015], mat));
-  }));
 
   // red marker where a predicted collision was reported
   const hitMarker = new THREE.Mesh(
@@ -412,35 +402,35 @@ async function main() {
   addToggle('parts', parts);
   addToggle('flange stack', stack);
 
-  // exact collision backend (optional): MuJoCo loads from node_modules
-  // when installed; without it the sampled fallback runs — the viewer
-  // itself stays zero-dependency
+  // MuJoCo is THE geometry backend (collision, touch, physics,
+  // measurements). It is required: without `npm install` tasks cannot
+  // run, though the scene itself still renders for inspection.
   let mjWorldRef = null;
   window.mjWorld = () => mjWorldRef;   // console/debug access
   const backendBadge = document.createElement('div');
   backendBadge.style.cssText = 'margin-top:6px;color:#7d8a99;font-size:11px';
-  backendBadge.textContent = 'collision: sampled (fallback)';
+  backendBadge.textContent = 'physics: loading MuJoCo…';
   document.getElementById('toggles').appendChild(backendBadge);
-  (async () => {
-    try {
-      const loadMujoco = (await import('/node_modules/@mujoco/mujoco/mujoco.js')).default;
-      const mjmod = await loadMujoco();
-      mjWorldRef = await createMjWorld({
-        mj: mjmod, cellData: cell, armCapsules, toolCapsules,
-        loadStlBuffer: p => fetch('../cell/dvt01/' + p).then(r => {
-          if (!r.ok) throw new Error(`${p}: ${r.status}`);
-          return r.arrayBuffer();
-        }),
-      });
-      taskLog('exact collision backend active (MuJoCo)');
-      backendBadge.textContent = 'collision: exact (MuJoCo) · gravity settle on release';
-      backendBadge.style.color = '#7fd0a0';
-      console.log('[mj] exact collision backend active');
-    } catch (e) {
-      console.warn('[mj] backend unavailable, using sampled collision:', e);
-      taskLog('mj backend failed: ' + (e && e.message ? e.message : e));
-    }
-  })();
+  try {
+    status('loading physics…');
+    const loadMujoco = (await import('/node_modules/@mujoco/mujoco/mujoco.js')).default;
+    const mjmod = await loadMujoco();
+    mjWorldRef = await createMjWorld({
+      mj: mjmod, cellData: cell, armCapsules, toolCapsules,
+      loadStlBuffer: p => fetch('../cell/dvt01/' + p).then(r => {
+        if (!r.ok) throw new Error(`${p}: ${r.status}`);
+        return r.arrayBuffer();
+      }),
+    });
+    backendBadge.textContent = 'physics: MuJoCo';
+    backendBadge.style.color = '#7fd0a0';
+  } catch (e) {
+    console.warn('[mj] backend failed to load:', e);
+    backendBadge.textContent = 'physics: UNAVAILABLE — run `npm install`, then reload';
+    backendBadge.style.color = '#ff7f7f';
+    taskLog('MuJoCo failed to load — tasks disabled (run `npm install`)');
+    document.getElementById('taskSel').disabled = true;
+  }
 
   // the task host
   host = createHost({
@@ -450,7 +440,6 @@ async function main() {
     getToolId: () => sel.value,
     onLog: taskLog,
     onJoints: reflectJointsDeg,
-    collisionWorld: colWorld,
     guardBox: (() => {
       const e = cell.guard.envelope_mm;
       const ext = (cell.guard.wall_extensions_mm?.right_wall ?? 0) / 1000;
@@ -471,34 +460,6 @@ async function main() {
   colToggle.querySelector('input').addEventListener('change', e => host.setCollisionCheck(e.target.checked));
   document.getElementById('toggles').appendChild(colToggle);
 
-  // debug view: the collision sample points of every item, at their
-  // CURRENT poses (rebuilt on each toggle-on, so it reflects moved parts)
-  let colPoints = null;
-  const ptsToggle = document.createElement('label');
-  ptsToggle.innerHTML = `<input type="checkbox"> collision points`;
-  ptsToggle.querySelector('input').addEventListener('change', e => {
-    if (colPoints) { world.remove(colPoints); colPoints = null; }
-    if (!e.target.checked) return;
-    colPoints = new THREE.Group();
-    const mat = new THREE.PointsMaterial({ color: 0xffa500, size: 0.004 });
-    for (const [id, it] of colWorld.items) {
-      if (!it.active || !it.local?.length) continue;
-      const arr = new Float32Array(it.local.length * 3);
-      it.local.forEach((p, i) => {
-        const m = it.mat;
-        arr[i * 3] = m[0] * p[0] + m[1] * p[1] + m[2] * p[2] + m[3];
-        arr[i * 3 + 1] = m[4] * p[0] + m[5] * p[1] + m[6] * p[2] + m[7];
-        arr[i * 3 + 2] = m[8] * p[0] + m[9] * p[1] + m[10] * p[2] + m[11];
-      });
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-      const pts = new THREE.Points(geo, mat);
-      pts.userData.itemName = `collision samples: ${id}`;
-      colPoints.add(pts);
-    }
-    world.add(colPoints);
-  });
-  document.getElementById('toggles').appendChild(ptsToggle);
 
   // debug view: the MOVING side of every collision decision — the
   // capsules fitted to each arm link and to the flange stack + tool.
@@ -579,7 +540,6 @@ async function main() {
       world.attach(node);
       applyPose(node, it.pose_table);
       node.updateMatrix();
-      colWorld.place(it.id, IK.fromXyzRpy(it.pose_table.xyz_m, it.pose_table.rpy));
     }
     setJoints(POSE_DOCK);
     taskLog('scene reset');
