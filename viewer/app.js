@@ -30,8 +30,8 @@ controls.enableDamping = true;
 window.view = { camera, controls, scene };   // console/debug access
 
 // ---------- fly camera: WASD ----------
-// W/S fly along the view direction, A/D strafe, E/Q rise/sink, Shift
-// for fast. The orbit pivot travels with the camera while you fly, and
+// W/S rise and sink, A/D strafe, E/Q fly forward and back along the
+// view direction, Shift for fast. The orbit pivot travels with the camera while you fly, and
 // the next mouse drag re-anchors it on the surface at the centre of the
 // view — so after flying, dragging always orbits around what you are
 // looking at (not around an invisible point somewhere behind it). Speed
@@ -117,12 +117,12 @@ function updateFly(dt) {
   camera.getWorldDirection(flyFwd);
   flyRight.crossVectors(flyFwd, camera.up).normalize();
   flyStep.set(0, 0, 0);
-  if (flyKeys.has('w')) flyStep.add(flyFwd);
-  if (flyKeys.has('s')) flyStep.sub(flyFwd);
+  if (flyKeys.has('w')) flyStep.add(camera.up);
+  if (flyKeys.has('s')) flyStep.sub(camera.up);
   if (flyKeys.has('d')) flyStep.add(flyRight);
   if (flyKeys.has('a')) flyStep.sub(flyRight);
-  if (flyKeys.has('e')) flyStep.add(camera.up);
-  if (flyKeys.has('q')) flyStep.sub(camera.up);
+  if (flyKeys.has('e')) flyStep.add(flyFwd);
+  if (flyKeys.has('q')) flyStep.sub(flyFwd);
   if (flyStep.lengthSq() < 1e-9) return;
   // 0.4 x the orbit distance per second: ~2 s to cross the cell from
   // the default view, and a crawl once you are nose-up to a part

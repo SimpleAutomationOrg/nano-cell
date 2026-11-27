@@ -1096,8 +1096,8 @@
    "pose_table": {
     "xyz_m": [
      0.737808,
-     0.389205,
-     0.0011
+     0.409205,
+     0.0
     ],
     "rpy": [
      0.0,
@@ -1106,7 +1106,6 @@
     ]
    },
    "collision": "mesh",
-   "collision_detail": "coarse",
    "pick_station": {
     "xy_table_m": [
      0.737808,
@@ -1120,12 +1119,12 @@
     ],
     "in_feeder_frame_m": [
      0.0,
-     0.03,
-     0.0773
+     0.01,
+     0.0724
     ]
    },
    "mesh_source": "cell/print/PLD_619C_approx.step --all (scripts/step-to-mesh.mjs)",
-   "note": "placed so its pick boss (the 12.4 mm disc on the front shelf) sits on the measured pick station, top at the measured disc height; that leaves the base 1.1 mm above the board (the model is an approximate envelope). Front toward table -y: the body then ends at y 0.59, inside the 0.6 m board, and its centre line is on a breadboard hole column."
+   "note": "placed so the FRONT HOLE of the disc (2.2 mm, 20 mm in front of the disc centre) is on the measured pick station, base on the board. Front toward table -y, centre line on a breadboard hole column. The body then ends at y 0.612 — 12 mm past the 0.6 m board edge; the model is an approximate envelope."
   }
  ],
  "parts": [
@@ -1620,7 +1619,7 @@
   },
   {
    "id": "screw_1",
-   "name": "M2x6 socket head cap screw (ISO 4762) at the feeder's pick station, head up",
+   "name": "M2x6 socket head cap screw (ISO 4762) in the front hole of the feeder disc, head up",
    "mesh": "meshes/screw_m2x6.glb",
    "collision_mesh": "meshes/screw_m2x6.collision.stl",
    "pose_table": {
@@ -1637,7 +1636,7 @@
    },
    "on": "screw_feeder",
    "mesh_source": "cell/print/M2x6_ISO4762.step --all (scripts/step-to-mesh.mjs); origin at the shank tip, head up",
-   "note": "hangs by its head: the underside of the head is on the disc, the shank is inside the pick boss — the real feeder has a slot there, the simplified model does not"
+   "note": "stands in the hole: the 6 mm shank reaches the hole's bottom (3.6 mm deep), so the head sits 2.4 mm above the disc — its underside at 78.4 mm, the measured disc_z"
   }
  ],
  "unplaced_parts": [],
