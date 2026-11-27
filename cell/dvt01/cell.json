@@ -1,5 +1,5 @@
 {
- "name": "dvt-01 arm-right, London demo (2026-11-16/17)",
+ "name": "nano cell dvt01, arm-right",
  "units": "metres, radians",
  "conventions": {
   "rpy": "fixed-axis roll, pitch, yaw: R = Rz(yaw) . Ry(pitch) . Rx(roll) (as URDF); a pose maps the item's frame into its parent",
@@ -23,20 +23,6 @@
     -0.396466
    ]
   },
-  "mount_table_source": "profile arms.right.kinematic_calibration: mount.table_from_arm_base . base (the fitted arm base, london1113bh)",
-  "mount_table_profile": {
-   "xyz_m": [
-    1.124641,
-    0.525182,
-    0.013273
-   ],
-   "rpy": [
-    0.003182,
-    -0.002777,
-    -0.38714
-   ]
-  },
-  "urdf_agreement_mm": "fairino3_v6 URDF on mount_table reproduces the cell's calibrated flange within 1.3 mm over the London poses (4.8 mm on mount_table_profile); exact poses need calibrated_chain",
   "flange_in_urdf_wrist3_link": {
    "xyz_m": [
     0.0,
@@ -50,7 +36,7 @@
    ]
   },
   "calibrated_chain": {
-   "id": "arm-right/london1113bh",
+   "id": "arm-right/cal-a",
    "convention": "modified_dh_hayati",
    "formula": "table_from_flange = table_from_arm_base . base . prod_j Rx(alpha_j) Tx(a_j) Ry(beta_j) Rz(q_j + e_j(q_j) + theta_j) Tz(d_j); e_j(q) = sum_k cos_k cos(k q) + sin_k sin(k q)",
    "table_from_arm_base": [
@@ -244,7 +230,7 @@
   ],
   "hole_pitch_m": 0.025,
   "first_hole_m": 0.0125,
-  "note": "London plate = MB6090 on x 0.3..1.2 of the table frame (the frame keeps the 1200 mm plate's origin); no mesh (see MISSING.md)"
+  "note": "breadboard plate on x 0.3..1.2 of the table frame; no mesh"
  },
  "guard": {
   "operator_barrier": {
@@ -867,7 +853,6 @@
   ]
  },
  "mounted_tool": "screwdriver_p0",
- "mounted_tool_source": "profile grippers.right.active_index (5) at 2026-11-17T15:57:48.256567Z; the London loop starts and ends each run with rcup16_p0",
  "demo_start_tool": "rcup16_p0",
  "fixtures": [
   {
