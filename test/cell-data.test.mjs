@@ -39,44 +39,39 @@ test('every application composes onto its robot, and every mesh it names exists'
   }
 });
 
-test('the step list: sections follow the loops, and a drag reorders, adds or removes', () => {
+test('the step list: the loop in order, the rest below it, and a drag reorders, adds or removes', () => {
   const steps = ['a', 'b', 'c', 'd'].map(id => ({ id, name: id.toUpperCase() }));
-  const loops = [{ id: 'main', name: 'Main', steps: ['c', 'a'] }];
-  const ids = secs => secs.map(s => [s.loop, s.steps.map(x => x.id)]);
-  assert.deepEqual(ids(sections(steps, loops)), [['main', ['c', 'a']], [null, ['b', 'd']]]);
-  // a loop naming a step that no longer exists just does not show it
-  assert.deepEqual(ids(sections(steps, [{ id: 'main', name: 'Main', steps: ['gone', 'a'] }])), [['main', ['a']], [null, ['b', 'c', 'd']]]);
+  const ids = s => [s.loop.map(x => x.id), s.free.map(x => x.id)];
+  assert.deepEqual(ids(sections(steps, { name: 'L', steps: ['c', 'a'] })), [['c', 'a'], ['b', 'd']]);
+  // a loop naming a step that no longer exists just does not show it; no loop file: every step is free
+  assert.deepEqual(ids(sections(steps, { name: 'L', steps: ['gone', 'a'] })), [['a'], ['b', 'c', 'd']]);
+  assert.deepEqual(ids(sections(steps, null)), [[], ['a', 'b', 'c', 'd']]);
 
-  const after = (...args) => { const r = moveStep(loops, ...args); return [r.loops[0].steps, r.changed]; };
-  assert.deepEqual(after('a', 'main', 'main', 0), [['a', 'c'], ['main']], 'reorder up');
-  assert.deepEqual(after('c', 'main', 'main', 2), [['a', 'c'], ['main']], 'reorder down, past the end');
-  assert.deepEqual(after('c', 'main', 'main', 1), [['c', 'a'], []], 'dropped where it was: nothing to save');
-  assert.deepEqual(after('b', null, 'main', 1), [['c', 'b', 'a'], ['main']], 'a free step joins the loop in its place');
-  assert.deepEqual(after('a', 'main', null, 0), [['c'], ['main']], 'dragged out: it leaves the loop but still exists');
-  assert.deepEqual(after('b', null, null, 1), [['c', 'a'], []], 'free steps have no order to save');
-  assert.deepEqual(loops[0].steps, ['c', 'a'], 'the input must not be changed');
-
-  // between two loops: it leaves the first and lands in the second
-  const two = [{ id: 'x', name: 'X', steps: ['a', 'b'] }, { id: 'y', name: 'Y', steps: ['c'] }];
-  const r = moveStep(two, 'a', 'x', 'y', 0);
-  assert.deepEqual(r.loops.map(l => l.steps), [['b'], ['a', 'c']]);
-  assert.deepEqual(r.changed.sort(), ['x', 'y']);
+  const loop = ['c', 'a'];
+  const after = (...args) => { const r = moveStep(loop, ...args); return [r.steps, r.changed]; };
+  assert.deepEqual(after('a', true, 0), [['a', 'c'], true], 'reorder up');
+  assert.deepEqual(after('c', true, 2), [['a', 'c'], true], 'reorder down, past the end');
+  assert.deepEqual(after('c', true, 1), [['c', 'a'], false], 'dropped where it was: nothing to save');
+  assert.deepEqual(after('b', true, 1), [['c', 'b', 'a'], true], 'a free step joins the loop in its place');
+  assert.deepEqual(after('a', false), [['c'], true], 'dragged out: it leaves the loop but still exists');
+  assert.deepEqual(after('b', false), [['c', 'a'], false], 'free steps have no order to save');
+  assert.deepEqual(loop, ['c', 'a'], 'the input must not be changed');
 });
 
-test('loops.ts is read and rewritten by the server without touching anything but the step list', () => {
+test('loop.ts is read and rewritten by the server without touching anything but the step list', () => {
   const run = code => execFileSync('python3', ['-c', code], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' });
-  const file = `../applications/${APP}/loops.ts`;
+  const file = `../applications/${APP}/loop.ts`;
   const out = JSON.parse(run(`
-import json, loops
+import json, loop
 src = open(${JSON.stringify(file)}, encoding='utf-8').read()
-was = loops.parse(src)[0]
-same = loops.with_steps(src, was['id'], was['steps'])
-rev = loops.with_steps(src, was['id'], was['steps'][::-1])
-none = loops.with_steps(src, was['id'], [])
+was = loop.parse(src)
+same = loop.with_steps(src, was['steps'])
+rev = loop.with_steps(src, was['steps'][::-1])
+none = loop.with_steps(src, [])
 strip = lambda t: [l for l in t.splitlines() if not l.strip().startswith("'") and 'steps:' not in l and l.strip() != '],']
-print(json.dumps({'was': was, 'same': same == src, 'rev': loops.parse(rev)[0]['steps'], 'none': loops.parse(none)[0]['steps'],
-  'rest': strip(rev) == strip(src), 'missing': loops.with_steps(src, 'no-such-loop', []) is None}))`));
-  assert.ok(out.was.steps.length >= 2, 'the loop has steps to reorder');
+print(json.dumps({'was': was, 'same': same == src, 'rev': loop.parse(rev)['steps'], 'none': loop.parse(none)['steps'],
+  'rest': strip(rev) == strip(src), 'missing': loop.parse('export const x = 1;') is None}))`));
+  assert.ok(out.was.name && out.was.steps.length >= 2, 'the loop has a name and steps to reorder');
   assert.ok(out.same, 'saving the same order must leave the file byte for byte');
   assert.deepEqual(out.rev, [...out.was.steps].reverse());
   assert.deepEqual(out.none, []);
@@ -84,19 +79,19 @@ print(json.dumps({'was': was, 'same': same == src, 'rev': loops.parse(rev)[0]['s
   assert.ok(out.missing);
 });
 
-test('loops name steps that exist, each once', () => {
+test('an application has ONE loop, naming steps that exist, each once', () => {
   for (const name of readdirSync(new URL('applications/', ROOT))) {
-    const file = new URL(`applications/${name}/loops.ts`, ROOT);
+    const file = new URL(`applications/${name}/loop.ts`, ROOT);
     if (!existsSync(file)) continue;
-    // step names are the quoted entries of each `steps: [...]` list, comments aside
+    assert.ok(!existsSync(new URL(`applications/${name}/loops.ts`, ROOT)), `${name}: loops.ts — an application has one loop, in loop.ts`);
+    // step names are the quoted entries of the `steps: [...]` list, comments aside
     const src = readFileSync(file, 'utf8').replace(/\/\/.*$/gm, '');
+    assert.equal([...src.matchAll(/^export const loop\b/gm)].length, 1, `${name}/loop.ts: exactly one  export const loop`);
     const lists = [...src.matchAll(/steps:\s*\[([^\]]*)\]/g)].map(m => [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]));
-    assert.ok(lists.length, `${name}/loops.ts: no loop found`);
-    for (const steps of lists) {
-      assert.ok(steps.length, `${name}/loops.ts: a loop without steps`);
-      assert.equal(new Set(steps).size, steps.length, `${name}/loops.ts: a step is listed twice`);
-      for (const s of steps) assert.ok(existsSync(new URL(`applications/${name}/steps/${s}.ts`, ROOT)), `${name}/loops.ts: step '${s}' does not exist`);
-    }
+    assert.equal(lists.length, 1, `${name}/loop.ts: one steps list`);
+    const steps = lists[0];
+    assert.equal(new Set(steps).size, steps.length, `${name}/loop.ts: a step is listed twice`);
+    for (const st of steps) assert.ok(existsSync(new URL(`applications/${name}/steps/${st}.ts`, ROOT)), `${name}/loop.ts: step '${st}' does not exist`);
   }
 });
 

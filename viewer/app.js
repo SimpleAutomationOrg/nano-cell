@@ -380,28 +380,28 @@ async function runStep(appId, stepId) {
 
 async function buildStepUI(cell, mountToolFn) {
   const app = encodeURIComponent(cell.application);
-  let steps = [], loops = [];
+  let steps = [], loop = null;
   try {
     steps = await (await fetch(`/__steps?app=${app}`)).json();
-    loops = await (await fetch(`/__loops?app=${app}`)).json();
+    loop = await (await fetch(`/__loop?app=${app}`)).json();
   } catch { /* not serve.py */ }
   if (!steps.length) return;
 
   stepsPanel = createStepsPanel({
-    el: document.getElementById('steps'), steps, loops,
+    el: document.getElementById('steps'), steps, loop,
     onSelect: async s => {
       document.documentElement.dataset.step = s.id;      // the chat panel reads it
       if (s.tool && !running) await mountToolFn(s.tool);
     },
     onRun: s => runStep(cell.application, s.id),
-    // a drag changed a loop: its order goes into the application's loops.ts
-    onSave: async loop => {
-      const r = await (await fetch('/__loops/save', {
+    // a drag changed the loop: its order goes into the application's loop.ts
+    onSave: async ids => {
+      const r = await (await fetch('/__loop/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Nano-Cell': 'chat' },
-        body: JSON.stringify({ app: cell.application, loop: loop.id, steps: loop.steps }),
+        body: JSON.stringify({ app: cell.application, steps: ids }),
       })).json();
       if (r.error) { status('step order not saved: ' + r.error); throw new Error(r.error); }
-      status(`step order saved to loops.ts (${loop.name})`);
+      status('step order saved to loop.ts');
     },
   });
   window.stepsPanel = stepsPanel;   // console access: stepsPanel.select('pick-place-case')
@@ -846,11 +846,13 @@ addEventListener('pointermove', ev => {
   } else tipEl.style.display = 'none';
 });
 
-addEventListener('resize', () => {
+// the view follows its box: the window resizing, the chat column opening
+new ResizeObserver(() => {
+  if (!viewW() || !viewH()) return;
   camera.aspect = viewW() / viewH();
   camera.updateProjectionMatrix();
   renderer.setSize(viewW(), viewH());
-});
+}).observe(appEl);
 
 const clock = new THREE.Clock();
 const stepLineEl = document.getElementById('stepline');

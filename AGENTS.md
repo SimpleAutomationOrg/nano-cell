@@ -91,20 +91,20 @@ nothing to the picture — a screw in its hole in the feeder disc — are
 NOT simulated: place them from measured geometry and leave them. Do not
 spend effort making such contacts settle.
 
-## Loops
+## The loop
 
-`applications/<application>/loops.ts` lists the application's loops: a
-loop is a named, ordered list of steps that makes up one cycle of work
-(`assemble-case`: front case, then back case). When you add a step that
-belongs to a loop, add it there in its place. Steps in no loop still
-exist and run on their own (a fallback, a demo).
+An application has ONE loop: `applications/<application>/loop.ts` names
+it and lists, in order, the steps that make up one cycle of work (front
+case, then back case). When you add a step that belongs to the cycle,
+add it there in its place. Steps not in the loop still exist and run on
+their own (a fallback, a demo).
 
-The viewer shows this as the **steps dock** under the 3D view: one
-section per loop with its steps in order, and one for the steps in no
-loop. Dragging a step reorders it or moves it in or out of a loop, and
-the server writes the new order into `loops.ts` (only the `steps: [...]`
-lists are rewritten — keep comments outside them). The viewer runs one
-step at a time; it does not run a whole loop yet.
+The viewer shows this as the **steps dock** under the 3D view, in one
+column: the loop's steps in order, and below them the steps not in the
+loop. Dragging a step reorders the loop or moves the step in or out of
+it, and the server writes the new order into `loop.ts` (only the
+`steps: [...]` list is rewritten — keep comments outside it). The
+viewer runs one step at a time; it does not run the whole loop yet.
 
 ## Adding a new step
 
@@ -125,7 +125,7 @@ step at a time; it does not run a whole loop yet.
    start pose, tool pointing down, mid-cell) and a default async
    function `(cell, ctx) => Promise<void>`.
 3. The step appears in the viewer's steps dock automatically, under
-   "Not in a loop" (the server scans the application's `steps/`). Run
+   "Not in the loop" (the server scans the application's `steps/`). Run
    it with its ▶ while
    iterating; every run starts from `entry`.
 

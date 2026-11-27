@@ -19,7 +19,7 @@ import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chat import Chat  # noqa: E402
-import loops as loopfile  # noqa: E402
+import loop as loopfile  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -79,8 +79,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._reload_poll()
         if self.path.startswith("/__applications"):
             return self._applications()
-        if self.path.startswith("/__loops"):
-            return self._loops()
+        if self.path.startswith("/__loop"):
+            return self._loop()
         if self.path.startswith("/__steps"):
             return self._steps()
         if self.path.startswith("/__chat/events"):
@@ -115,7 +115,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         import json
-        if not self.path.startswith(("/__chat/", "/__loops/save")):
+        if not self.path.startswith(("/__chat/", "/__loop/save")):
             return self._json({"error": "not found"}, 404)
         if not self._same_origin():
             return self._json({"error": "forbidden"}, 403)
@@ -126,7 +126,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             data = None
         if not isinstance(data, dict):
             return self._json({"error": "bad request"}, 400)
-        if self.path.startswith("/__loops/save"):
+        if self.path.startswith("/__loop/save"):
             return self._save_loop(data)
         action = self.path[len("/__chat/"):]
         if action == "send":
@@ -159,33 +159,33 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ok = isinstance(app, str) and app and app == os.path.basename(app) and app not in (".", "..")
         return d if ok and os.path.isfile(os.path.join(d, "application.json")) else None
 
-    def _loops(self):
-        # the loops of one application: /__loops?app=<name>
+    def _loop(self):
+        # the loop of one application: /__loop?app=<name>  ->  {name, steps} or null
         from urllib.parse import parse_qs, urlparse
         d = self._app_dir(parse_qs(urlparse(self.path).query).get("app", [""])[0])
         try:
-            with open(os.path.join(d, "loops.ts"), encoding="utf-8") as f:
+            with open(os.path.join(d, "loop.ts"), encoding="utf-8") as f:
                 return self._json(loopfile.parse(f.read()))
         except (OSError, TypeError):
-            return self._json([])
+            return self._json(None)
 
     def _save_loop(self, data):
-        # the page dragged a step: write the loop's new order into loops.ts
+        # the page dragged a step: write the loop's new order into loop.ts
         d = self._app_dir(data.get("app"))
         steps = data.get("steps")
         if not d or not isinstance(steps, list) or len(steps) > 200:
             return self._json({"error": "bad request"}, 400)
-        for s in steps:
-            if not (isinstance(s, str) and re.fullmatch(r"[\w-]+", s)
-                    and os.path.isfile(os.path.join(d, "steps", s + ".ts"))):
-                return self._json({"error": f"no such step: {s}"}, 400)
-        path = os.path.join(d, "loops.ts")
+        for st in steps:
+            if not (isinstance(st, str) and re.fullmatch(r"[\w-]+", st)
+                    and os.path.isfile(os.path.join(d, "steps", st + ".ts"))):
+                return self._json({"error": f"no such step: {st}"}, 400)
+        path = os.path.join(d, "loop.ts")
         try:
             with open(path, encoding="utf-8") as f:
                 src = f.read()
-            out = loopfile.with_steps(src, str(data.get("loop")), steps)
+            out = loopfile.with_steps(src, steps)
             if out is None:
-                return self._json({"error": "no such loop"}, 400)
+                return self._json({"error": "loop.ts declares no loop"}, 400)
             if out != src:
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(out)

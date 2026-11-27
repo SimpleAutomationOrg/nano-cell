@@ -7,11 +7,12 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #101418; font-family: ui-sans-serif, system-ui, sans-serif; }
-  :root { --dock: 176px; }
-  /* the simulation on top, the steps dock below it */
-  #app { position: fixed; top: 0; left: 0; right: 0; bottom: var(--dock); }
+  :root { --dock: 250px; --chat: 380px; }
+  body.chat-closed { --chat: 0px; }
+  /* left: the simulation on top, the steps dock below it; right: the chat, full height */
+  #app { position: fixed; top: 0; left: 0; right: var(--chat); bottom: var(--dock); }
   #dock {
-    position: fixed; left: 0; right: 0; bottom: 0; height: var(--dock); box-sizing: border-box;
+    position: fixed; left: 0; right: var(--chat); bottom: 0; height: var(--dock); box-sizing: border-box;
     display: flex; gap: 14px; padding: 10px 14px; background: #0d1115; border-top: 1px solid #2a3340;
     color: #cdd6e0; font-size: 12.5px;
   }
@@ -45,9 +46,9 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 15px;
   }
   /* the step list (steps-panel.js) */
-  #steps { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: stretch; }
+  #steps { flex: 1; min-width: 0; max-width: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
   #steps.disabled { opacity: .45; pointer-events: none; }
-  .steps-sec { flex: 1; min-width: 0; max-width: 420px; overflow-y: auto; border: 1px solid #263040; border-radius: 7px; padding: 4px; }
+  .steps-sec { border: 1px solid #263040; border-radius: 7px; padding: 4px; }
   .steps-free { border-style: dashed; }
   .steps-head { color: #7d8a99; font-size: 11px; padding: 2px 4px 4px; }
   .steps-empty { color: #55606d; font-size: 11px; padding: 6px 4px; font-style: italic; }
@@ -73,21 +74,23 @@
     border: 1px solid #334155; border-radius: 6px; padding: 3px 8px; font-size: 12px;
     display: none; z-index: 10; max-width: 320px;
   }
-  #status { position: fixed; right: 14px; bottom: calc(var(--dock) + 10px); color: #64748b; font-size: 11.5px; }
+  #status { position: fixed; right: calc(var(--chat) + 14px); bottom: calc(var(--dock) + 10px); color: #64748b; font-size: 11.5px; }
   /* chat with the step agent (chat.js) */
   #chat {
-    position: fixed; top: 12px; right: 12px; width: 340px; max-height: calc(100% - 48px - var(--dock));
-    display: flex; flex-direction: column; background: rgba(16,20,24,.9); border: 1px solid #2a3340;
-    border-radius: 10px; color: #cdd6e0; font-size: 12.5px; backdrop-filter: blur(6px);
+    position: fixed; top: 0; right: 0; bottom: 0; width: var(--chat); box-sizing: border-box;
+    display: flex; flex-direction: column; background: #0d1115; border-left: 1px solid #2a3340;
+    color: #cdd6e0; font-size: 12.5px;
   }
+  /* closed: only the header is left, as a tab in the corner */
+  #chat.closed { width: auto; bottom: auto; top: 12px; right: 12px; border: 1px solid #2a3340; border-radius: 10px; }
   #chat header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; user-select: none; }
   #chat header b { flex: 1; color: #fff; font-weight: 600; font-size: 13px; }
   #chat header .dot { width: 7px; height: 7px; border-radius: 50%; background: #3b4756; }
   #chat.busy header .dot { background: #4da3ff; animation: chatpulse 1s infinite alternate; }
   @keyframes chatpulse { from { opacity: .35; } to { opacity: 1; } }
   #chat.closed #chatBody { display: none; }
-  #chatBody { display: flex; flex-direction: column; min-height: 0; border-top: 1px solid #263040; }
-  #chatLog { overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+  #chatBody { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid #263040; }
+  #chatLog { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
   #chatLog .msg { line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
   #chatLog .user { align-self: flex-end; max-width: 88%; background: #1f3a5c; color: #e8eef4; padding: 6px 9px; border-radius: 9px; }
   #chatLog .tool { color: #6f7f90; font-family: ui-monospace, monospace; font-size: 11px; }
@@ -143,7 +146,7 @@
       <button id="btnReset" title="parts back to their loaded poses, arm to dock">Reset</button>
     </div>
     <div id="stepline">idle</div>
-    <div class="hint">click a step to select it, ▶ to run it; drag steps to reorder them or to move them in and out of a loop</div>
+    <div class="hint">click a step to select it, ▶ to run it; drag steps to reorder the loop or to move them in and out of it</div>
   </div>
   <div id="steps"></div>
 </div>

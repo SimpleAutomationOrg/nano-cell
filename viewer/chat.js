@@ -24,10 +24,14 @@ const log = box.querySelector('#chatLog'), input = box.querySelector('#chatIn');
 const sendBtn = box.querySelector('#chatSend');
 
 // open/closed and a half-typed message survive the page reloading
-if (localStorage.getItem('chat.closed') === '1') box.classList.add('closed');
+// (the chat is a full-height column beside the simulation; closed, it
+// folds to its header and the simulation takes the width back)
+const setClosed = on => { box.classList.toggle('closed', on); document.body.classList.toggle('chat-closed', on); };
+setClosed(localStorage.getItem('chat.closed') === '1');
 box.querySelector('header').addEventListener('click', ev => {
   if (ev.target.id === 'chatNew') return;
-  localStorage.setItem('chat.closed', box.classList.toggle('closed') ? '1' : '0');
+  setClosed(!box.classList.contains('closed'));
+  localStorage.setItem('chat.closed', box.classList.contains('closed') ? '1' : '0');
 });
 input.value = sessionStorage.getItem('chat.draft') ?? '';
 input.addEventListener('input', () => sessionStorage.setItem('chat.draft', input.value));
