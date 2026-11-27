@@ -42,6 +42,17 @@ and `segments/*.ts` — typed async functions against the cell API
 (`viewer/cell.d.ts`). The server (`viewer/serve.py`) also exposes
 `/__tasks` (task list) and `/__reload` (live reload).
 
+## Geometry comes from the print files
+
+The STEP files in `cell/print/` (what the parts are actually printed or
+machined from) are the source of truth for geometry. Meshes in
+`cell/<name>/meshes/` are generated from them with
+`scripts/step-to-mesh.mjs`, which writes the visual and the collision
+mesh from the same triangles; `mesh_source` in cell.json says which
+file and body. Never hand-edit or simplify a mesh, and when physics
+says a part does not fit, compare the mesh with its STEP before
+believing it.
+
 ## Adding a new task
 
 1. Create `tasks/<name>/task.json`:

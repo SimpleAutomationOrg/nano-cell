@@ -936,14 +936,35 @@
    "collision_detail": "coarse"
   },
   {
+   "id": "holder_plate",
+   "name": "assembly holder base plate with legs (matt_holder_81x55_legs_gray2_metal of Assem_holder_metal-0.1)",
+   "mesh": "meshes/holder_plate.glb",
+   "collision_mesh": "meshes/holder_plate.collision.stl",
+   "mesh_source": "cell/print/Assem_holder_metal-0.1.STEP, body matt_holder_81x55_legs_gray2_metal (scripts/step-to-mesh.mjs)",
+   "pose_table": {
+    "xyz_m": [
+     0.900231,
+     0.087371,
+     0.000165
+    ],
+    "rpy": [
+     0.000151,
+     -0.00155,
+     -1.571866
+    ]
+   },
+   "collision": "mesh",
+   "collision_detail": "coarse"
+  },
+  {
    "id": "holder",
-   "name": "assembly holder: the wallet pocket (holder3 of Assem_holder_vacuum1)",
+   "name": "assembly holder: the wallet pocket (holder3_metal of Assem_holder_metal-0.1)",
    "mesh": "meshes/holder.glb",
    "collision_mesh": "meshes/holder.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.900131,
-     0.087471,
+     0.900231,
+     0.087371,
      0.000165
     ],
     "rpy": [
@@ -955,12 +976,13 @@
    "collision": "mesh",
    "pocket": {
     "centre_on_floor_fixture_m": [
-     0.0001,
-     0.0001,
+     0.0,
+     0.0,
      0.006
     ],
     "rim_z_fixture_m": 0.016
-   }
+   },
+   "mesh_source": "cell/print/Assem_holder_metal-0.1.STEP, body holder3_metal (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "stack_north",
@@ -1089,7 +1111,8 @@
    },
    "mass_kg": 0.02003,
    "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
-   "on": "stack_north"
+   "on": "stack_north",
+   "mesh_source": "cell/print/case_top2_my2_pingg.STEP (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "front_case_2",
@@ -1110,7 +1133,8 @@
    },
    "mass_kg": 0.02003,
    "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
-   "on": "stack_north"
+   "on": "stack_north",
+   "mesh_source": "cell/print/case_top2_my2_pingg.STEP (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "front_case_3",
@@ -1131,7 +1155,8 @@
    },
    "mass_kg": 0.02003,
    "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
-   "on": "stack_north"
+   "on": "stack_north",
+   "mesh_source": "cell/print/case_top2_my2_pingg.STEP (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "front_case_4",
@@ -1152,7 +1177,8 @@
    },
    "mass_kg": 0.02003,
    "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
-   "on": "stack_north"
+   "on": "stack_north",
+   "mesh_source": "cell/print/case_top2_my2_pingg.STEP (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "front_case_5",
@@ -1173,7 +1199,8 @@
    },
    "mass_kg": 0.02003,
    "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
-   "on": "stack_north"
+   "on": "stack_north",
+   "mesh_source": "cell/print/case_top2_my2_pingg.STEP (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "front_case_6",
@@ -1194,7 +1221,8 @@
    },
    "mass_kg": 0.02003,
    "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
-   "on": "stack_north"
+   "on": "stack_north",
+   "mesh_source": "cell/print/case_top2_my2_pingg.STEP (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "back_case_1",

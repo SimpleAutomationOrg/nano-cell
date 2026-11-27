@@ -12,5 +12,8 @@
   "license": "MIT",
   "dependencies": {
     "@mujoco/mujoco": "^4.0.1"
+  },
+  "devDependencies": {
+    "occt-import-js": "^0.0.23"
   }
 }

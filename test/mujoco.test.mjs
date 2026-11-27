@@ -200,12 +200,12 @@ test('settle of a press-fit part: slides straight down, no lateral ratchet', { s
 
 test('the case FITS the holder pocket: clearance, seats on the floor under its own weight', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
-  // The pocket is a clearance fit (74.4 x 48.0 mm for a 74.1 x 47.8 mm
-  // case). A decimated collision mesh once skewed its walls up to 1 mm
-  // inward, which read as a 0.3 mm interference "snap fit": the case
-  // hung on the walls at hundreds of newtons and never reached the
-  // floor. The collision mesh must agree with the visual one — rebuild
-  // it with scripts/collision-from-visual.mjs if this fails.
+  // The pocket is a clearance fit (74.5 x 48.1 mm for a 74.1 x 47.8 mm
+  // case, per the print files). A decimated collision mesh once skewed
+  // its walls up to 1 mm inward, which read as a 0.3 mm interference
+  // "snap fit": the case hung on the walls at hundreds of newtons and
+  // never reached the floor. Meshes come from the print STEP files —
+  // regenerate with scripts/step-to-mesh.mjs if this fails.
   const world = await createMjWorld({
     mj, cellData: cell, armCapsules: [], toolCapsules: [],
     loadStlBuffer: async p => readStl(p),

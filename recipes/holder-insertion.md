@@ -89,18 +89,24 @@ boxes are exactly the geometry every check and measurement runs against.
 
 ## If the contact forces look huge after placing
 
-Suspect the COLLISION MESH before the placement or the physics. A part
-hanging on the pocket walls at hundreds of newtons, never reaching the
-floor, means the collision geometry says the part does not fit. The
-pocket here is a clearance fit (74.4 x 48.0 mm for a 74.1 x 47.8 mm
-case) — but a simplified collision mesh once had its walls skewed up
-to 1 mm inward, and that read exactly like an interference fit.
+Suspect the MESHES before the placement or the physics. A part hanging
+on the pocket walls at hundreds of newtons, never reaching the floor,
+means the collision geometry says the part does not fit. The pocket
+here is a clearance fit (74.5 x 48.1 mm for a 74.1 x 47.8 mm case) —
+but a simplified collision mesh once had its walls skewed up to 1 mm
+inward, and that read exactly like an interference fit.
 
-To check: section the item's `.collision.stl` and its `.glb` at the
-same height and compare the cavity outline; they must agree. To fix:
-`node scripts/collision-from-visual.mjs cell/<cell>/meshes/<item>`
-rebuilds the collision mesh from the visual one, triangle for
-triangle. The 'the case FITS the holder pocket' test in
+The print / machining STEP files in `cell/print/` are the source of
+truth for geometry. Build an item's visual AND collision mesh from
+them in one step, so the two cannot disagree:
+
+    node scripts/step-to-mesh.mjs cell/print/<file>.STEP --list
+    node scripts/step-to-mesh.mjs cell/print/<file>.STEP <body> cell/<cell>/meshes/<item>
+
+Record where a mesh came from in the item's `mesh_source` in
+cell.json. For an item with no STEP file,
+`scripts/collision-from-visual.mjs` at least makes the collision mesh
+match the visual one. The 'the case FITS the holder pocket' test in
 `test/mujoco.test.mjs` guards this pair.
 
 When measuring "how far off centre" a placed part is, compare poses in
