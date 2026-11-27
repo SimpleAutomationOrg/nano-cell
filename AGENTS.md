@@ -154,18 +154,38 @@ assume it starts from its own `entry`.
 - When you fix a motion bug, add an assertion to
   `test/motion.test.mjs` in the same change.
 
-## The chat panel
+## The chat and its agents
 
-The viewer has a **Step agent** panel (the left column): the user types a
-request and a coding agent edits the steps, the page reloading on each
-save. It is `viewer/chat.js` (the panel) and `viewer/chat.py` (served by
-`serve.py` under `/__chat/*`): every message runs the Claude Code CLI
-(`claude`, installed and signed in) headless in the repository root,
-continuing one conversation. The conversation is kept in the server, so
-it survives page reloads; **New** forgets it. The agent may read, search
-and edit files and run `./scripts/check.sh`; it cannot see or drive the
-viewer, so it asks the user to run the step. The endpoints answer only
-to the page's own origin.
+The left column of the viewer is a chat with the project's **agents**: a
+narrow bar of profiles, and beside it the conversation with the one
+picked. Each agent is a Markdown file in `agents/`:
+
+| file | agent | what it does | keeps |
+| --- | --- | --- | --- |
+| `manager.md` | Manager | turns a goal into tasks and says who does each | `plan.md` |
+| `cad-designer.md` | CAD designer | print files, meshes, fixtures, parts, placement | `design.md`, `application.json` |
+| `programmer.md` | Programmer | steps, the loop, the viewer's code | `steps/`, `loop.ts` |
+| `component-buyer.md` | Component buyer | finds components to buy (web search) | `purchasing.md` |
+| `accountant.md` | Accountant | what the application costs | `budget.md` |
+
+(the "keeps" files live in the application's folder). A file starts with
+a header — `name`, `role` (one line under the name), `initials`, `color`,
+`order`, `hint` (shown in an empty conversation) and optionally `tools`
+— and the text below it is the agent's description, used as its
+instructions. To add an agent, add a file; to change how one behaves,
+edit its description (it is re-read with every message).
+
+How it runs (`viewer/chat.js`, `viewer/chat.py`, served by `serve.py`
+under `/__chat/*`): every message runs the Claude Code CLI (`claude`,
+installed and signed in) headless in the repository root, continuing
+that agent's own conversation. The conversations are kept in the server,
+so they survive page reloads; **New** forgets the one shown. Every agent
+may read, search and edit files and run `./scripts/check.sh`; `tools:`
+in its header can add only what `EXTRA_TOOLS` in `chat.py` lists (web
+search for the buyer, `step-to-mesh` for the CAD designer). Agents
+cannot see or drive the viewer, and cannot message each other — the
+Manager writes a task so that the user can paste it to the right one.
+The endpoints answer only to the page's own origin.
 
 ## Debugging
 

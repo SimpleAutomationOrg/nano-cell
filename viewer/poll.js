@@ -18,7 +18,8 @@ function whenVisible() {
 
 /**
  * fetch(url, init) for a long poll: waits until the tab is visible, and
- * gives up the connection the moment the tab is hidden. Resolves to the
+ * gives up the connection the moment the tab is hidden — or when
+ * `init.signal`, the caller's own way to drop the poll, fires. Resolves to the
  * Response, or to null when the poll was dropped that way (just call
  * again — it will wait for the tab to come back).
  */
@@ -26,6 +27,9 @@ export async function pollFetch(url, init = {}) {
   await whenVisible();
   const ctl = new AbortController();
   const hide = () => { if (!visible()) ctl.abort(); };
+  const drop = () => ctl.abort();
+  if (init.signal?.aborted) return null;
+  init.signal?.addEventListener('abort', drop);
   document.addEventListener('visibilitychange', hide);
   try {
     return await fetch(url, { ...init, signal: ctl.signal });
@@ -34,5 +38,6 @@ export async function pollFetch(url, init = {}) {
     throw e;
   } finally {
     document.removeEventListener('visibilitychange', hide);
+    init.signal?.removeEventListener('abort', drop);
   }
 }

@@ -7,8 +7,8 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #101418; font-family: ui-sans-serif, system-ui, sans-serif; }
-  :root { --dock: 250px; --chat: 380px; --side: 290px; }
-  body.chat-closed { --chat: 0px; }
+  :root { --dock: 250px; --rail: 64px; --chat: 430px; --side: 290px; }
+  body.chat-closed { --chat: var(--rail); }
   /* three columns: the chat, full height; in the middle the simulation with
      the steps dock below it; the cell panel, full height */
   #app { position: fixed; top: 0; left: var(--chat); right: var(--side); bottom: var(--dock); }
@@ -79,20 +79,42 @@
     display: none; z-index: 10; max-width: 320px;
   }
   #status { position: fixed; right: calc(var(--side) + 14px); bottom: calc(var(--dock) + 10px); color: #64748b; font-size: 11.5px; }
-  /* chat with the step agent (chat.js) */
+  /* chat with the agents (chat.js): a narrow bar of profiles, then the conversation */
   #chat {
     position: fixed; top: 0; left: 0; bottom: 0; width: var(--chat); box-sizing: border-box;
-    display: flex; flex-direction: column; background: #0d1115; border-right: 1px solid #2a3340;
+    display: flex; background: #0d1115; border-right: 1px solid #2a3340;
     color: #cdd6e0; font-size: 12.5px;
   }
-  /* closed: only the header is left, as a tab in the corner */
-  #chat.closed { width: auto; bottom: auto; top: 12px; left: 12px; border: 1px solid #2a3340; border-radius: 10px; }
+  #chatRail {
+    flex: none; width: var(--rail); box-sizing: border-box; padding: 10px 0; overflow-y: auto;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: #0a0d10; border-right: 1px solid #1c232c;
+  }
+  .agent {
+    position: relative; width: calc(var(--rail) - 8px); padding: 6px 0 4px; border: 0; border-radius: 8px;
+    background: none; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .agent:hover { background: #151b22; }
+  .agent.sel { background: #18212b; }
+  .agent.sel::before { content: ''; position: absolute; left: -4px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--c); }
+  .agent .face {
+    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
+    font-weight: 700; font-size: 13px; color: #0d1115; background: var(--c); opacity: .55;
+  }
+  .agent.sel .face, .agent:hover .face { opacity: 1; }
+  .agent .lbl { font-size: 9.5px; line-height: 1.15; color: #7d8a99; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
+  .agent.sel .lbl { color: #e8eef4; }
+  .agent i { display: none; position: absolute; top: 5px; right: 11px; width: 9px; height: 9px; border-radius: 50%;
+    background: #4da3ff; border: 2px solid #0a0d10; animation: chatpulse 1s infinite alternate; }
+  .agent.busy i { display: block; }
+  #chatMain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #chat.closed #chatMain { display: none; }
   #chat header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; user-select: none; }
-  #chat header b { flex: 1; color: #fff; font-weight: 600; font-size: 13px; }
-  #chat header .dot { width: 7px; height: 7px; border-radius: 50%; background: #3b4756; }
-  #chat.busy header .dot { background: #4da3ff; animation: chatpulse 1s infinite alternate; }
+  #chat header .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #chat header b { color: #fff; font-weight: 600; font-size: 13px; }
+  #chat header b::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c, #3b4756); margin-right: 6px; vertical-align: middle; }
+  #chatRole { color: #7d8a99; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   @keyframes chatpulse { from { opacity: .35; } to { opacity: 1; } }
-  #chat.closed #chatBody { display: none; }
   #chatBody { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid #263040; }
   #chatLog { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
   #chatLog .msg { line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }

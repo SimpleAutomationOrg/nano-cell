@@ -18,7 +18,7 @@ import time
 import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from chat import Chat  # noqa: E402
+from chat import Chats  # noqa: E402
 import loop as loopfile  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,7 +29,7 @@ OPEN_BROWSER = "--no-open" not in sys.argv   # a restart need not open one more 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
 SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store"}
 
-CHAT = Chat(ROOT)
+CHATS = Chats(ROOT)
 
 NEW_LOOP = """// The loop of the %(id)s application: the steps that make up one cycle
 // of work, in the order they run. A step is a file in steps/, named here
@@ -104,12 +104,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._loop()
         if self.path.startswith("/__steps"):
             return self._steps()
+        if self.path.startswith("/__chat/agents"):
+            if not self._same_origin():
+                return self._json({"error": "forbidden"}, 403)
+            return self._json(CHATS.agents())
         if self.path.startswith("/__chat/events"):
             if not self._same_origin():
                 return self._json({"error": "forbidden"}, 403)
             q = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
             try:
-                return self._json(CHAT.poll(int(q.get("epoch", -1)), int(q.get("since", 0))))
+                chat = CHATS.get(q.get("agent", ""))
+                if chat is None:
+                    return self._json({"error": "no such agent"}, 404)
+                r = chat.poll(int(q.get("epoch", -1)), int(q.get("since", 0)))
+                return self._json({**r, "busy": CHATS.busy(), "available": CHATS.available()})
             except ValueError:
                 return self._json({"error": "bad request"}, 400)
         super().do_GET()
@@ -152,14 +160,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith("/__loop/save"):
             return self._save_loop(data)
         action = self.path[len("/__chat/"):]
+        chat = CHATS.get(str(data.get("agent", "")))
+        if chat is None:
+            return self._json({"error": "no such agent"}, 404)
         if action == "send":
-            err = CHAT.send(str(data.get("text", "")), str(data.get("context", ""))[:400])
+            err = chat.send(str(data.get("text", "")), str(data.get("context", ""))[:400])
             return self._json({"error": err} if err else {"ok": True}, 409 if err else 200)
         if action == "stop":
-            CHAT.stop()
+            chat.stop()
             return self._json({"ok": True})
         if action == "new":
-            CHAT.new()
+            chat.new()
             return self._json({"ok": True})
         return self._json({"error": "not found"}, 404)
 
