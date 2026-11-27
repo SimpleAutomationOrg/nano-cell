@@ -86,3 +86,22 @@ at a move's start are allowed to persist while departing.
 
 Debugging: turn on **MuJoCo boxes** in the Show panel — the teal
 boxes are exactly the geometry every check and measurement runs against.
+
+## If the contact forces look huge after placing
+
+Check whether the fit is a SNAP fit before blaming the placement. The
+dvt01 case↔holder pair is one: the pocket's end ledges leave the
+opening ~0.3 mm narrower than the case corners, so there is NO
+penetration-free rest pose — the real part clicks past flexing
+plastic, which rigid bodies cannot do. The solver represents that grip
+as a few hundred newtons of wall force with the part held slightly
+proud of the floor. That is the model's truth, not a bug. To verify:
+scan the held part's probe points against the pocket's wall boxes over
+a grid of offsets — if the minimum achievable overlap is positive, the
+fit is interference (see the 'settle may only relax' test in
+`test/mujoco.test.mjs` for the scan).
+
+When measuring "how far off centre" a placed part is, compare poses in
+the HOLDER's frame against the measured pocket rectangle — never
+against remembered world coordinates of the pocket centre (those are
+datums and have already been ~2 mm wrong once).

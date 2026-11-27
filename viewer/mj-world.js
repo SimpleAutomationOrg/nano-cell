@@ -98,6 +98,11 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
     return `
 <mujoco>
   <compiler angle="radian"/>
+  <default>
+    <!-- plastic-on-plastic, not MuJoCo's rubber-like 1.0: wedged parts
+         must be able to SLIDE into place under their own weight -->
+    <geom friction="0.3 0.002 0.0001"/>
+  </default>
   <option gravity="0 0 0"/>
   <worldbody>
 ${wb}
@@ -201,15 +206,35 @@ ${wb}
   // frozen (arm joints and the other parts are restored every step, so
   // the 45° stack cannot slump and the arm cannot fall). Returns the
   // part's settled pose, or null if it never came to rest.
-  function settlePart(id, { duration = 0.8 } = {}) {
+  function settlePart(id, { duration = 1.5 } = {}) {
     const w = P;              // physics model: the pile below is solid
     const adr = w.partAdr.get(id);
     if (adr === undefined) return null;
     setMargin(P, 0);
+    // a settle may only RELAX the part. A press/snap-fit pocket (tighter
+    // than the part — real holders grip) gives rigid-body physics no valid
+    // rest pose: the solver wedges the part deeper and leaves it hanging
+    // on the walls. Detect that and keep the as-placed pose instead.
+    const scanFit = () => {
+      let pen = 0, support = false;
+      for (const c of contacts(0)) {
+        if (c.a !== id && c.b !== id) continue;
+        if (c.dist < pen) pen = c.dist;
+        if (Math.abs(c.normalAB[2]) > 0.7) support = true;
+      }
+      return { pen, support };
+    };
+    const fit0 = scanFit();
+    const mat0 = readPartPoseFrom(P, id);
     const frozenQpos = Float64Array.from({ length: w.model.nq }, (_, i) => w.data.qpos[i]);
     const g = w.model.opt.gravity;
     const g0 = [g[0], g[1], g[2]];
     g[0] = 0; g[1] = 0; g[2] = -9.81;
+    // gentle relaxation, not a sim: a fine timestep plus per-step velocity
+    // damping — the frozen neighbours act as kinematic walls, and at coarse
+    // steps the contact chatter ratchets a tight-fitting part sideways
+    const dt0 = w.model.opt.timestep;
+    w.model.opt.timestep = 0.001;
     const dt = w.model.opt.timestep;
     const steps = Math.ceil(duration / dt);
     const every = Math.max(1, Math.round((1 / 60) / dt));   // ~60 Hz samples
@@ -232,18 +257,45 @@ ${wb}
           if (k >= dof0 && k < dof0 + 6) continue;
           w.data.qvel[k] = 0;
         }
+        // damp the part's LATERAL and angular motion to bleed off contact
+        // chatter (the sideways ratchet); vertical fall stays undamped
+        w.data.qvel[dof0] *= 0.9; w.data.qvel[dof0 + 1] *= 0.9;
+        for (let k = dof0 + 3; k < dof0 + 6; k++) w.data.qvel[k] *= 0.9;
         // early out when the part is at rest
         if (i % every === 0) traj.push({ t: (i + 1) * dt, mat: readPartPoseFrom(P, id) });
         let v = 0;
         for (let k = dof0; k < dof0 + 6; k++) v = Math.max(v, Math.abs(w.data.qvel[k]));
-        if (i > 10 && v < 1e-3) break;
+        if (i > 100 && v < 5e-4) break;
       }
     } finally {
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
+      w.model.opt.timestep = dt0;
     }
     const pose = readPartPoseFrom(P, id);
     traj.push({ t: traj[traj.length - 1].t + dt, mat: pose });
     setPartPose(id, pose);     // sync the settled pose into BOTH models
+    const fit1 = scanFit();
+    // drift of the part's geometric CENTRE (probe centroid), not of its
+    // origin: the origin is a CAD datum — a settle that only yaws the
+    // part still swings the body sideways
+    let gc = [0, 0, 0];
+    const pp = probePoints(id) ?? [[0, 0, 0]];
+    for (const p of pp) { gc[0] += p[0]; gc[1] += p[1]; gc[2] += p[2]; }
+    gc = gc.map(v => v / pp.length);
+    const at = (M) => [
+      M[0] * gc[0] + M[1] * gc[1] + M[2] * gc[2] + M[3],
+      M[4] * gc[0] + M[5] * gc[1] + M[6] * gc[2] + M[7],
+      M[8] * gc[0] + M[9] * gc[1] + M[10] * gc[2] + M[11]];
+    const c0 = at(mat0), c1 = at(pose);
+    const drop = Math.abs(c0[2] - c1[2]);
+    const drift = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]);
+    if ((fit1.pen < fit0.pen - 2e-4 && !fit1.support) ||
+        drift > Math.max(1e-3, 0.5 * drop)) {
+      // wedged deeper and hanging, or walked sideways far beyond its
+      // cone of descent — physics found no honest rest pose
+      setPartPose(id, mat0);   // keep the as-placed pose
+      return null;
+    }
     return { pose, traj };
   }
 

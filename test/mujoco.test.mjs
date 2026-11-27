@@ -121,6 +121,101 @@ test('drop test: a released case falls and settles into the pocket', { skip: !mj
   assert.ok(z > 0, 'fell through the floor');
 });
 
+test('settle of a press-fit part: slides straight down, no lateral ratchet', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  // a channel 0.4 mm NARROWER than the part (0.2 mm squeeze per side) —
+  // the settle must lower it onto the floor WITHOUT walking it sideways
+  // (the regression: coarse-step contact chatter ratcheted tight parts
+  // ~1.4 mm into a wall)
+  const zeroPose = { xyz_m: [0, 0, 0], rpy: [0, 0, 0] };
+  const synth = {
+    arm: cell.arm, tools: cell.tools, cameras: [],
+    fixtures: [
+      { id: 'floor', pose_table: zeroPose, boxes: [{ center: [0.85, 0.25, 0.02], size: [0.8, 0.8, 0.06] }] },
+      { id: 'wallA', pose_table: zeroPose, boxes: [{ center: [0.83, 0.25, 0.175], size: [0.02, 0.1, 0.25] }] },
+      { id: 'wallB', pose_table: zeroPose, boxes: [{ center: [0.8804, 0.25, 0.175], size: [0.02, 0.1, 0.25] }] },
+    ],
+    parts: [
+      { id: 'slab', pose_table: { xyz_m: [0.8552, 0.25, 0.0565], rpy: [0, 0, 0] },
+        boxes: [{ center: [0, 0, 0], size: [0.0308, 0.04, 0.01] }] },   // 30.8 vs 30.4 mm opening
+    ],
+  };
+  const world = await createMjWorld({ mj, cellData: synth, armCapsules: [], toolCapsules: [], loadStlBuffer: async () => { throw new Error('no meshes'); } });
+  const before = world.readPartPose('slab');
+  const res = world.settlePart('slab', { duration: 1.5 });
+  assert.ok(res?.pose, 'a symmetric squeeze must still settle onto the floor');
+  const after = world.readPartPose('slab');
+  const dxy = Math.hypot(after[3] - before[3], after[7] - before[7]);
+  assert.ok(dxy < 2e-4, `part walked ${(dxy * 1000).toFixed(2)} mm sideways during settle`);
+  assert.ok(before[11] - after[11] > 1e-3, 'part must have dropped onto the floor');
+});
+
+test('settle may only relax: a snap-fit case is never wedged deeper', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  // the real pocket is a SNAP fit: its end ledges leave the opening
+  // ~0.3 mm narrower than the case corners, so rigid physics has no
+  // penetration-free rest pose. Settling from the ideal insertion pose
+  // must not deepen the overlap or drag the case sideways (the
+  // regression: the case wedged to -2.6 mm, hanging on the walls at
+  // ~500 N with the floor carrying nothing).
+  const world = await createMjWorld({
+    mj, cellData: cell, armCapsules: [], toolCapsules: [],
+    loadStlBuffer: async p => readStl(p),
+  });
+  // measured best-fit insertion pose: case flat, long axis along the
+  // pocket, translation scanned to minimise probe-point overlap with the
+  // holder's wall boxes (the residual overlap IS the snap interference)
+  const fix = cell.fixtures.find(f => f.id === 'holder');
+  const H = IK.mul(IK.fromXyzRpy(fix.pose_table.xyz_m, [0, 0, 0]), IK.fromXyzRpy([0, 0, 0], fix.pose_table.rpy));
+  const Hrot = IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, Math.PI / 2]);
+  const walls = [...world.getBoxes().get('holder')].filter(b => b.center[2] + b.size[2] / 2 > 0.0062);
+  const loc = world.probePoints('front_case_1').map(p => [
+    Hrot[0] * p[0] + Hrot[1] * p[1] + Hrot[2] * p[2],
+    Hrot[4] * p[0] + Hrot[5] * p[1] + Hrot[6] * p[2],
+    Hrot[8] * p[0] + Hrot[9] * p[1] + Hrot[10] * p[2]]);
+  let zmin = Infinity;
+  for (const p of loc) zmin = Math.min(zmin, p[2]);
+  const zoff = 0.0077 - zmin;                       // bottom where a touch descent rests
+  const maxPen = (dx, dy) => {
+    let m = 0;
+    for (const [x0, y0, z0] of loc) {
+      const x = x0 + dx, y = y0 + dy, z = z0 + zoff;
+      for (const b of walls) {
+        const a = b.size[0] / 2 - Math.abs(x - b.center[0]); if (a <= 0) continue;
+        const c = b.size[1] / 2 - Math.abs(y - b.center[1]); if (c <= 0) continue;
+        const d = b.size[2] / 2 - Math.abs(z - b.center[2]); if (d <= 0) continue;
+        const e = Math.min(a, c, d); if (e > m) m = e;
+      }
+    }
+    return m;
+  };
+  let best = { pen: Infinity };
+  for (let dx = -2e-3; dx <= 2e-3; dx += 1e-4)
+    for (let dy = -2e-3; dy <= 2e-3; dy += 1e-4) {
+      const p = maxPen(dx, dy);
+      if (p < best.pen) best = { pen: p, dx, dy };
+    }
+  // the pocket IS tighter than the case — if this ever reads ~0 the
+  // snap-fit premise (and this test's reason to exist) has changed
+  assert.ok(best.pen > 1e-4 && best.pen < 1e-3, `snap interference ${(best.pen * 1000).toFixed(3)} mm`);
+  const pose = IK.mul(IK.mul(H, IK.translate([best.dx, best.dy, zoff])), Hrot);
+  world.setPartPose('front_case_1', pose);
+  const penOf = () => {
+    let p = 0;
+    for (const c of world.contacts(0))
+      if ((c.a === 'front_case_1' || c.b === 'front_case_1') && c.dist < p) p = c.dist;
+    return p;
+  };
+  const pen0 = penOf();
+  world.settlePart('front_case_1', { duration: 1.5 });
+  const after = world.readPartPose('front_case_1');
+  const pen1 = penOf();
+  assert.ok(pen1 >= pen0 - 2e-4,
+    `settle deepened the overlap: ${(pen0 * 1000).toFixed(2)} -> ${(pen1 * 1000).toFixed(2)} mm`);
+  const dxy = Math.hypot(after[3] - pose[3], after[7] - pose[7]);
+  assert.ok(dxy < 1e-3, `settle dragged the case ${(dxy * 1000).toFixed(2)} mm sideways`);
+});
+
 test('planner on the exact backend: clear transit passes, rack approach rejected', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const toolCaps = [{ a: [0.016, 0, 0.06], b: [0.016, 0, 0.15], r: 0.02 }];
