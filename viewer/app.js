@@ -7,6 +7,7 @@ import { createHost } from './cell-host.js';
 import { capsuleFromObject } from './capsules.js';
 import { createMjWorld } from './mj-world.js';
 import { dockedTools } from './planner.js';
+import { physicalKey, shortcutKey, flyDirection, FLY_KEYS } from './keys.js';
 
 const status = m => document.getElementById('status').textContent = m;
 
@@ -41,7 +42,6 @@ const flyKeys = new Set();
 let flyFast = false;
 let flyFocus = null;              // the selected part's node, for F
 let flyMoved = false;             // flown since the pivot was last anchored
-const FLY = new Set(['w', 'a', 's', 'd', 'q', 'e']);
 const HOME_EYE = new THREE.Vector3(0, 1.05, 1.75);
 const HOME_AT = new THREE.Vector3(0.68, 0.28, -0.30);
 export function setFlyFocus(node) { flyFocus = node; }
@@ -66,16 +66,15 @@ function frameView() {
 
 addEventListener('keydown', ev => {
   flyFast = ev.shiftKey;
-  if (/INPUT|SELECT|TEXTAREA/.test(ev.target?.tagName ?? '')) return;
-  const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  const k = shortcutKey(ev);       // null while typing in a field
   if (k === 'f') { ev.preventDefault(); frameView(); flyMoved = false; return; }
-  if (!FLY.has(k)) return;
+  if (!FLY_KEYS.has(k)) return;
   ev.preventDefault();
   flyKeys.add(k);
 });
 addEventListener('keyup', ev => {
   flyFast = ev.shiftKey;
-  flyKeys.delete(ev.key.length === 1 ? ev.key.toLowerCase() : ev.key);
+  flyKeys.delete(physicalKey(ev));
 });
 addEventListener('blur', () => { flyKeys.clear(); flyFast = false; });
 
@@ -107,6 +106,12 @@ function anchorPivot() {
   }
   // nothing in view at all: leave the pivot where it travelled to
 }
+// clicking into the 3D view takes the keyboard back from whatever field
+// had it (the chat box, a dropdown) — otherwise the fly keys stay dead
+renderer.domElement.addEventListener('pointerdown', () => {
+  const a = document.activeElement;
+  if (a && a !== document.body) a.blur();
+}, { capture: true });
 // capture phase: anchored before OrbitControls starts its drag or zoom
 for (const type of ['pointerdown', 'wheel'])
   renderer.domElement.addEventListener(type, () => { if (flyMoved) anchorPivot(); }, { capture: true, passive: true });
@@ -116,13 +121,7 @@ function updateFly(dt) {
   if (!flyKeys.size) return;
   camera.getWorldDirection(flyFwd);
   flyRight.crossVectors(flyFwd, camera.up).normalize();
-  flyStep.set(0, 0, 0);
-  if (flyKeys.has('w')) flyStep.add(camera.up);
-  if (flyKeys.has('s')) flyStep.sub(camera.up);
-  if (flyKeys.has('d')) flyStep.add(flyRight);
-  if (flyKeys.has('a')) flyStep.sub(flyRight);
-  if (flyKeys.has('e')) flyStep.add(flyFwd);
-  if (flyKeys.has('q')) flyStep.sub(flyFwd);
+  flyStep.fromArray(flyDirection(flyKeys, flyFwd.toArray(), flyRight.toArray(), camera.up.toArray()));
   if (flyStep.lengthSq() < 1e-9) return;
   // 0.4 x the orbit distance per second: ~2 s to cross the cell from
   // the default view, and a crawl once you are nose-up to a part
@@ -765,12 +764,12 @@ async function main() {
     });
     addEventListener('keydown', ev => {
       if (!selected) return;
-      if (/INPUT|SELECT|TEXTAREA/.test(ev.target.tagName ?? '')) return;
-      if (ev.key === 'Escape') { select(null); taskLog('push mode off'); return; }
+      const key = shortcutKey(ev);     // null while typing in a field
+      if (key === null) return;
+      if (key === 'Escape') { select(null); taskLog('push mode off'); return; }
       if (running || host?.state.busy) return;
       if (host?.state.held === selected) { taskLog(`${selected} is held by the arm`); return; }
       let dir = null, force = 8;
-      const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
       if (key === 'z' || key === 'PageDown') { dir = [0, 0, -1]; force = 30; }
       else if (key === 'x' || key === 'PageUp') dir = [0, 0, 1];
       else if (ev.key.startsWith('Arrow')) {
