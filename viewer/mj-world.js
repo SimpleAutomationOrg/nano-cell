@@ -306,6 +306,68 @@ ${wb}
     return { pose, traj };
   }
 
+  // PUSH a part with a capped force, like a fingertip: quasi-static
+  // (strong damping, speed clamp), gravity on, everything else frozen.
+  // The part slides, stops against hard obstacles, and can press past
+  // soft shallow overlaps (the snap fit). dir is a unit vector in the
+  // table frame; dist is how far to push. Returns { pose, moved } —
+  // moved < dist means it was blocked.
+  function pushPart(id, dir, dist, { force = 25, duration = 1.0 } = {}) {
+    const w = P;
+    const adr = w.partAdr.get(id);
+    if (adr === undefined) return null;
+    setMargin(P, 0);
+    const n = Math.hypot(dir[0], dir[1], dir[2]) || 1;
+    const d3 = [dir[0] / n, dir[1] / n, dir[2] / n];
+    const frozenQpos = Float64Array.from({ length: w.model.nq }, (_, i) => w.data.qpos[i]);
+    const g = w.model.opt.gravity;
+    const g0 = [g[0], g[1], g[2]];
+    g[0] = 0; g[1] = 0; g[2] = -9.81;
+    const dt0 = w.model.opt.timestep;
+    w.model.opt.timestep = 0.001;
+    const dt = w.model.opt.timestep;
+    const dof0 = w.model.jnt_dofadr[mj.mj_name2id(w.model, mj.mjtObj.mjOBJ_JOINT.value, `fj:${id}`)];
+    const start = [w.data.qpos[adr], w.data.qpos[adr + 1], w.data.qpos[adr + 2]];
+    const along = () =>
+      (w.data.qpos[adr] - start[0]) * d3[0] +
+      (w.data.qpos[adr + 1] - start[1]) * d3[1] +
+      (w.data.qpos[adr + 2] - start[2]) * d3[2];
+    let stale = 0, last = 0;
+    try {
+      for (let i = 0; i < Math.ceil(duration / dt); i++) {
+        for (let k = 0; k < 3; k++) w.data.qfrc_applied[dof0 + k] = d3[k] * force;
+        mj.mj_step(w.model, w.data);
+        for (let k = 0; k < w.model.nq; k++) {
+          if (k >= adr && k < adr + 7) continue;
+          w.data.qpos[k] = frozenQpos[k];
+        }
+        for (let k = 0; k < w.model.nv; k++) {
+          if (k >= dof0 && k < dof0 + 6) continue;
+          w.data.qvel[k] = 0;
+        }
+        // quasi-static: damp hard and clamp speed, so one step never
+        // outruns the soft-contact ramp (no tunnelling)
+        for (let k = dof0; k < dof0 + 6; k++) w.data.qvel[k] *= 0.7;
+        for (let k = dof0; k < dof0 + 3; k++) {
+          if (w.data.qvel[k] > 0.08) w.data.qvel[k] = 0.08;
+          if (w.data.qvel[k] < -0.08) w.data.qvel[k] = -0.08;
+        }
+        const a = along();
+        if (a >= dist) break;
+        if (a - last < 1e-6) { if (++stale > 120) break; }   // blocked
+        else { stale = 0; last = a; }
+      }
+    } finally {
+      for (let k = 0; k < 3; k++) w.data.qfrc_applied[dof0 + k] = 0;
+      for (let k = dof0; k < dof0 + 6; k++) w.data.qvel[k] = 0;
+      g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
+      w.model.opt.timestep = dt0;
+    }
+    const pose = readPartPoseFrom(P, id);
+    setPartPose(id, pose);     // sync into BOTH models
+    return { pose, moved: along() };
+  }
+
   // MEASUREMENT points derived from the SAME boxes MuJoCo collides:
   // corners + face centres of every box, in the item's local frame.
   // Deterministic (no random sampling) and consistent with collision.
@@ -403,7 +465,7 @@ ${wb}
   }
 
   return {
-    setArm, setPartPose, contacts, readPartPose, settlePart, contactForces,
+    setArm, setPartPose, contacts, readPartPose, settlePart, pushPart, contactForces,
     probePoints, corridorMaxZ, maxZAll,
     getBoxes: () => boxesByItem,
     rebuildTool: caps => rebuild(caps),

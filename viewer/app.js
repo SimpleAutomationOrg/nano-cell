@@ -594,6 +594,101 @@ async function main() {
     status('scene reset');
   };
 
+  // ---------- interactive part pushing ----------
+  // click a part to select it, then push it with the keyboard. Each
+  // press is a REAL physics push (a capped force through MuJoCo): the
+  // part slides, stops against walls, and a firm downward press can
+  // click past the snap fit — it can never teleport or tunnel.
+  //   arrows      push horizontally, relative to the camera (8 N)
+  //   Z (or PgDn) press down firmly (30 N — seats a snap fit)
+  //   X (or PgUp) lift gently (8 N)
+  //   Shift       fine steps (0.1 mm instead of 1 mm)
+  //   Esc         deselect
+  // (letters chosen to leave WASD free for future bindings)
+  {
+    const nodeToPart = new Map();
+    for (const it of cell.parts ?? []) {
+      const n = partNodes.get(it.id);
+      if (n) nodeToPart.set(n, it.id);
+    }
+    let selected = null, outline = null;
+    const select = id => {
+      if (outline) { scene.remove(outline); outline = null; }
+      selected = id;
+      if (id) {
+        // BoxHelper builds scene-space geometry, so it must live on the
+        // scene root, not inside the rotated table-frame group
+        outline = new THREE.BoxHelper(partNodes.get(id), 0xffc94d);
+        scene.add(outline);
+        taskLog(`${id} selected — arrows push · Z press in · X lift · Shift fine · Esc done`);
+      }
+    };
+    window.selectPart = select;              // console/debug access
+    const pickRay = new THREE.Raycaster();
+    let downAt = null;
+    renderer.domElement.addEventListener('pointerdown', ev => { downAt = [ev.clientX, ev.clientY]; });
+    renderer.domElement.addEventListener('pointerup', ev => {
+      if (!downAt || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;  // orbit drag
+      pickRay.setFromCamera(new THREE.Vector2(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1), camera);
+      const hits = pickRay.intersectObjects(world.children, true).filter(h =>
+        h.object.visible && h.object.isMesh &&
+        !(h.object.material?.transparent && h.object.material.opacity < 0.5));
+      for (const h of hits) {
+        let o = h.object;
+        while (o && !nodeToPart.has(o)) o = o.parent;
+        if (o) { select(nodeToPart.get(o)); return; }
+      }
+      if (selected) { select(null); taskLog('push mode off'); }
+    });
+    addEventListener('keydown', ev => {
+      if (!selected) return;
+      if (/INPUT|SELECT|TEXTAREA/.test(ev.target.tagName ?? '')) return;
+      if (ev.key === 'Escape') { select(null); taskLog('push mode off'); return; }
+      if (running || host?.state.busy) return;
+      if (host?.state.held === selected) { taskLog(`${selected} is held by the arm`); return; }
+      let dir = null, force = 8;
+      const key = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+      if (key === 'z' || key === 'PageDown') { dir = [0, 0, -1]; force = 30; }
+      else if (key === 'x' || key === 'PageUp') dir = [0, 0, 1];
+      else if (ev.key.startsWith('Arrow')) {
+        // camera-relative horizontal directions, in the table frame
+        const fwd = new THREE.Vector3();
+        camera.getWorldDirection(fwd);
+        const inv = new THREE.Matrix4().extractRotation(world.matrixWorld).invert();
+        fwd.applyMatrix4(inv); fwd.z = 0;
+        if (fwd.lengthSq() < 1e-6) return;
+        fwd.normalize();
+        const right = new THREE.Vector3(fwd.y, -fwd.x, 0);
+        const d = { ArrowUp: fwd, ArrowDown: fwd.clone().negate(),
+                    ArrowRight: right, ArrowLeft: right.clone().negate() }[ev.key];
+        if (!d) return;
+        dir = [d.x, d.y, d.z];
+      } else return;
+      ev.preventDefault();
+      const w2 = mjWorldRef;
+      if (!w2) { taskLog('physics backend not active'); return; }
+      const step = ev.shiftKey ? 0.0001 : 0.001;
+      // push in the CURRENT world: live scene poses and arm
+      w2.setArm(host.api.joints().map(v => v * Math.PI / 180));
+      for (const it of cell.parts ?? []) {
+        const n = partNodes.get(it.id);
+        if (n) w2.setPartPose(it.id, liveMat(n));
+      }
+      const res = w2.pushPart(selected, dir, step, { force });
+      if (!res) return;
+      const m = res.pose;
+      const m4 = new THREE.Matrix4().set(
+        m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], 0, 0, 0, 1);
+      const node = partNodes.get(selected);
+      node.position.setFromMatrixPosition(m4);
+      node.quaternion.setFromRotationMatrix(m4);
+      node.updateMatrix();
+      outline?.update();
+      const blocked = res.moved < step - 1e-6;
+      taskLog(`${selected}: pushed ${(res.moved * 1000).toFixed(2)} mm${blocked ? ' — blocked' : ''}`);
+    });
+  }
+
   await buildTaskUI(cell, mountToolTracked);
 
   status(`${cell.name} — ready`);

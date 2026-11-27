@@ -222,6 +222,35 @@ test('settle may only relax: a snap-fit case is never wedged deeper', { skip: !m
   assert.ok(grip < 200, `snap grip reads ${grip.toFixed(0)} N — soft contacts regressed`);
 });
 
+test('pushPart: a firm press seats a press fit, a gentle nudge is blocked by walls', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  const zeroPose = { xyz_m: [0, 0, 0], rpy: [0, 0, 0] };
+  const synth = {
+    arm: cell.arm, tools: cell.tools, cameras: [],
+    fixtures: [
+      { id: 'floor', pose_table: zeroPose, boxes: [{ center: [0.85, 0.25, 0.02], size: [0.8, 0.8, 0.06] }] },
+      { id: 'wallA', pose_table: zeroPose, boxes: [{ center: [0.83, 0.25, 0.175], size: [0.02, 0.1, 0.25] }] },
+      { id: 'wallB', pose_table: zeroPose, boxes: [{ center: [0.8804, 0.25, 0.175], size: [0.02, 0.1, 0.25] }] },
+    ],
+    parts: [
+      { id: 'slab', pose_table: { xyz_m: [0.8552, 0.25, 0.0585], rpy: [0, 0, 0] },
+        boxes: [{ center: [0, 0, 0], size: [0.0308, 0.04, 0.01] }] },   // 0.2 mm squeeze per side
+    ],
+  };
+  const world = await createMjWorld({ mj, cellData: synth, armCapsules: [], toolCapsules: [], loadStlBuffer: async () => { throw new Error('no meshes'); } });
+  // firm press down: must reach the floor (bottom = part centre - 5 mm -> 0.05)
+  const r1 = world.pushPart('slab', [0, 0, -1], 0.01, { force: 30 });
+  const z1 = world.readPartPose('slab')[11];
+  assert.ok(r1.moved > 2e-3, `press only moved ${(r1.moved * 1000).toFixed(2)} mm`);
+  assert.ok(Math.abs(z1 - 0.055) < 1e-3, `did not seat on the floor: centre z=${(z1 * 1000).toFixed(2)} mm`);
+  // gentle sideways nudge: the wall must block it (squeeze is only 0.2 mm)
+  const r2 = world.pushPart('slab', [1, 0, 0], 0.005, { force: 8 });
+  assert.ok(r2.moved < 1e-3, `wall did not block: moved ${(r2.moved * 1000).toFixed(2)} mm`);
+  // and it must not have tunnelled out of the channel
+  const x = world.readPartPose('slab')[3];
+  assert.ok(Math.abs(x - 0.8552) < 1.5e-3, `slab left the channel: x=${(x * 1000).toFixed(2)} mm`);
+});
+
 test('planner on the exact backend: clear transit passes, rack approach rejected', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const toolCaps = [{ a: [0.016, 0, 0.06], b: [0.016, 0, 0.15], r: 0.02 }];
