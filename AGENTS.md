@@ -65,8 +65,12 @@ An application must stay movable to another robot. So:
   changer's unlock interlock) sit under `taught_on.<robot>` in
   application.json and do not follow the application to another robot.
 - `"robot"` in application.json is the robot it is set up on now. To
-  look at it on another one: `?robot=<name>` in the viewer URL
-  (`?app=<name>` picks the application; default is the first).
+  look at it on another one: `?robot=<name>` in the viewer URL.
+- The viewer's right panel lists the applications; picking one opens it
+  (`?app=<name>`; without it, the one opened last). **New** makes an
+  empty application on the same robot — `application.json` with no
+  grippers, fixtures or parts, an empty `loop.ts`, empty `steps/` and
+  `meshes/` — and opens it; fill it from there.
 - A robot is a folder in the repository root named after it (`cell_fr3/`);
   a new robot is a new such folder with its `robot.json`; a new application a
   new `applications/<name>/` — copy the existing one as the template.
@@ -99,7 +103,9 @@ case, then back case). When you add a step that belongs to the cycle,
 add it there in its place. Steps not in the loop still exist and run on
 their own (a fallback, a demo).
 
-The viewer shows this as the **steps dock** under the 3D view, in one
+The page is three columns: the chat on the left, the 3D view with the
+steps dock under it in the middle, the cell panel on the right. The
+viewer shows the loop as the **steps dock** under the 3D view, in one
 column: the loop's steps in order, and below them the steps not in the
 loop. Dragging a step reorders the loop or moves the step in or out of
 it, and the server writes the new order into `loop.ts` (only the
@@ -150,7 +156,7 @@ assume it starts from its own `entry`.
 
 ## The chat panel
 
-The viewer has a **Step agent** panel (top right): the user types a
+The viewer has a **Step agent** panel (the left column): the user types a
 request and a coding agent edits the steps, the page reloading on each
 save. It is `viewer/chat.js` (the panel) and `viewer/chat.py` (served by
 `serve.py` under `/__chat/*`): every message runs the Claude Code CLI

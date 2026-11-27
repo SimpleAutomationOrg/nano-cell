@@ -31,6 +31,27 @@ SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store"}
 
 CHAT = Chat(ROOT)
 
+NEW_LOOP = """// The loop of the %(id)s application: the steps that make up one cycle
+// of work, in the order they run. A step is a file in steps/, named here
+// without its extension. Steps not listed still exist and can be run on
+// their own (a fallback, a demo).
+//
+// The viewer rewrites the `steps` list when steps are dragged in its
+// panel: keep comments outside that list.
+
+export interface Loop {
+  /** What the loop is called in the viewer. */
+  name: string;
+  /** The steps of one cycle, in order. */
+  steps: string[];
+}
+
+export const loop: Loop = {
+  name: '%(name)s',
+  steps: [],
+};
+"""
+
 # starts at the clock, not at 0: pages left open across a server restart
 # see a newer generation and reload, instead of running their old code
 _generation = int(time.time())
@@ -115,7 +136,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         import json
-        if not self.path.startswith(("/__chat/", "/__loop/save")):
+        if not self.path.startswith(("/__chat/", "/__loop/save", "/__applications/new")):
             return self._json({"error": "not found"}, 404)
         if not self._same_origin():
             return self._json({"error": "forbidden"}, 403)
@@ -126,6 +147,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             data = None
         if not isinstance(data, dict):
             return self._json({"error": "bad request"}, 400)
+        if self.path.startswith("/__applications/new"):
+            return self._new_application(data)
         if self.path.startswith("/__loop/save"):
             return self._save_loop(data)
         action = self.path[len("/__chat/"):]
@@ -158,6 +181,49 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         d = os.path.join(ROOT, "applications", app)
         ok = isinstance(app, str) and app and app == os.path.basename(app) and app not in (".", "..")
         return d if ok and os.path.isfile(os.path.join(d, "application.json")) else None
+
+    def _new_application(self, data):
+        # a new, empty application: a folder with application.json, loop.ts
+        # and steps/, set up on the same robot as the application `like`
+        import json
+        name = " ".join(str(data.get("name", "")).split())[:60]
+        app_id = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+        if not app_id:
+            return self._json({"error": "give the application a name (letters or digits)"}, 400)
+        d = os.path.join(ROOT, "applications", app_id)
+        if os.path.exists(d):
+            return self._json({"error": f"applications/{app_id} already exists"}, 409)
+        like = self._app_dir(data.get("like"))
+        if not like:
+            return self._json({"error": "bad request"}, 400)
+        try:
+            with open(os.path.join(like, "application.json"), encoding="utf-8") as f:
+                old = json.load(f)
+            app = {
+                "name": name,
+                "about": "An application: everything that belongs to one job and its environment — the "
+                         "grippers, the tool rack, the fixtures and parts on the table, its loop (loop.ts) "
+                         "and its steps (steps/). Every pose is in the table frame, so the application "
+                         "does not depend on which robot runs it; 'robot' names the one it is set up on now.",
+                "robot": old.get("robot"),
+                "units": old.get("units"),
+                "conventions": old.get("conventions", {}),
+                "tools": [],
+                "tool_rack": {"stands": []},
+                "mounted_tool": None,
+                "fixtures": [],
+                "parts": [],
+                "unplaced_parts": [],
+            }
+            os.makedirs(os.path.join(d, "steps"))
+            os.makedirs(os.path.join(d, "meshes"))
+            with open(os.path.join(d, "application.json"), "w", encoding="utf-8") as f:
+                f.write(json.dumps(app, indent=1, ensure_ascii=False) + "\n")
+            with open(os.path.join(d, "loop.ts"), "w", encoding="utf-8") as f:
+                f.write(NEW_LOOP % {"id": app_id, "name": name.replace("\\", "").replace("'", "")})
+        except OSError as e:
+            return self._json({"error": str(e)}, 500)
+        return self._json({"ok": True, "id": app_id})
 
     def _loop(self):
         # the loop of one application: /__loop?app=<name>  ->  {name, steps} or null

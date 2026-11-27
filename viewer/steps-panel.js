@@ -25,7 +25,8 @@ export function createStepsPanel({ el, steps, loop, onSelect, onRun, onSave }) {
     el.innerHTML = '';
     const { loop: inLoop, free } = sections(steps, { steps: order });
     el.appendChild(section(true, `Loop · ${loop?.name ?? 'loop'}`, inLoop, 'drag a step here to put it in the loop'));
-    el.appendChild(section(false, 'Not in the loop', free, 'every step is in the loop'));
+    el.appendChild(section(false, 'Not in the loop', free,
+      steps.length ? 'every step is in the loop' : 'no steps yet — ask the agent for one (steps/<name>.ts)'));
   }
 
   function section(isLoop, title, list, emptyText) {

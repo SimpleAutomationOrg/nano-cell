@@ -7,13 +7,13 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #101418; font-family: ui-sans-serif, system-ui, sans-serif; }
-  :root { --dock: 250px; --chat: 380px; --left: 290px; }
+  :root { --dock: 250px; --chat: 380px; --side: 290px; }
   body.chat-closed { --chat: 0px; }
-  /* three columns: the cell panel, full height; in the middle the simulation
-     with the steps dock below it; the chat, full height */
-  #app { position: fixed; top: 0; left: var(--left); right: var(--chat); bottom: var(--dock); }
+  /* three columns: the chat, full height; in the middle the simulation with
+     the steps dock below it; the cell panel, full height */
+  #app { position: fixed; top: 0; left: var(--chat); right: var(--side); bottom: var(--dock); }
   #dock {
-    position: fixed; left: var(--left); right: var(--chat); bottom: 0; height: var(--dock); box-sizing: border-box;
+    position: fixed; left: var(--chat); right: var(--side); bottom: 0; height: var(--dock); box-sizing: border-box;
     display: flex; justify-content: center; padding: 10px 14px; background: #0d1115; border-top: 1px solid #2a3340;
     color: #cdd6e0; font-size: 12.5px;
   }
@@ -23,11 +23,13 @@
   #btnLoop { background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
   #btnLoop:hover { background: #2a62a8; }
   #panel {
-    position: fixed; top: 0; left: 0; bottom: 0; width: var(--left); box-sizing: border-box;
-    overflow-y: auto; background: #0d1115; border-right: 1px solid #2a3340;
+    position: fixed; top: 0; right: 0; bottom: 0; width: var(--side); box-sizing: border-box;
+    overflow-y: auto; background: #0d1115; border-left: 1px solid #2a3340;
     padding: 12px 14px; color: #cdd6e0; font-size: 12.5px;
   }
   #panel h1 { font-size: 13px; margin: 0 0 2px; color: #fff; font-weight: 600; }
+  #appRow { display: flex; gap: 6px; margin: 6px 0 8px; }
+  #appRow select { flex: 1; min-width: 0; }
   #panel .sub { color: #7d8a99; margin-bottom: 10px; }
   .joint { display: grid; grid-template-columns: 24px 1fr 52px; gap: 8px; align-items: center; margin: 5px 0; }
   .joint label { color: #9fb0c0; }
@@ -76,15 +78,15 @@
     border: 1px solid #334155; border-radius: 6px; padding: 3px 8px; font-size: 12px;
     display: none; z-index: 10; max-width: 320px;
   }
-  #status { position: fixed; right: calc(var(--chat) + 14px); bottom: calc(var(--dock) + 10px); color: #64748b; font-size: 11.5px; }
+  #status { position: fixed; right: calc(var(--side) + 14px); bottom: calc(var(--dock) + 10px); color: #64748b; font-size: 11.5px; }
   /* chat with the step agent (chat.js) */
   #chat {
-    position: fixed; top: 0; right: 0; bottom: 0; width: var(--chat); box-sizing: border-box;
-    display: flex; flex-direction: column; background: #0d1115; border-left: 1px solid #2a3340;
+    position: fixed; top: 0; left: 0; bottom: 0; width: var(--chat); box-sizing: border-box;
+    display: flex; flex-direction: column; background: #0d1115; border-right: 1px solid #2a3340;
     color: #cdd6e0; font-size: 12.5px;
   }
   /* closed: only the header is left, as a tab in the corner */
-  #chat.closed { width: auto; bottom: auto; top: 12px; right: 12px; border: 1px solid #2a3340; border-radius: 10px; }
+  #chat.closed { width: auto; bottom: auto; top: 12px; left: 12px; border: 1px solid #2a3340; border-radius: 10px; }
   #chat header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; user-select: none; }
   #chat header b { flex: 1; color: #fff; font-weight: 600; font-size: 13px; }
   #chat header .dot { width: 7px; height: 7px; border-radius: 50%; background: #3b4756; }
@@ -119,6 +121,10 @@
 <div id="app"></div>
 <div id="panel">
   <h1 id="cellName">nano cell</h1>
+  <div id="appRow">
+    <select id="appSel" title="the applications in applications/ — pick one to open it"></select>
+    <button id="appNew" title="create a new, empty application on this robot and open it">New</button>
+  </div>
   <div class="sub">Fairino FR3 · drag to orbit · WASD to fly · live reload</div>
   <div id="joints"></div>
   <div class="row">

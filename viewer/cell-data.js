@@ -85,7 +85,8 @@ export function composeCell(robot, application) {
       ...(taught.unlock_interlock ? { unlock_interlock: taught.unlock_interlock } : {}),
       stands,
     },
-    mounted_tool: application.mounted_tool,
+    // an application that mounts nothing leaves the changer bare
+    mounted_tool: application.mounted_tool ?? robot.changer?.bare_tool_id ?? null,
     demo_start_tool: application.demo_start_tool,
     fixtures,
     parts,

@@ -397,6 +397,32 @@ async function runSteps(appId, list, mountToolFn, what = 'step') {
   }
 }
 
+// The applications: a list to open one, and a button that makes a new one.
+// Opening is a page load with ?app=<id>.
+function buildAppUI(apps, current) {
+  const open = id => { localStorage.setItem('app.last', id); location.search = `?app=${encodeURIComponent(id)}`; };
+  localStorage.setItem('app.last', current);
+  const sel = document.getElementById('appSel');
+  sel.innerHTML = '';
+  for (const a of apps.some(x => x.id === current) ? apps : [{ id: current, name: current }, ...apps]) {
+    const o = document.createElement('option');
+    o.value = a.id; o.textContent = a.name && a.name !== a.id ? `${a.name}  (${a.id})` : a.id;
+    sel.appendChild(o);
+  }
+  sel.value = current;
+  sel.addEventListener('change', () => open(sel.value));
+  document.getElementById('appNew').onclick = async () => {
+    const name = prompt('Name of the new application (for example "button assembly"):');
+    if (!name?.trim()) return;
+    const r = await (await fetch('/__applications/new', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Nano-Cell': 'chat' },
+      body: JSON.stringify({ name: name.trim(), like: current }),
+    })).json();
+    if (r.error) { status('new application: ' + r.error); alert(r.error); return; }
+    open(r.id);
+  };
+}
+
 async function buildStepUI(cell, mountToolFn) {
   const app = encodeURIComponent(cell.application);
   let steps = [], loop = null;
@@ -404,7 +430,6 @@ async function buildStepUI(cell, mountToolFn) {
     steps = await (await fetch(`/__steps?app=${app}`)).json();
     loop = await (await fetch(`/__loop?app=${app}`)).json();
   } catch { /* not serve.py */ }
-  if (!steps.length) return;
 
   stepsPanel = createStepsPanel({
     el: document.getElementById('steps'), steps, loop,
@@ -441,11 +466,12 @@ async function main() {
   // which application, on which robot: ?app=<name> (default: the first
   // one) and, to try it on another robot, ?robot=<name>
   const query = new URLSearchParams(location.search);
-  let appId = query.get('app');
-  if (!appId) {
-    try { appId = (await (await fetch('/__applications')).json())[0]?.id; } catch { /* not serve.py */ }
-  }
-  appId ??= 'case-assembly';
+  let apps = [];
+  try { apps = await (await fetch('/__applications')).json(); } catch { /* not serve.py */ }
+  // ?app= says which; otherwise the one opened last, otherwise the first
+  const last = localStorage.getItem('app.last');
+  const appId = query.get('app') ?? (apps.some(a => a.id === last) ? last : apps[0]?.id) ?? 'case-assembly';
+  buildAppUI(apps, appId);
   let cell;
   try {
     cell = await loadCell(async p => {
