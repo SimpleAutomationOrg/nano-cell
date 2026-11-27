@@ -36,7 +36,10 @@ tools, fixtures, parts with meshes + collision meshes). The **planner**
 collision-checked joint paths on the MuJoCo backend
 (`viewer/mj-world.js`; obstacles box-decomposed by `viewer/boxify.js`,
 which also supplies the measurement points and corridor heights). The **host** (`viewer/cell-host.js`)
-animates them in the three.js scene and owns run state. **Tasks** live
+animates them in the three.js scene and owns run state. Tools not on
+the arm rest in their rack stands (`changer.stands[].tool_id`) and are
+obstacles like any fixture; a move that deliberately reaches one names
+the tool id in `ignore`. **Tasks** live
 in `tasks/<name>/`: a `task.json` naming the tool and segment order,
 and `segments/*.ts` — typed async functions against the cell API
 (`viewer/cell.d.ts`). The server (`viewer/serve.py`) also exposes

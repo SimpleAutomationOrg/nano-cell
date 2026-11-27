@@ -6,6 +6,7 @@ import * as IK from './ik.js';
 import { createHost } from './cell-host.js';
 import { capsuleFromObject } from './capsules.js';
 import { createMjWorld } from './mj-world.js';
+import { dockedTools } from './planner.js';
 
 const status = m => document.getElementById('status').textContent = m;
 
@@ -453,9 +454,17 @@ async function main() {
     o.value = t.id; o.textContent = t.name;
     sel.appendChild(o);
   }
+  // the tools resting in the rack: every stand's tool except the one on
+  // the arm, at the stand's measured docked pose
+  const rack = new THREE.Group(); world.add(rack);
+  async function showRack(mountedId) {
+    rack.clear();
+    await loadItems(dockedTools(cell, mountedId).map(({ id, ...rest }) => rest), '../cell/dvt01/', rack);
+  }
   async function mountTool(id) {
     toolHolder.clear();
     sel.value = id;
+    await showRack(id);
     const t = cell.tools.find(x => x.id === id);
     if (!t || !t.mesh) return;
     if (!toolCache[id]) toolCache[id] = await loadGlb('../cell/dvt01/' + t.mesh);
@@ -506,6 +515,7 @@ async function main() {
   addToggle('fixtures', fixtures);
   addToggle('parts', parts);
   addToggle('flange stack', stack);
+  addToggle('tools in the rack', rack);
 
   // MuJoCo is THE geometry backend (collision, touch, physics,
   // measurements). It is required: without `npm install` tasks cannot
@@ -521,6 +531,7 @@ async function main() {
     const loadMujoco = (await import('/node_modules/@mujoco/mujoco/mujoco.js')).default;
     const mjmod = await loadMujoco();
     mjWorldRef = await createMjWorld({
+      getToolId: () => sel.value,
       mj: mjmod, cellData: cell, armCapsules, toolCapsules,
       loadStlBuffer: p => fetch('../cell/dvt01/' + p).then(r => {
         if (!r.ok) throw new Error(`${p}: ${r.status}`);

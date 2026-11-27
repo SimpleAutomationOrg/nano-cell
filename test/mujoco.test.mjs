@@ -57,6 +57,11 @@ test('MuJoCo world: dock pose near the rack, home pose clean', { skip: !mj }, as
   world.setArm([-95.8, -109.03, -35.38, -125.69, 89.91, 61.48].map(d2r));
   const home = world.contacts(0.005).filter(c => c.a.startsWith('arm:') || c.b.startsWith('arm:'));
   assert.equal(home.length, 0, `home pose contacts: ${home.map(c => c.a + '/' + c.b)}`);
+  // the tools resting in the rack are obstacles too: above the small
+  // cup's stand, 3 cm short of docking, the arm side meets that tool
+  world.setArm([-33.3756, -110.0176, -103.6279, -56.3347, 90.0489, -146.0996].map(d2r));
+  const overCup = world.contacts(0.03).filter(c => c.a.startsWith('arm:') || c.b.startsWith('arm:'));
+  assert.ok(overCup.some(c => (c.a + c.b).includes('rcup6_p0')), `a docked tool is an obstacle: ${overCup.map(c => c.a + '/' + c.b)}`);
 });
 
 test('touch on the exact backend: wall ignored, floor stops, settles close', { skip: !mj }, async () => {

@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as IK from '../viewer/ik.js';
-import { createPlanner, footprintAzimuth } from '../viewer/planner.js';
+import { createPlanner, footprintAzimuth, dockedTools } from '../viewer/planner.js';
 
 const d2r = d => d * Math.PI / 180;
 const r2d = r => r * 180 / Math.PI;
@@ -206,4 +206,17 @@ test('exact transit: when the short way round runs J6 into its limit, it goes th
   const { reversals, travel } = j6Profile(plan.path);
   assert.equal(reversals, 0, `J6 reversed ${reversals}x over ${travel.toFixed(0)}° of travel`);
   assert.ok(travel < 200, `J6 travelled ${travel.toFixed(0)}° for a 151° change`);
+});
+
+test('tool rack: the tool of every stand rests in it except the one on the arm; far to near is medium cup, small cup, screwdriver', () => {
+  const farToNear = id => dockedTools(cell, id).sort((a, b) => b.pose_table.xyz_m[1] - a.pose_table.xyz_m[1]).map(t => t.id);
+  assert.deepEqual(farToNear(null), ['rcup16_p0', 'rcup6_p0', 'screwdriver_p0']);
+  assert.deepEqual(farToNear('rcup16_p0'), ['rcup6_p0', 'screwdriver_p0'], 'the mounted tool is on the arm, not in its stand');
+  // a docked tool hangs where the arm leaves it: its pose is the flange pose of the stand's return joints
+  const mount = IK.fromXyzRpy(cell.arm.mount_table.xyz_m, cell.arm.mount_table.rpy);
+  for (const s of cell.changer.stands) {
+    const f = IK.pos(IK.mul(mount, IK.fkFlange(s.return_deg.map(d2r))));
+    const off = Math.hypot(...f.map((v, k) => v - s.pose_table.xyz_m[k]));
+    assert.ok(off < 0.002, `${s.name}: docked pose is ${(off * 1000).toFixed(1)} mm from where the arm docks`);
+  }
 });

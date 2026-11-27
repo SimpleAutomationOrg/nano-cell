@@ -66,6 +66,21 @@ export class CollisionError extends Error {
   constructor(msg, hit) { super(msg); this.hit = hit; }
 }
 
+// Tools resting in the rack: every changer stand that holds a tool, except
+// the one on the arm. Each is an obstacle (and a drawn item) at the
+// stand's measured docked pose — the flange frame the tool is modelled in,
+// so its mesh needs no further offset. Shaped like a fixture.
+export function dockedTools(cellData, mountedId) {
+  const out = [];
+  for (const s of cellData.changer?.stands ?? []) {
+    const t = s.tool_id && s.tool_id !== mountedId && (cellData.tools ?? []).find(x => x.id === s.tool_id);
+    if (!t?.mesh) continue;
+    out.push({ id: t.id, name: `${t.name} — in ${s.name}`, stand: s.name, mesh: t.mesh,
+      collision_mesh: t.collision_mesh, pose_table: s.pose_table });
+  }
+  return out;
+}
+
 export function createPlanner(opts) {
   // opts: { cellData, mountMat, getToolId,
   //         armCapsules?, getToolCapsules?, guardBox?,
@@ -307,7 +322,8 @@ export function createPlanner(opts) {
     const itemMat = id => {
       if (mjw.readPartPose && (cellData.parts ?? []).some(x => x.id === id))
         return mjw.readPartPose(id);
-      const f = (cellData.fixtures ?? []).find(x => x.id === id);
+      const f = (cellData.fixtures ?? []).find(x => x.id === id)
+        ?? dockedTools(cellData, opts.getToolId?.()).find(x => x.id === id);
       return f ? IK.fromXyzRpy(f.pose_table.xyz_m, f.pose_table.rpy) : null;
     };
     const supportsInterior = (other, pos, heldPose) => {

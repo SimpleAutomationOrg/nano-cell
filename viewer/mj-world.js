@@ -15,6 +15,7 @@
 import * as IK from './ik.js';
 import { parseBinaryStl } from './stl.js';
 import { boxify } from './boxify.js';
+import { dockedTools } from './planner.js';
 
 // fixed-precision attribute numbers: no scientific notation (the XML
 // parser rejects it) and deterministic output
@@ -35,7 +36,16 @@ const quatOfMat = m => IK.quatFromMat(m);
 const GROUPS_QUERY = { arm: 'contype="1" conaffinity="6"', fixture: 'contype="2" conaffinity="1"', part: 'contype="4" conaffinity="3"' };
 const GROUPS_PHYS = { arm: 'contype="1" conaffinity="6"', fixture: 'contype="2" conaffinity="5"', part: 'contype="4" conaffinity="7"' };
 
-export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, loadStlBuffer }) {
+export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, loadStlBuffer, getToolId }) {
+  // everything that stands still: the fixtures, plus the tools resting in
+  // the rack (all but the one on the arm — recomputed on a tool change)
+  let statics = [];
+  const refreshStatics = () => {
+    statics = [...(cellData.fixtures ?? []), ...dockedTools(cellData, getToolId ? getToolId() : cellData.mounted_tool)];
+  };
+  refreshStatics();
+  const probeCache = new Map();   // id -> measurement points
+  let maxZAllCache = null;        // tallest thing in the cell
   // --- box decompositions, cached per mesh path (parts share meshes) ---
   const boxCache = new Map();
   async function boxesFor(meshPath, detail) {
@@ -66,7 +76,7 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
   const itemBoxes = async it => it.boxes ?? await boxesFor(it.collision_mesh, it.collision_detail);
   async function buildXml(G, toolCaps) {
     let wb = '';
-    for (const it of cellData.fixtures ?? []) {
+    for (const it of statics) {
       if (!it.collision_mesh && !it.boxes) continue;
       const boxes = await itemBoxes(it);
       boxesByItem.set(it.id, boxes);
@@ -157,6 +167,9 @@ ${wb}
     }
   }
   async function rebuild(toolCaps) {
+    refreshStatics();
+    for (const id of [...boxesByItem.keys()]) if (!statics.some(f => f.id === id) && !(cellData.parts ?? []).some(p => p.id === id)) boxesByItem.delete(id);
+    probeCache.clear(); maxZAllCache = null;
     fillSlot(Q, mj.MjModel.from_xml_string(await buildXml(GROUPS_QUERY, toolCaps)));
     fillSlot(P, mj.MjModel.from_xml_string(await buildXml(GROUPS_PHYS, toolCaps)));
   }
@@ -566,7 +579,6 @@ ${wb}
   // MEASUREMENT points derived from the SAME boxes MuJoCo collides:
   // corners + face centres of every box, in the item's local frame.
   // Deterministic (no random sampling) and consistent with collision.
-  const probeCache = new Map();
   function probePoints(id) {
     if (probeCache.has(id)) return probeCache.get(id);
     const boxes = boxesByItem.get(id);
@@ -593,7 +605,7 @@ ${wb}
     for (const [id, boxes] of boxesByItem) {
       if (ignore?.has(id)) continue;
       const isPart = w.partAdr.has(id);
-      const fix = !isPart ? (cellData.fixtures ?? []).find(f => f.id === id) : null;
+      const fix = !isPart ? statics.find(f => f.id === id) : null;
       const mat = isPart ? readPartPose(id)
         : IK.mul(IK.fromXyzRpy(fix.pose_table.xyz_m, [0, 0, 0]), IK.fromXyzRpy([0, 0, 0], fix.pose_table.rpy));
       for (const bx of boxes) {
@@ -614,7 +626,6 @@ ${wb}
     return maxZ;
   }
 
-  let maxZAllCache = null;
   function maxZAll() {
     if (maxZAllCache !== null) return maxZAllCache;
     maxZAllCache = corridorMaxZ([0, 0], [1.3, 0.6], 10, null);
