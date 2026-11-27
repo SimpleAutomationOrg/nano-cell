@@ -29,6 +29,14 @@
   .checks label { display: flex; gap: 7px; align-items: center; margin: 3px 0; color: #9fb0c0; cursor: pointer; }
   .sect { border-top: 1px solid #263040; margin-top: 10px; padding-top: 8px; }
   .sect b { color: #c6d2de; font-weight: 600; font-size: 12px; }
+  .segrow { display: flex; gap: 8px; align-items: center; margin: 4px 0; color: #9fb0c0; }
+  .segrow button { padding: 1px 8px; }
+  #runControls { display: flex; gap: 6px; margin-top: 6px; }
+  #taskline {
+    margin-top: 6px; padding: 5px 8px; background: #0c0f13; border-radius: 6px;
+    font-family: ui-monospace, monospace; font-size: 11px; color: #8fa3b8;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 15px;
+  }
   #tip {
     position: fixed; pointer-events: none; background: #0c0f13; color: #e8eef4;
     border: 1px solid #334155; border-radius: 6px; padding: 3px 8px; font-size: 12px;
@@ -50,8 +58,28 @@
   <div class="sub">Fairino FR3 · drag to orbit · live reload</div>
   <div id="joints"></div>
   <div class="row">
-    <button id="poseDemo">London pose</button>
+    <button id="poseDemo">Dock pose</button>
     <button id="poseUp">Straight up</button>
+  </div>
+  <div class="sect">
+    <b>Task</b>
+    <div class="row" style="margin-top:6px">
+      <select id="taskSel" style="flex:1"></select>
+      <select id="speedSel" title="playback speed">
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+      </select>
+    </div>
+    <div id="segments"></div>
+    <div id="runControls">
+      <button id="btnPause">Pause</button>
+      <button id="btnStep" title="run one command, then pause">Step</button>
+      <button id="btnStop">Stop</button>
+    </div>
+    <div id="taskline">idle</div>
   </div>
   <div class="sect checks" id="toggles"><b>Show</b></div>
   <div class="sect">
@@ -61,342 +89,6 @@
 </div>
 <div id="tip"></div>
 <div id="status">loading…</div>
-
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-
-const status = m => document.getElementById('status').textContent = m;
-
-// ---------- renderer / scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.getElementById('app').appendChild(renderer.domElement);
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x11161c);
-
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.02, 60);
-camera.position.set(0.0, 1.05, 1.75);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0.68, 0.28, -0.30);
-controls.enableDamping = true;
-
-scene.add(new THREE.HemisphereLight(0xbcd0e8, 0x20262e, 1.0));
-const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-sun.position.set(1.5, 3.0, 1.2);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -1.2; sun.shadow.camera.right = 1.2;
-sun.shadow.camera.top = 1.2; sun.shadow.camera.bottom = -1.2;
-sun.shadow.bias = -0.0003;
-scene.add(sun);
-const fill = new THREE.DirectionalLight(0x8fb4ff, 0.5);
-fill.position.set(-1.5, 1.2, -1.5);
-scene.add(fill);
-
-// Everything in the repo is z-up (table frame); three.js is y-up.
-const world = new THREE.Group();
-world.rotation.x = -Math.PI / 2;
-scene.add(world);
-
-// ---------- helpers ----------
-// cell.json rpy convention: R = Rz(yaw) · Ry(pitch) · Rx(roll)  → three.js Euler order 'ZYX'
-function applyPose(obj, pose) {
-  obj.position.fromArray(pose.xyz_m);
-  obj.quaternion.setFromEuler(new THREE.Euler(pose.rpy[0], pose.rpy[1], pose.rpy[2], 'ZYX'));
-}
-
-const loader = new GLTFLoader();
-const loadGlb = url => new Promise((res, rej) => loader.load(url, g => res(g.scene), undefined, rej));
-
-function tagShadows(obj, name) {
-  obj.traverse(o => {
-    if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
-  });
-  if (name) obj.userData.itemName = name;
-}
-
-// ---------- static cell dressing ----------
-function buildTable(table) {
-  const [sx, sy] = table.size_m;
-  const [x0, y0] = table.min_table_m;
-  const t = 0.0128;
-  const plate = new THREE.Mesh(
-    new THREE.BoxGeometry(sx, sy, t),
-    new THREE.MeshStandardMaterial({ color: 0x343c46, roughness: 0.85, metalness: 0.25 })
-  );
-  plate.position.set(x0 + sx / 2, y0 + sy / 2, -t / 2);
-  plate.receiveShadow = true;
-  plate.userData.itemName = 'MB6090 breadboard plate';
-  world.add(plate);
-
-  // M6 hole lattice as dots
-  const dot = new THREE.CircleGeometry(0.003, 10);
-  const mat = new THREE.MeshBasicMaterial({ color: 0x1c2229 });
-  const nx = Math.floor(sx / table.hole_pitch_m), ny = Math.floor(sy / table.hole_pitch_m);
-  const holes = new THREE.InstancedMesh(dot, mat, nx * ny);
-  const m = new THREE.Matrix4();
-  let i = 0;
-  for (let ix = 0; ix < nx; ix++)
-    for (let iy = 0; iy < ny; iy++)
-      holes.setMatrixAt(i++, m.makeTranslation(
-        x0 + table.first_hole_m + ix * table.hole_pitch_m,
-        y0 + table.first_hole_m + iy * table.hole_pitch_m, 0.0004));
-  world.add(holes);
-}
-
-function buildGuard(guard) {
-  const g = new THREE.Group();
-  const e = guard.envelope_mm;
-  const ext = (guard.wall_extensions_mm?.right_wall ?? 0) / 1000;
-  const x0 = e.x_min_mm / 1000, x1 = e.x_max_mm / 1000 + ext;
-  const y0 = e.y_min_mm / 1000, y1 = e.y_max_mm / 1000;
-  const z1 = e.z_max_mm / 1000;
-  const box = new THREE.BoxGeometry(x1 - x0, y1 - y0, z1);
-  const glass = new THREE.Mesh(box, new THREE.MeshPhysicalMaterial({
-    color: 0x6fb7ff, transparent: true, opacity: 0.07, roughness: 0.15,
-    side: THREE.DoubleSide, depthWrite: false
-  }));
-  glass.position.set((x0 + x1) / 2, (y0 + y1) / 2, z1 / 2);
-  glass.userData.itemName = `guard envelope ${Math.round((x1-x0)*1000)} × ${Math.round((y1-y0)*1000)} × ${Math.round(z1*1000)} mm`;
-  g.add(glass);
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(box),
-    new THREE.LineBasicMaterial({ color: 0x5f9fe0, transparent: true, opacity: 0.8 })
-  );
-  edges.position.copy(glass.position);
-  g.add(edges);
-
-  // operator barrier plane (normal +y, offset −0.15 m)
-  if (guard.operator_barrier) {
-    const off = guard.operator_barrier.offset_m;
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(x1 - x0, z1),
-      new THREE.MeshBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false })
-    );
-    plane.rotation.x = Math.PI / 2;
-    plane.position.set((x0 + x1) / 2, -off * Math.sign(guard.operator_barrier.normal[1]) * -1 + 0, z1 / 2);
-    plane.position.y = off;
-    plane.userData.itemName = `operator barrier, y = ${off} m`;
-    g.add(plane);
-  }
-  world.add(g);
-  return g;
-}
-
-// ---------- FR3 kinematics (fairino3_v6 URDF, commit 867cb32) ----------
-const CHAIN = [
-  { link: 'shoulder_link', xyz: [0, 0, 0],       rpy: [0, 0, 0],        lim: [-3.0543, 3.0543] },
-  { link: 'upperarm_link', xyz: [0, 0, 0.14],    rpy: [1.5708, 0, 0],   lim: [-4.6251, 1.4835] },
-  { link: 'forearm_link',  xyz: [-0.28, 0, 0],   rpy: [0, 0, 0],        lim: [-2.8274, 2.8274] },
-  { link: 'wrist1_link',   xyz: [-0.24001, 0, 0],rpy: [0, 0, 0],        lim: [-4.6251, 1.4835] },
-  { link: 'wrist2_link',   xyz: [0, 0, 0.102],   rpy: [1.5708, 0, 0],   lim: [-3.0543, 3.0543] },
-  { link: 'wrist3_link',   xyz: [0, 0, 0.102],   rpy: [-1.5708, 0, 0],  lim: [-3.0543, 3.0543] },
-];
-const FLANGE_IN_WRIST3 = [0, 0, 0.1];
-const POSE_LONDON = [-27.55, -93.04, -110.382, -66.561, 90.068, -140.229];
-const POSE_UP = [0, -90, 0, -90, 0, 0];
-
-const spins = [];      // per-joint rotating groups
-let flangeGroup = null;
-
-async function buildArm(armCfg) {
-  const base = new THREE.Group();
-  applyPose(base, armCfg.mount_table);
-  world.add(base);
-
-  const baseMesh = await loadGlb('../arm/fr3/meshes/base_link.glb');
-  tagShadows(baseMesh, 'FR3 base_link');
-  base.add(baseMesh);
-
-  let parent = base;
-  for (const j of CHAIN) {
-    const origin = new THREE.Group();
-    applyPose(origin, { xyz_m: j.xyz, rpy: j.rpy });
-    parent.add(origin);
-    const spin = new THREE.Group();            // rotates about local z by q
-    origin.add(spin);
-    spins.push(spin);
-    const mesh = await loadGlb(`../arm/fr3/meshes/${j.link}.glb`);
-    tagShadows(mesh, `FR3 ${j.link}`);
-    spin.add(mesh);
-    parent = spin;
-  }
-  flangeGroup = new THREE.Group();
-  flangeGroup.position.fromArray(FLANGE_IN_WRIST3);
-  parent.add(flangeGroup);
-  flangeGroup.add(new THREE.AxesHelper(0.05));
-  return base;
-}
-
-function setJoints(deg) {
-  deg.forEach((d, i) => {
-    spins[i].rotation.z = THREE.MathUtils.degToRad(d);
-    const s = document.getElementById('j' + i);
-    if (s) { s.value = d; document.getElementById('jo' + i).value = d.toFixed(1) + '°'; }
-  });
-}
-
-// ---------- UI ----------
-function buildJointUI() {
-  const host = document.getElementById('joints');
-  CHAIN.forEach((j, i) => {
-    const row = document.createElement('div');
-    row.className = 'joint';
-    const lo = THREE.MathUtils.radToDeg(j.lim[0]).toFixed(0);
-    const hi = THREE.MathUtils.radToDeg(j.lim[1]).toFixed(0);
-    row.innerHTML = `<label>J${i + 1}</label>
-      <input type="range" id="j${i}" min="${lo}" max="${hi}" step="0.1" value="0">
-      <output id="jo${i}">0.0°</output>`;
-    host.appendChild(row);
-    row.querySelector('input').addEventListener('input', e => {
-      const v = parseFloat(e.target.value);
-      spins[i].rotation.z = THREE.MathUtils.degToRad(v);
-      document.getElementById('jo' + i).value = v.toFixed(1) + '°';
-    });
-  });
-  document.getElementById('poseDemo').onclick = () => setJoints(POSE_LONDON);
-  document.getElementById('poseUp').onclick = () => setJoints(POSE_UP);
-}
-
-function addToggle(label, group, on = true) {
-  group.visible = on;
-  const l = document.createElement('label');
-  l.innerHTML = `<input type="checkbox" ${on ? 'checked' : ''}> ${label}`;
-  l.querySelector('input').addEventListener('change', e => group.visible = e.target.checked);
-  document.getElementById('toggles').appendChild(l);
-}
-
-// ---------- load the cell ----------
-async function loadItems(list, base, parentGroup) {
-  for (const it of list ?? []) {
-    const holder = new THREE.Group();
-    applyPose(holder, it.pose_table ?? it.pose_flange ?? { xyz_m: [0, 0, 0], rpy: [0, 0, 0] });
-    holder.userData.itemName = it.name || it.id;
-    if (it.mesh) {
-      try {
-        const m = await loadGlb(base + it.mesh);
-        tagShadows(m, it.name || it.id);
-        holder.add(m);
-      } catch { console.warn('mesh failed:', it.mesh); }
-    } else {
-      // touch-measured body with no CAD → small placeholder
-      const ph = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.01),
-        new THREE.MeshStandardMaterial({ color: 0x3fa34d, roughness: 0.6 }));
-      ph.position.z = 0.005;
-      holder.add(ph);
-    }
-    parentGroup.add(holder);
-  }
-}
-
-async function main() {
-  const cell = await (await fetch('../cell/dvt01/cell.json')).json();
-  document.getElementById('cellName').textContent = cell.name;
-  document.title = cell.name;
-
-  buildTable(cell.table);
-  const guard = buildGuard(cell.guard);
-  await buildArm(cell.arm);
-  buildJointUI();
-  setJoints(POSE_LONDON);
-
-  const fixtures = new THREE.Group(); world.add(fixtures);
-  const parts = new THREE.Group(); world.add(parts);
-  status('loading fixtures…');
-  await loadItems(cell.fixtures, '../cell/dvt01/', fixtures);
-  status('loading parts…');
-  await loadItems(cell.parts, '../cell/dvt01/', parts);
-
-  // flange stack rides the wrist
-  const stack = new THREE.Group(); flangeGroup.add(stack);
-  status('loading flange stack…');
-  await loadItems(cell.flange_stack, '../cell/dvt01/', stack);
-
-  // tools: one mounted at a time
-  const toolHolder = new THREE.Group(); flangeGroup.add(toolHolder);
-  const sel = document.getElementById('toolSel');
-  const toolCache = {};
-  for (const t of cell.tools) {
-    const o = document.createElement('option');
-    o.value = t.id; o.textContent = t.name;
-    sel.appendChild(o);
-  }
-  async function mountTool(id) {
-    toolHolder.clear();
-    const t = cell.tools.find(x => x.id === id);
-    if (!t || !t.mesh) return;
-    if (!toolCache[id]) toolCache[id] = await loadGlb('../cell/dvt01/' + t.mesh);
-    const m = toolCache[id].clone();
-    tagShadows(m, t.name);
-    toolHolder.add(m);
-    if (t.tip_flange_m) {
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.0035, 12, 12),
-        new THREE.MeshBasicMaterial({ color: 0xff5f5f }));
-      tip.position.fromArray(t.tip_flange_m);
-      tip.userData.itemName = (t.tip_name || 'tip');
-      toolHolder.add(tip);
-    }
-  }
-  sel.value = cell.mounted_tool;
-  sel.addEventListener('change', e => mountTool(e.target.value));
-  status('loading tool…');
-  await mountTool(cell.mounted_tool);
-
-  addToggle('guard box', guard);
-  addToggle('fixtures', fixtures);
-  addToggle('parts', parts);
-  addToggle('flange stack', stack);
-  status(`${cell.name} — ${cell.mounted_tool} mounted`);
-}
-main().catch(e => { status('load failed: ' + e.message); console.error(e); });
-
-// ---------- hover tooltip ----------
-const ray = new THREE.Raycaster();
-const tipEl = document.getElementById('tip');
-addEventListener('pointermove', ev => {
-  ray.setFromCamera(new THREE.Vector2(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1), camera);
-  const hits = ray.intersectObjects(world.children, true).filter(h => h.object.visible && !(h.object.material?.transparent && h.object.material.opacity < 0.2));
-  let name = null;
-  for (const h of hits) {
-    let o = h.object;
-    while (o && !o.userData.itemName) o = o.parent;
-    if (o) { name = o.userData.itemName; break; }
-  }
-  if (name) {
-    tipEl.textContent = name;
-    tipEl.style.display = 'block';
-    tipEl.style.left = (ev.clientX + 14) + 'px';
-    tipEl.style.top = (ev.clientY + 10) + 'px';
-  } else tipEl.style.display = 'none';
-});
-
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
-
-// ---------- live reload (serve.py) ----------
-(async () => {
-  let gen = -1;
-  for (;;) {
-    try {
-      const r = await fetch(`/__reload?gen=${gen}`);
-      if (!r.ok) return;                      // not serve.py (e.g. vite) — stop
-      const g = parseInt(await r.text(), 10);
-      if (gen !== -1 && g > gen) location.reload();
-      gen = g;
-    } catch { await new Promise(res => setTimeout(res, 2000)); }
-  }
-})();
-</script>
+<script type="module" src="./app.js"></script>
 </body>
 </html>

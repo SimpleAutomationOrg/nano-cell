@@ -18,7 +18,7 @@ import webbrowser
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8742
 
-WATCH_EXT = {".html", ".js", ".css", ".json", ".glb", ".stl", ".py"}
+WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
 SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store"}
 
 _generation = 0
@@ -59,7 +59,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/__reload"):
             return self._reload_poll()
+        if self.path.startswith("/__tasks"):
+            return self._tasks()
         super().do_GET()
+
+    def _tasks(self):
+        import json
+        tasks = []
+        tdir = os.path.join(ROOT, "tasks")
+        if os.path.isdir(tdir):
+            for name in sorted(os.listdir(tdir)):
+                tj = os.path.join(tdir, name, "task.json")
+                if os.path.isfile(tj):
+                    try:
+                        with open(tj) as f:
+                            tasks.append({"id": name, **json.load(f)})
+                    except (OSError, ValueError):
+                        pass
+        body = json.dumps(tasks).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _reload_poll(self):
         # long-poll: answer when the generation moves past the client's,
