@@ -1,10 +1,9 @@
 // Gravity demo: pick the exposed case, hover 120 mm above the holder
 // pocket, and just LET GO — no set-down, no touch descent. The released
-// case falls under MuJoCo gravity into the pocket. The fit has ~0.1 mm
-// clearance per side, so a drop that is a hair off-square can stop a
-// couple of millimetres short of the floor, pinched between the walls —
-// which is why the real placement uses a touch descent. Select the case
-// and press Z in the viewer to seat it by hand.
+// case falls under MuJoCo gravity into the pocket and seats on its floor.
+// The fit has only ~0.1 mm clearance per side and the release is a
+// fraction of a degree off-square; the settle squares the case up as it
+// goes in, the way the chamfers guide a real one.
 
 import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
 

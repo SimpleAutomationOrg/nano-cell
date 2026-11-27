@@ -99,32 +99,55 @@ test('touch on the exact backend: wall ignored, floor stops, settles close', { s
   assert.ok(gap < 0.005, `settled ${(gap * 1000).toFixed(1)} mm above the floor — too high`);
 });
 
-test('drop test: a released case lands on the holder and never goes through it', { skip: !mj }, async () => {
+test('drop test: a released case falls INTO the pocket and seats on its floor', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const world = await createMjWorld({
     mj, cellData: cell, armCapsules: [], toolCapsules: [],
     loadStlBuffer: async p => readStl(p),
   });
-  const HX = 0.8982, HY = 0.0864, RIM = 0.0138;
-  // a case flat, 120 mm above the pocket, aligned to it — at BOTH
-  // end-for-end yaws. One of them lands on the pocket ledges; the other
-  // reaches the 6 mm pocket floor at 1.5 m/s, and with MuJoCo's default
-  // (slow-spring) contact it went straight through the floor and fell
-  // for the rest of the settle. The viewer releases at that second yaw.
-  const flip = IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, 0]);
-  for (const yaw of [-1.572 + Math.PI, -1.572]) {
-    world.setPartPose('front_case_1', IK.mul(IK.fromXyzRpy([HX, HY, RIM + 0.12], [0, 0, yaw]), flip));
+  // The pose the arm really lets go at (captured from the viewer's drop
+  // demo: case flat, upside down, 120 mm above the pocket, ~0.2 deg
+  // off-square), then made WORSE: turned end-for-end, yawed, shifted —
+  // all about the case's measured centre, not its CAD origin.
+  // Two regressions live here:
+  //  - with MuJoCo's default slow-spring contact the case reached the
+  //    6 mm pocket floor at 1.5 m/s and went straight through it;
+  //  - with ~0.1 mm clearance per side, an off-square case tipped and
+  //    wedged a few mm above the floor (the box model has stair-steps
+  //    where the real parts have chamfers) — settle now squares it up.
+  const RELEASE = [
+    -0.9999944964343017, 0.003317695140755128, 2.4781328796414203e-7, 0.9002326400330014,
+    0.0033176951429548943, 0.9999944963894115, 0.000009477635979200905, 0.08740166683600563,
+    -2.1636801726226562e-7, 0.000009478405987350463, -0.9999999999550571, 0.1330620677464584,
+    0, 0, 0, 1];
+  const pts = world.probePoints('front_case_1');
+  // centre of the case's bounding box — NOT the mean of the points, which
+  // leans toward wherever the mesh has more detail
+  const gc = [0, 1, 2].map(k => (Math.min(...pts.map(p => p[k])) + Math.max(...pts.map(p => p[k]))) / 2);
+  const centre = M => [0, 1, 2].map(r => M[r * 4] * gc[0] + M[r * 4 + 1] * gc[1] + M[r * 4 + 2] * gc[2] + M[r * 4 + 3]);
+  const C = centre(RELEASE);
+  const variant = (deg, dx) => {             // yaw about the centre, then shift
+    const T = IK.mul(IK.fromXyzRpy([C[0] + dx, C[1], 0], [0, 0, deg * Math.PI / 180]), IK.fromXyzRpy([-C[0], -C[1], 0], [0, 0, 0]));
+    return IK.mul(T, RELEASE);
+  };
+  const drops = [['as released', 0, 0], ['end-for-end', 180, 0], ['+0.5 deg', 0.5, 0], ['-0.5 deg', -0.5, 0], ['0.3 mm off', 0, 3e-4]];
+  for (const [name, deg, dx] of drops) {
+    world.setPartPose('front_case_1', variant(deg, dx));
     const settled = world.settlePart('front_case_1', { duration: 1.5 });
-    assert.ok(settled?.pose, `yaw ${yaw.toFixed(2)}: settle returned nothing`);
+    assert.ok(settled?.pose, `${name}: settle returned nothing`);
     assert.ok(settled.traj.length > 5, 'trajectory must have samples to animate');
-    const [x, y, z] = [settled.pose[3], settled.pose[7], settled.pose[11]];
-    const off = Math.hypot(x - HX, y - HY);
-    assert.ok(off < 0.02, `yaw ${yaw.toFixed(2)}: landed ${(off * 1000).toFixed(0)} mm off the pocket centre`);
-    assert.ok(z < RIM + 0.02, `yaw ${yaw.toFixed(2)}: rested at z=${(z * 1000).toFixed(1)} mm — not on the holder`);
-    // seated on the pocket floor the case origin is ~15 mm up: anything
-    // lower, at ANY moment of the fall, is the case inside the floor
+    const M = settled.pose;
+    const E = centre(M), dxy = Math.hypot(E[0] - C[0], E[1] - C[1]);
+    assert.ok(dxy < 0.003, `${name}: ended ${(dxy * 1000).toFixed(1)} mm from where it was dropped`);
+    // underside (lowest measured point) on the pocket floor, 6.1 mm up
+    const zs = world.probePoints('front_case_1').map(p => M[8] * p[0] + M[9] * p[1] + M[10] * p[2] + M[11]);
+    const under = Math.min(...zs), tilt = Math.max(...zs) - under - 0.0058;
+    assert.ok(under > 0.0055 && under < 0.0068,
+      `${name}: underside at ${(under * 1000).toFixed(2)} mm — the pocket floor is at 6.1`);
+    assert.ok(tilt < 1e-3, `${name}: lies tilted by ${(tilt * 1000).toFixed(2)} mm`);
+    // and it never dipped through the floor on the way (origin ~11 mm above the underside)
     const low = Math.min(...settled.traj.map(s => s.mat[11]));
-    assert.ok(low > 0.012, `yaw ${yaw.toFixed(2)}: sank to z=${(low * 1000).toFixed(1)} mm — through the pocket floor`);
+    assert.ok(low > 0.012, `${name}: sank to z=${(low * 1000).toFixed(1)} mm — through the pocket floor`);
   }
 });
 

@@ -279,9 +279,125 @@ ${wb}
     const qv = w.data.qvel;
     const traj = [{ t: 0, mat: readPartPoseFrom(P, id) }];
     let t = 0, nextSample = 1 / 60;
-    try {
-      for (let i = 0; i < MAX_STEPS && t < duration; i++) {
+    // probe centroid in the part frame: the pivot for squaring up, and
+    // the point whose drift the guard below measures (the origin is a
+    // CAD datum — a pure yaw swings it sideways)
+    let gc = [0, 0, 0];
+    const pp = probePoints(id) ?? [[0, 0, 0]];
+    for (const p of pp) { gc[0] += p[0]; gc[1] += p[1]; gc[2] += p[2]; }
+    gc = gc.map(v => v / pp.length);
+    const at = (M) => [
+      M[0] * gc[0] + M[1] * gc[1] + M[2] * gc[2] + M[3],
+      M[4] * gc[0] + M[5] * gc[1] + M[6] * gc[2] + M[7],
+      M[8] * gc[0] + M[9] * gc[1] + M[10] * gc[2] + M[11]];
+
+    // SQUARE UP a part that has stalled pinched, and guide it home. The
+    // collision model is boxes, so the chamfers and rounded corners that
+    // guide a real part into a close pocket are stair-steps here: a part
+    // released a fraction of a degree off sits on a 0.1 mm step, tips,
+    // and wedges. A real part (or a hand) would wiggle home; this does
+    // the same by MEASUREMENT: find the least-overlap pose nearby (tiny
+    // shifts, yaws and tilts — at most 1 mm / 0.6 deg / 1.1 deg — also
+    // trying the orientation it was released with), then lower it,
+    // re-squaring whenever a step catches it, until something solid
+    // stops it. Physics then seats it. A part resting properly on a
+    // surface is untouched: no small shift takes a floor away.
+    const squareUp = () => {
+      const now = readPartPoseFrom(P, id), c = at(now);
+      // the orientation it was RELEASED with, at the place it has reached:
+      // a part that tipped over while wedging is stood back up first
+      const upright = mat0.slice();
+      {
+        const cu = at(upright);
+        upright[3] += c[0] - cu[0]; upright[7] += c[1] - cu[1]; upright[11] += c[2] - cu[2];
+      }
+      let base = now;
+      // room to spare (> 0 = free). SIDE overlaps up to 0.25 mm are what
+      // this model cannot avoid in a close fit (square boxes where both
+      // the part and the pocket have rounded corners); anything pushing
+      // UP is support and counts from the first hundredths.
+      const slack = () => {
+        let m = 1e-3;
+        for (const k of contacts(0)) {
+          if (k.a !== id && k.b !== id) continue;
+          const v = k.dist + (Math.abs(k.normalAB[2]) > 0.7 ? 3e-5 : 2.5e-4);
+          if (v < m) m = v;
+        }
+        return m;
+      };
+      // v = [dx, dy, yaw, tiltX, tiltY]: a small rotation about the world
+      // axes THROUGH THE CENTROID, then a shift
+      const poseAt = ([dx, dy, yaw, ax, ay]) => {
+        const cz = Math.cos(yaw), sz = Math.sin(yaw), cy = Math.cos(ay), sy = Math.sin(ay), cx = Math.cos(ax), sx = Math.sin(ax);
+        const R = [                                   // Rz(yaw) Ry(ay) Rx(ax)
+          cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx,
+          sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx,
+          -sy, cy * sx, cy * cx];
+        const m = base.slice();
+        for (let col = 0; col < 4; col++) {
+          const v = col < 3 ? [base[col], base[4 + col], base[8 + col]]
+            : [base[3] - c[0], base[7] - c[1], base[11] - c[2]];
+          for (let row = 0; row < 3; row++)
+            m[row * 4 + col] = R[row * 3] * v[0] + R[row * 3 + 1] * v[1] + R[row * 3 + 2] * v[2] + (col === 3 ? c[row] : 0);
+        }
+        m[3] += dx; m[7] += dy;
+        return m;
+      };
+      const score = v => { setPartPose(id, poseAt(v)); return slack(); };
+      const Z = [0, 0, 0, 0, 0];
+      const LIM = [1e-3, 1e-3, 0.01, 0.02, 0.02];
+      const STEPS = [[4e-4, 4e-4, 4e-3, 8e-3, 8e-3], [2e-4, 2e-4, 4e-3, 8e-3, 8e-3],
+        [1e-4, 1e-4, 2e-3, 4e-3, 4e-3], [5e-5, 5e-5, 1e-3, 2e-3, 2e-3]];
+      // most-slack pose near `from` (coordinate descent, coarse to fine)
+      const search = from => {
+        base = from;
+        let cur = Z.slice(), here = score(cur);
+        for (const step of STEPS) {
+          for (let round = 0, moved = true; moved && here <= 0 && round < 6; round++) {
+            moved = false;
+            for (let k = 0; k < 5; k++) for (const sgn of [1, -1]) {
+              const v = cur.slice(); v[k] += sgn * step[k];
+              if (Math.abs(v[k]) > LIM[k] + 1e-12) continue;
+              const sc = score(v);
+              if (sc > here + 1e-6) { here = sc; cur = v; moved = true; }
+            }
+          }
+        }
+        return { slack: here, pose: poseAt(cur) };
+      };
+      setPartPose(id, now);
+      const start = slack();
+      let best = { slack: start, pose: now };
+      for (const from of [now, upright]) {
+        const r = search(from);
+        if (r.slack > best.slack + 1e-6) best = r;
+      }
+      let pose = best.pose;
+      if (best.slack > 0) {
+        for (let n = 0, rescues = 0; n < 300; n++) {
+          const lower = pose.slice(); lower[11] -= 1e-4;
+          setPartPose(id, lower);
+          if (slack() > 0) { pose = lower; continue; }
+          if (++rescues > 8) break;
+          const r = search(lower);
+          if (r.slack <= 0) break;                    // solid: stop above it
+          pose = r.pose;
+        }
+      }
+      const moved = now[11] - pose[11] > 2e-4 || (start <= 0 && best.slack > start + 3e-5);
+      setPartPose(id, moved ? pose : now);
+      return moved;
+    };
+
+    const relax = (until) => {
+      let peak = 0;
+      for (let i = 0; i < MAX_STEPS && t < until; i++) {
         const speed = Math.hypot(qv[dof0], qv[dof0 + 1], qv[dof0 + 2]);
+        // a fall that has LANDED gets a quarter second to come to rest;
+        // if it is still fidgeting then, it is pinched — hand it to
+        // squareUp instead of simulating the fidget for a second more
+        if (speed > peak) peak = speed;
+        if (peak > 0.2 && speed < 0.05) { until = Math.min(until, t + 0.25); peak = 0; }
         const dt = Math.min(DT_MAX, Math.max(DT_MIN, TRAVEL / Math.max(speed, 1e-9)));
         w.model.opt.timestep = dt;
         mj.mj_step(w.model, w.data);
@@ -308,8 +424,27 @@ ${wb}
         // early out when the part is at rest
         let v = 0;
         for (let k = dof0; k < dof0 + 6; k++) v = Math.max(v, Math.abs(qv[k]));
-        if (t > 0.1 && v < 5e-4) break;
-        if (w.data.qpos[adr + 2] < floorZ) { fellOut = true; break; }
+        if (t > t0 + 0.1 && v < 5e-4) return;
+        // …or has stalled: a pinched part creeps and chatters without ever
+        // reading "at rest" — if it has gone nowhere for 0.15 s, it is done
+        if (t >= stallAt) {
+          const q = w.data.qpos, d = Math.hypot(q[adr] - stall[0], q[adr + 1] - stall[1], q[adr + 2] - stall[2]);
+          if (d < 1e-4 && t > t0 + 0.15) return;
+          stall = [q[adr], q[adr + 1], q[adr + 2]]; stallAt = t + 0.15;
+        }
+        if (w.data.qpos[adr + 2] < floorZ) { fellOut = true; return; }
+      }
+    };
+    let t0 = 0, stall = [Infinity, 0, 0], stallAt = 0;
+    try {
+      relax(duration);
+      // stalled pinched? square up and let it carry on down, a few times
+      for (let pass = 0; pass < 4 && !fellOut; pass++) {
+        if (!squareUp()) break;
+        traj.push({ t: (t += 1 / 60), mat: readPartPoseFrom(P, id) });
+        nextSample = t + 1 / 60;
+        t0 = t; stallAt = t;
+        relax(t + 0.6);
       }
     } finally {
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
@@ -324,17 +459,7 @@ ${wb}
     traj.push({ t: t + DT_MAX, mat: pose });
     setPartPose(id, pose);     // sync the settled pose into BOTH models
     const fit1 = scanFit();
-    // drift of the part's geometric CENTRE (probe centroid), not of its
-    // origin: the origin is a CAD datum — a settle that only yaws the
-    // part still swings the body sideways
-    let gc = [0, 0, 0];
-    const pp = probePoints(id) ?? [[0, 0, 0]];
-    for (const p of pp) { gc[0] += p[0]; gc[1] += p[1]; gc[2] += p[2]; }
-    gc = gc.map(v => v / pp.length);
-    const at = (M) => [
-      M[0] * gc[0] + M[1] * gc[1] + M[2] * gc[2] + M[3],
-      M[4] * gc[0] + M[5] * gc[1] + M[6] * gc[2] + M[7],
-      M[8] * gc[0] + M[9] * gc[1] + M[10] * gc[2] + M[11]];
+    // drift of the part's geometric CENTRE, not of its origin
     const c0 = at(mat0), c1 = at(pose);
     const drop = Math.abs(c0[2] - c1[2]);
     const drift = Math.hypot(c1[0] - c0[0], c1[1] - c0[1]);
