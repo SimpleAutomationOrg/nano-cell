@@ -224,6 +224,34 @@ export function createHost(opts) {
       return footprintAzimuth(pts, IK.mul(cupPose, rel));
     },
 
+    // The cup pose that hangs the HELD PART square to, and centred over,
+    // a target's top opening, `height` above its rim. Everything the
+    // placement rules ask for, in one place:
+    //  - yaw: the part's measured long footprint axis onto the target's
+    //    measured long axis (frame labels are arbitrary per CAD part)
+    //  - which of the two 180-degree yaws: the one whose tool body leans
+    //    ALONG the target's long axis, not across it into the walls
+    //  - xy: the part's footprint centre over the target's top centre (the
+    //    cup grips the part wherever the grasp touched, not at its centre)
+    heldPoseOver: (target, height) => {
+      if (!st.held) throw new Error('heldPoseOver: nothing is held');
+      const c = target.topCenter, axis = target.topLongAxis;
+      const top = [c[0], c[1], c[2] + height];
+      // poseZDown's yaw spins about the DOWNWARD axis: +yaw turns the held
+      // part NEGATIVE in table azimuth
+      const partAz = api.heldFootprintAzimuth(IK.poseZDown(top, 0));
+      const yaw = partAz === null ? axis : partAz - axis;
+      const offAxis = pose => {
+        const d = planner.leanAzimuth(pose) - axis;
+        return Math.abs(Math.atan2(Math.sin(2 * d), Math.cos(2 * d)));   // 180-degree periodic
+      };
+      const a = IK.poseZDown(top, yaw), b = IK.poseZDown(top, yaw + Math.PI);
+      const pose = [...(offAxis(b) < offAxis(a) ? b : a)];
+      const fp = api.heldFootprintCenter(pose);
+      if (fp) { pose[3] += c[0] - fp.x; pose[7] += c[1] - fp.y; }   // a shift keeps the spin
+      return pose;
+    },
+
     async moveJointsDeg(targetDeg, { speedDps = 180, ignore } = {}) {
       checkRun('moveJointsDeg');
       emit('move_joints_deg', { target: targetDeg });
@@ -450,6 +478,12 @@ export function createHost(opts) {
     cell: cellData,
     part: id => { const it = findIn(cellData.parts, id); if (!it) throw new Error(`no part '${id}'`); return itemCtx(it); },
     fixture: id => { const it = findIn(cellData.fixtures, id); if (!it) throw new Error(`no fixture '${id}'`); return itemCtx(it); },
+    // the part to pick next from a stack: the exposed one (see planner)
+    nextOnStack: (stackId, partIds) => {
+      const onStack = planner.exposedOnStack(partIds.map(id => ctx.part(id)), ctx.fixture(stackId).matrix);
+      if (!onStack) throw new Error(`'${stackId}' is empty`);
+      return onStack;
+    },
     h: {
       suctionGrasp: planner.suctionGrasp,
       withLean: planner.withLean,

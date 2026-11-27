@@ -553,7 +553,26 @@ export function createPlanner(opts) {
     return withCameraLevel(pose, safeSide);
   };
 
+  // The EXPOSED part of a stack: among the parts still near the stack,
+  // the frontmost along their own outward face normal (the one a cup can
+  // reach without touching the others). Pure: matrices in, item out.
+  // Selecting by position, never by id, is what lets a task be re-run.
+  const exposedOnStack = (parts, stackMatrix, { radius = 0.12, face = 2, sign = -1 } = {}) => {
+    const sp = IK.pos(stackMatrix);
+    const near = parts.filter(p => {
+      const q = IK.pos(p.matrix);
+      return Math.hypot(q[0] - sp[0], q[1] - sp[1], q[2] - sp[2]) < radius;
+    });
+    if (!near.length) return null;
+    const ahead = (p, n) => { const q = IK.pos(p.matrix); return q[0] * n[0] + q[1] * n[1]; };
+    return near.reduce((a, b) => {
+      const n = IK.axis(a.matrix, face).map(v => v * sign);    // outward normal
+      return ahead(a, n) > ahead(b, n) ? a : b;
+    });
+  };
+
   return {
+    exposedOnStack,
     toolTcp, tipMatAt, asMat,
     pathHit, assertClear,
     legDurations,

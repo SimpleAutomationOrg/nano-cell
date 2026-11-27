@@ -9,44 +9,30 @@ CAD origins are datums (often outside the working geometry), frame-axis
 labels are arbitrary per part, and centroids/PCA drift with interior
 feature density. All helpers below measure outlines and surfaces.
 
-## 1. Find the pocket: centre and long axis
+## 1. Hang the part square over the pocket
 
 ```ts
 const holder = ctx.fixture('holder');
-const hp = holder.topCenter;          // cavity centre (top-rim outline), NOT the origin
-const pocketYaw = holder.topLongAxis; // long-EDGE azimuth (min-area rectangle), NOT a frame axis
+await cell.transitTip(cell.heldPoseOver(holder, 0.12), { spin: 'exact', ignore: /* departure proximity */ });
 ```
 
-## 2. Align the HELD PART, not the cup
+`cell.heldPoseOver(target, height)` returns the cup pose that holds the
+part square to, and centred over, the target's top opening. Use it for
+every placement; it does three measured things you should not redo by
+hand:
 
-The grasp spin served the camera, so the part hangs at an arbitrary
-rotation under the cup. Solve the cup yaw from the part's measured
-footprint:
+- **Finds the pocket** from its top-rim outline: `topCenter` (the cavity
+  centre, NOT the origin) and `topLongAxis` (the long-EDGE azimuth, NOT
+  a frame axis).
+- **Aligns the HELD PART, not the cup.** The grasp spin served the
+  camera, so the part hangs at an arbitrary rotation under the cup; the
+  yaw is solved from the part's measured footprint. Of the two
+  180°-apart yaws that fit a rectangle it takes the one whose tool body
+  leans along the pocket's long axis, never into its walls.
+- **Centres the part's footprint**, not the tip: the cup grips the part
+  wherever the grasp touched, which is not its centre.
 
-```ts
-const top: [number, number, number] = [hp[0], hp[1], hp[2] + 0.12];
-const caseAz = cell.heldFootprintAzimuth(ctx.h.poseZDown(top, 0));
-// poseZDown's yaw spins about the DOWNWARD tip axis:
-// +yaw turns the held part NEGATIVE in world azimuth → caseAz − pocketYaw
-const alignYaw = caseAz === null ? pocketYaw : caseAz - pocketYaw;
-```
-
-Both `alignYaw` and `alignYaw + π` fit a rectangle; pick the one whose
-body lean (`ctx.h.leanAzimuth`) runs along the pocket's long axis, so
-the leaning tool body never points into the pocket walls.
-
-## 3. Centre the held part's footprint over the pocket
-
-The cup grips the part wherever the grasp touched — not at its centre:
-
-```ts
-const fp = cell.heldFootprintCenter(topPose);
-const goPose = [...topPose];
-if (fp) { goPose[3] += hp[0] - fp.x; goPose[7] += hp[1] - fp.y; }  // shift keeps the spin
-await cell.transitTip(goPose, { spin: 'exact', ignore: /* departure proximity */ });
-```
-
-## 4. Descend by touch
+## 2. Descend by touch
 
 ```ts
 const touch = await cell.moveUntilTouch([0, 0, -1], {

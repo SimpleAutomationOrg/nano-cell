@@ -11,12 +11,12 @@ cell.json), because parts move between runs. Never hardcode a part id
 that an earlier run may have moved — select by current geometry:
 
 ```ts
-const onStack = CASE_IDS.map(id => ctx.part(id)).filter(p => {
-  const d = ctx.h.add(ctx.h.matPos(p.matrix), ctx.h.neg(stackPos));
-  return Math.hypot(d[0], d[1], d[2]) < 0.12;      // still at the stack
-});
-const part = /* frontmost along the face normal — the touchable one */;
+const part = ctx.nextOnStack('stack_north', CASES);
 ```
+
+`nextOnStack` returns the EXPOSED part: of the listed parts still near
+the stack, the frontmost along its outward face — the one the cup can
+reach. It throws when the stack is empty.
 
 ## 2. Build the grasp poses with `suctionGrasp`
 

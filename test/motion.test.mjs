@@ -173,3 +173,23 @@ test('leg timing respects the FR3 joint velocity limits', () => {
   const dur = planner.legDurations(path, 1000); // absurd tip speed: joints must cap it
   assert.ok(dur[0] >= (Math.PI / 2) / 3.15 - 1e-9, `leg of ${dur[0]}s beats the J1 limit`);
 });
+
+test('stack picking takes the EXPOSED part, by position — never by id', () => {
+  // the real 45° stack: six front cases leaning on the stop. The exposed
+  // one is the last in the lean direction; once it is gone (carried off
+  // to the holder) the next one becomes exposed.
+  const ids = [1, 2, 3, 4, 5, 6].map(i => `front_case_${i}`);
+  const item = id => {
+    const it = cell.parts.find(p => p.id === id);
+    return { id, matrix: IK.fromXyzRpy(it.pose_table.xyz_m, it.pose_table.rpy) };
+  };
+  const stackIt = cell.fixtures.find(f => f.id === 'stack_north');
+  const stack = IK.fromXyzRpy(stackIt.pose_table.xyz_m, stackIt.pose_table.rpy);
+  const all = ids.map(item);
+  assert.equal(planner.exposedOnStack(all, stack).id, 'front_case_6');
+  // case 6 has been carried away: far from the stack, so not a candidate
+  const moved = all.map(p => p.id === 'front_case_6' ? { ...p, matrix: IK.translate([0.5, 0.4, 0.02]) } : p);
+  assert.equal(planner.exposedOnStack(moved, stack).id, 'front_case_5');
+  // nothing left near the stack
+  assert.equal(planner.exposedOnStack(all.map(p => ({ ...p, matrix: IK.translate([0.5, 0.4, 0.02]) })), stack), null);
+});

@@ -86,6 +86,17 @@ export interface CellAPI {
   heldFootprintCenter(cupPose: Mat4): { x: number; y: number; z_min: number } | null;
 
   /**
+   * The cup pose that hangs the HELD PART square to, and centred over, a
+   * target's top opening, `height` metres above its rim — ready for
+   * `transitTip(pose, { spin: 'exact' })` followed by a touch descent.
+   * It aligns the part's measured long axis with the target's, picks the
+   * 180° turn whose tool lean runs along the target (not into its walls),
+   * and centres the part's footprint — never the cup — on `topCenter`.
+   * Use this for every placement instead of building the pose by hand.
+   */
+  heldPoseOver(target: CellItem, height: number): Mat4;
+
+  /**
    * Move all joints to absolute angles (degrees). One interpolated leg.
    * Joint-space command: takes `speedDps` (deg/s, default 180 = full)
    * instead of a tip speed.
@@ -219,6 +230,13 @@ export interface Ctx {
   part(id: string): CellItem;
   /** Look up a fixture by id (throws if unknown). */
   fixture(id: string): CellItem;
+  /**
+   * The part to pick next from a stack: of the listed parts still on it,
+   * the EXPOSED one (frontmost along its outward face). Chosen from live
+   * positions, never by id, so a task can be re-run. Throws when the
+   * stack is empty.
+   */
+  nextOnStack(stackId: string, partIds: string[]): CellItem;
   h: Helpers;
 }
 
