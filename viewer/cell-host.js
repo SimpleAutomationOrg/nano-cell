@@ -229,8 +229,8 @@ export function createHost(opts) {
     // placement rules ask for, in one place:
     //  - yaw: the part's measured long footprint axis onto the target's
     //    measured long axis (frame labels are arbitrary per CAD part)
-    //  - which of the two 180-degree yaws: the one whose tool body leans
-    //    ALONG the target's long axis, not across it into the walls
+    //  - which of the two 180-degree yaws (a rectangle fits both ways): the
+    //    one the wrist reaches with less turning from where the arm is now
     //  - xy: the part's footprint centre over the target's top centre (the
     //    cup grips the part wherever the grasp touched, not at its centre)
     heldPoseOver: (target, height) => {
@@ -241,12 +241,9 @@ export function createHost(opts) {
       // part NEGATIVE in table azimuth
       const partAz = api.heldFootprintAzimuth(IK.poseZDown(top, 0));
       const yaw = partAz === null ? axis : partAz - axis;
-      const offAxis = pose => {
-        const d = planner.leanAzimuth(pose) - axis;
-        return Math.abs(Math.atan2(Math.sin(2 * d), Math.cos(2 * d)));   // 180-degree periodic
-      };
       const a = IK.poseZDown(top, yaw), b = IK.poseZDown(top, yaw + Math.PI);
-      const pose = [...(offAxis(b) < offAxis(a) ? b : a)];
+      const q = jointsRad();
+      const pose = [...(planner.wristTurn(q, b) < planner.wristTurn(q, a) ? b : a)];
       const fp = api.heldFootprintCenter(pose);
       if (fp) { pose[3] += c[0] - fp.x; pose[7] += c[1] - fp.y; }   // a shift keeps the spin
       return pose;

@@ -420,15 +420,55 @@ export function createPlanner(opts) {
       return out;
     };
 
-    const buildVia = (pts, settle = pts.length) => {
+    // Tip orientation at fraction t of the reorientation. The SHORT arc is
+    // the default; the long arc turns the other way round (the same end
+    // pose, 360 degrees minus the short angle).
+    const orientAt = (t, long) => {
+      if (!long) return IK.slerp(qa, qb, t);
+      let d = qa[0] * qb[0] + qa[1] * qb[1] + qa[2] * qb[2] + qa[3] * qb[3];
+      const e = d < 0 ? qb : qb.map(v => -v);          // the far representation
+      d = -Math.abs(d);
+      const th = Math.acos(Math.max(-1, d));
+      if (Math.sin(th) < 1e-6) return IK.slerp(qa, qb, t);
+      const wa = Math.sin((1 - t) * th) / Math.sin(th), wb = Math.sin(t * th) / Math.sin(th);
+      return qa.map((v, i) => wa * v + wb * e[i]);
+    };
+    const buildArc = (pts, settle, long) => {
       const path = [q0];
       pts.forEach((p, i) => {
-        const m = IK.matFromQuat(IK.slerp(qa, qb, Math.min(1, (i + 1) / settle)), p);
+        const m = IK.matFromQuat(orientAt(Math.min(1, (i + 1) / settle), long), p);
         const free = spin !== 'exact';
         try { path.push(IK.ikNear(IK.mul(invMount, m), path[path.length - 1], { freeSpin: free, tcp: toolTcp() })); }
         catch (e) { if (i === pts.length - 1) throw e; } // only the last point is mandatory
       });
       return path;
+    };
+    // wrist winding: how far J6 turns in total, and whether it ever turns back
+    const wind = path => {
+      let travel = 0, dir = 0, back = false;
+      for (let i = 1; i < path.length; i++) {
+        const d = path[i][5] - path[i - 1][5];
+        travel += Math.abs(d);
+        if (Math.abs(d) < 0.02) continue;
+        if (dir && Math.sign(d) !== dir) back = true;
+        dir = Math.sign(d);
+      }
+      return { travel, back };
+    };
+    const buildVia = (pts, settle = pts.length) => {
+      const short = buildArc(pts, settle, false);
+      if (spin !== 'exact') return short;
+      // The shortest turn of the TIP is not always reachable by the WRIST:
+      // when it would carry J6 past its limit, the joint winds toward the
+      // limit and then spins all the way back at the end. If that happens,
+      // turn the tip the long way round instead — one steady J6 sweep.
+      const ws = wind(short);
+      if (!ws.back) return short;
+      try {
+        const long = buildArc(pts, settle, true), wl = wind(long);
+        if (!wl.back || wl.travel < ws.travel) return long;
+      } catch { /* long arc unreachable: keep the short one */ }
+      return short;
     };
 
     const viaPts = h => {
@@ -571,8 +611,19 @@ export function createPlanner(opts) {
     });
   };
 
+  // How far the wrist (J6) must turn to hold the tip at `pose` exactly,
+  // starting from joints q0 — Infinity when the pose is unreachable. For
+  // choosing between poses that are equally good for the task (a
+  // rectangle fits its pocket at two yaws 180 degrees apart).
+  const wristTurn = (q0, pose) => {
+    try {
+      const q = IK.ikNear(IK.mul(invMount, asMat(pose)), q0, { freeSpin: false, tcp: toolTcp() });
+      return Math.abs(q[5] - q0[5]);
+    } catch { return Infinity; }
+  };
+
   return {
-    exposedOnStack,
+    exposedOnStack, wristTurn,
     toolTcp, tipMatAt, asMat,
     pathHit, assertClear,
     legDurations,

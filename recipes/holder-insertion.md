@@ -27,8 +27,9 @@ hand:
 - **Aligns the HELD PART, not the cup.** The grasp spin served the
   camera, so the part hangs at an arbitrary rotation under the cup; the
   yaw is solved from the part's measured footprint. Of the two
-  180°-apart yaws that fit a rectangle it takes the one whose tool body
-  leans along the pocket's long axis, never into its walls.
+  180°-apart yaws that fit a rectangle it takes the one the wrist
+  reaches with less turning. (If a part must go in a particular way
+  round, that is not decided here.)
 - **Centres the part's footprint**, not the tip: the cup grips the part
   wherever the grasp touched, which is not its centre.
 

@@ -89,9 +89,10 @@ export interface CellAPI {
    * The cup pose that hangs the HELD PART square to, and centred over, a
    * target's top opening, `height` metres above its rim — ready for
    * `transitTip(pose, { spin: 'exact' })` followed by a touch descent.
-   * It aligns the part's measured long axis with the target's, picks the
-   * 180° turn whose tool lean runs along the target (not into its walls),
-   * and centres the part's footprint — never the cup — on `topCenter`.
+   * It aligns the part's measured long axis with the target's, picks —
+   * of the two 180°-apart yaws that fit a rectangle — the one the wrist
+   * reaches with less turning, and centres the part's footprint (never
+   * the cup) on `topCenter`.
    * Use this for every placement instead of building the pose by hand.
    */
   heldPoseOver(target: CellItem, height: number): Mat4;

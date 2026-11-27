@@ -193,3 +193,17 @@ test('stack picking takes the EXPOSED part, by position — never by id', () => 
   // nothing left near the stack
   assert.equal(planner.exposedOnStack(all.map(p => ({ ...p, matrix: IK.translate([0.5, 0.4, 0.02]) })), stack), null);
 });
+
+test('exact transit: when the short way round runs J6 into its limit, it goes the long way — no back-and-forth', () => {
+  // captured from the place segment: after picking a front case the wrist
+  // sits at J6 = +23°, and the pose over the holder needs J6 = +175°.
+  // The shortest reorientation of the TIP turns J6 the other way, toward
+  // -185° — past the limit — so the wrist wound 180° negative and then
+  // spun 330° back in the last moment.
+  const from = [-45.0, -95.6, -107.3, -74.9, 71.5, 23.3].map(d2r);
+  const to = [-72.1, -113.5, -77.9, -76.6, 65.1, 174.7].map(d2r);
+  const plan = planner.planTransit(from, planner.tipMatAt(to), { spin: 'exact' });
+  const { reversals, travel } = j6Profile(plan.path);
+  assert.equal(reversals, 0, `J6 reversed ${reversals}x over ${travel.toFixed(0)}° of travel`);
+  assert.ok(travel < 200, `J6 travelled ${travel.toFixed(0)}° for a 151° change`);
+});
