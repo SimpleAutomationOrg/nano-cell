@@ -5,7 +5,11 @@
 // of a degree off-square; the settle squares the case up as it goes in,
 // the way the chamfers guide a real one.
 
-import type { CellAPI, Ctx, Entry } from '../../../../viewer/cell';
+import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
+
+// what the viewer's step list shows, and the gripper the step works with
+export const name = 'Drop demo: gravity places the case';
+export const tool = 'rcup16_p0';
 
 // standalone start: tool down above the middle of the work area
 export const entry: Entry = { joints_deg: [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48] };

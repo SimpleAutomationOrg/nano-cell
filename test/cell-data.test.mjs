@@ -24,10 +24,15 @@ test('every application composes onto its robot, and every mesh it names exists'
     // steps belong to the application and use its grippers
     const tdir = new URL(`applications/${name}/steps/`, ROOT);
     for (const t of existsSync(tdir) ? readdirSync(tdir) : []) {
-      if (!existsSync(new URL(`${t}/step.json`, tdir))) continue;
-      const step = await readJson(`applications/${name}/steps/${t}/step.json`);
-      assert.ok(cell.tools.some(x => x.id === step.tool), `${name}/${t}: tool '${step.tool}' is not a gripper of the application`);
-      assert.ok(existsSync(new URL(`${t}/step.ts`, tdir)), `${name}/${t}: step.ts is missing`);
+      // one file per step, saying its name and its gripper the way the
+      // server reads them (viewer/serve.py): export const name = '...';
+      assert.match(t, /\.ts$/, `${name}/steps/${t}: a step is a single .ts file`);
+      const src = readFileSync(new URL(t, tdir), 'utf8');
+      const said = key => src.match(new RegExp(`^export const ${key}\\s*=\\s*(['"])(.*?)\\1`, 'm'))?.[2];
+      assert.ok(said('name'), `${name}/steps/${t}: no  export const name = '...'`);
+      assert.ok(cell.tools.some(x => x.id === said('tool')), `${name}/steps/${t}: tool '${said('tool')}' is not a gripper of the application`);
+      assert.match(src, /^export const entry\b/m, `${name}/steps/${t}: no entry pose`);
+      assert.match(src, /^export default async function/m, `${name}/steps/${t}: no default function`);
     }
   }
 });

@@ -337,7 +337,7 @@ function stepLog(msg) {
   el.title = msg.trim();
 }
 
-// A step is one file, steps/<name>/step.ts. It is transpiled in the page
+// A step is one file, steps/<name>.ts. It is transpiled in the page
 // (types stripped by sucrase, loaded once from CDN) and imported as a blob
 // module.
 let sucrase = null;
@@ -357,7 +357,7 @@ async function runStep(appId, stepId) {
   try {
     status(`running ${stepId}…`);
     stepLog(`▶ ${stepId}`);
-    const mod = await importStep(`/applications/${appId}/steps/${stepId}/step.ts?v=${Date.now()}`);
+    const mod = await importStep(`/applications/${appId}/steps/${stepId}.ts?v=${Date.now()}`);
     if (mod.entry?.joints_deg) host.snapJointsDeg(mod.entry.joints_deg);
     await mod.default(host.api, host.ctx);
     stepLog(`✓ ${stepId}`);

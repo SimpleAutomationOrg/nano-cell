@@ -2,7 +2,7 @@
 
 How to place a part INTO a cavity — aligned, centred, resting on the
 floor or on parts already inside. The working example is
-the place half of `applications/case-assembly/steps/pick-place-case/step.ts`.
+the place half of `applications/case-assembly/steps/pick-place-case.ts`.
 
 The one rule behind every step: **measure geometry, never assume it.**
 CAD origins are datums (often outside the working geometry), frame-axis

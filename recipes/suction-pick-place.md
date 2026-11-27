@@ -2,7 +2,7 @@
 
 How to write a step that picks a part with a vacuum cup and sets it
 down somewhere flat. The working example is
-the pick half of `applications/case-assembly/steps/pick-place-case/step.ts`.
+the pick half of `applications/case-assembly/steps/pick-place-case.ts`.
 
 ## 1. Choose the target at run time
 

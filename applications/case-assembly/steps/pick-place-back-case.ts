@@ -6,7 +6,11 @@
 //    the pocket floor or whatever already lies in it. No computed drop
 //    heights, so repeated runs stack correctly by construction.
 
-import type { CellAPI, Ctx, Entry } from '../../../../viewer/cell';
+import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
+
+// what the viewer's step list shows, and the gripper the step works with
+export const name = 'Pick a back case into the holder';
+export const tool = 'rcup16_p0';
 
 // standalone start: tool down above the middle of the work area
 export const entry: Entry = { joints_deg: [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48] };

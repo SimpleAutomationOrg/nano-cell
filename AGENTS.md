@@ -48,8 +48,8 @@ animates them in the three.js scene and owns run state. Tools not on
 the arm rest in their rack stands (`changer.stands[].tool_id`) and are
 obstacles like any fixture; a move that deliberately reaches one names
 the tool id in `ignore`. **Steps** live
-in `applications/<application>/steps/<name>/`: a `step.json` naming the tool,
-and one `step.ts` — a typed async function against the cell API
+in `applications/<application>/steps/`, one file each: `<name>.ts` says its
+name and tool and holds a typed async function against the cell API
 (`viewer/cell.d.ts`). The server (`viewer/serve.py`) also exposes
 `/__applications`, `/__steps?app=<application>` (step list) and
 `/__reload` (live reload).
@@ -93,13 +93,14 @@ spend effort making such contacts settle.
 
 ## Adding a new step
 
-1. Create `applications/<application>/steps/<name>/step.json`:
-   ```json
-   { "name": "Human-readable name",
-     "tool": "rcup16_p0" }
+1. Create one file, `applications/<application>/steps/<name>.ts`. It
+   starts by saying what it is called and which gripper it uses (plain
+   string literals — the server reads these two lines to list the step):
+   ```ts
+   export const name = 'Human-readable name';
+   export const tool = 'rcup16_p0';
    ```
-2. Write the step — one file, `step.ts`, next to it — by **copying the
-   matching recipe**, not from scratch:
+2. Write the rest by **copying the matching recipe**, not from scratch:
    - `recipes/suction-pick-place.md` — vacuum-cup picking and flat
      set-down.
    - `recipes/holder-insertion.md` — placing a held part INTO a pocket

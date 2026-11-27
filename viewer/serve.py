@@ -10,6 +10,7 @@ the page long-polls /__reload and reloads itself when anything changed.
 """
 import http.server
 import os
+import re
 import socketserver
 import sys
 import threading
@@ -145,14 +146,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         steps = []
         tdir = os.path.join(ROOT, "applications", app, "steps")
         if app and app == os.path.basename(app) and app not in (".", "..") and os.path.isdir(tdir):
-            for name in sorted(os.listdir(tdir)):
-                tj = os.path.join(tdir, name, "step.json")
-                if os.path.isfile(tj):
-                    try:
-                        with open(tj) as f:
-                            steps.append({"id": name, **json.load(f)})
-                    except (OSError, ValueError):
-                        pass
+            # a step is one file, steps/<id>.ts, that says what it is called
+            # and which gripper it uses:  export const name = '...';
+            for fn in sorted(os.listdir(tdir)):
+                if not fn.endswith(".ts"):
+                    continue
+                try:
+                    with open(os.path.join(tdir, fn), encoding="utf-8") as f:
+                        src = f.read()
+                except OSError:
+                    continue
+                step = {"id": fn[:-3]}
+                for key in ("name", "tool"):
+                    m = re.search(r"^export const %s\s*=\s*(['\"])(.*?)\1" % key, src, re.M)
+                    if m:
+                        step[key] = m.group(2)
+                steps.append(step)
         return self._json(steps)
 
     def _reload_poll(self):
