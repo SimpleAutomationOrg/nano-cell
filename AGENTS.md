@@ -99,6 +99,19 @@ spend effort making such contacts settle.
 - When you fix a motion bug, add an assertion to
   `test/motion.test.mjs` in the same change.
 
+## The chat panel
+
+The viewer has a **Task agent** panel (top right): the user types a
+request and a coding agent edits the tasks, the page reloading on each
+save. It is `viewer/chat.js` (the panel) and `viewer/chat.py` (served by
+`serve.py` under `/__chat/*`): every message runs the Claude Code CLI
+(`claude`, installed and signed in) headless in the repository root,
+continuing one conversation. The conversation is kept in the server, so
+it survives page reloads; **New** forgets it. The agent may read, search
+and edit files and run `./scripts/check.sh`; it cannot see or drive the
+viewer, so it asks the user to run the task. The endpoints answer only
+to the page's own origin.
+
 ## Debugging
 
 - The status line shows the running command with elapsed time; the

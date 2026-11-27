@@ -15,11 +15,16 @@ import threading
 import time
 import webbrowser
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from chat import Chat  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8742
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
 SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store"}
+
+CHAT = Chat(ROOT)
 
 _generation = 0
 _changed = threading.Condition()
@@ -61,7 +66,60 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._reload_poll()
         if self.path.startswith("/__tasks"):
             return self._tasks()
+        if self.path.startswith("/__chat/events"):
+            if not self._same_origin():
+                return self._json({"error": "forbidden"}, 403)
+            q = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
+            try:
+                return self._json(CHAT.poll(int(q.get("epoch", -1)), int(q.get("since", 0))))
+            except ValueError:
+                return self._json({"error": "bad request"}, 400)
         super().do_GET()
+
+    # The chat runs an agent that edits files on this machine, so its
+    # endpoints answer only to THIS page: a request must come from our own
+    # origin and carry a header that no other website can send without
+    # asking permission first (which this server never grants).
+    def _same_origin(self):
+        ours = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
+        origin = self.headers.get("Origin")
+        return (self.headers.get("Host") in ours
+                and self.headers.get("X-Nano-Cell") == "chat"
+                and (origin is None or origin.split("://", 1)[-1] in ours))
+
+    def _json(self, obj, code=200):
+        import json
+        body = json.dumps(obj).encode()
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_POST(self):
+        import json
+        if not self.path.startswith("/__chat/"):
+            return self._json({"error": "not found"}, 404)
+        if not self._same_origin():
+            return self._json({"error": "forbidden"}, 403)
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+            data = json.loads(self.rfile.read(n) or b"{}") if n < 200_000 else None
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            return self._json({"error": "bad request"}, 400)
+        action = self.path[len("/__chat/"):]
+        if action == "send":
+            err = CHAT.send(str(data.get("text", "")), str(data.get("context", ""))[:400])
+            return self._json({"error": err} if err else {"ok": True}, 409 if err else 200)
+        if action == "stop":
+            CHAT.stop()
+            return self._json({"ok": True})
+        if action == "new":
+            CHAT.new()
+            return self._json({"ok": True})
+        return self._json({"error": "not found"}, 404)
 
     def _tasks(self):
         import json
