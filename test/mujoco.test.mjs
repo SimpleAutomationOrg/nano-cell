@@ -57,6 +57,13 @@ test('MuJoCo world: dock pose near the rack, home pose clean', { skip: !mj }, as
   world.setArm([-95.8, -109.03, -35.38, -125.69, 89.91, 61.48].map(d2r));
   const home = world.contacts(0.005).filter(c => c.a.startsWith('arm:') || c.b.startsWith('arm:'));
   assert.equal(home.length, 0, `home pose contacts: ${home.map(c => c.a + '/' + c.b)}`);
+  // a query is about the arm (and the parts it names): the cases on the
+  // stacks, the buttons, the PCBs in the tray — parts merely lying in the
+  // cell — report NOTHING. They used to add ~2500 contacts to every
+  // single path check, which is what made planning stall.
+  assert.equal(world.contacts(0.005).length, 0, 'resting parts must not show up in a path query');
+  // ...but a part the query names is seen against what it rests on
+  assert.ok(world.contacts(0.005, ['front_case_1']).some(c => (c.a + c.b).includes('stack_')), 'a named part is checked against the fixtures');
   // the tools resting in the rack are obstacles too: above the small
   // cup's stand, 3 cm short of docking, the arm side meets that tool
   world.setArm([-33.3756, -110.0176, -103.6279, -56.3347, 90.0489, -146.0996].map(d2r));
@@ -295,7 +302,7 @@ test('the case FITS the holder pocket: clearance, seats on the floor under its o
   const after = world.readPartPose('front_case_1');
   const dxy = Math.hypot(after[3] - pose[3], after[7] - pose[7]);
   assert.ok(dxy < 1e-3, `settle dragged the case ${(dxy * 1000).toFixed(2)} mm sideways`);
-  const mine = world.contacts(0).filter(c => c.a === 'front_case_1' || c.b === 'front_case_1');
+  const mine = world.contacts(0, ['front_case_1']).filter(c => c.a === 'front_case_1' || c.b === 'front_case_1');
   assert.ok(mine.some(c => Math.abs(c.normalAB[2]) > 0.7), 'the case must rest ON the pocket floor');
   // nothing but its 20 g weight (0.2 N) should be pressing on it
   const load = world.contactForces()
