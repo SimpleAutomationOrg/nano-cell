@@ -101,7 +101,7 @@ and `segments/*.ts` — typed async functions against the cell API
 - **Pushing parts by hand**: click a part to select it (yellow box),
   then each key press is a real capped-force physics push — arrows
   push horizontally (camera-relative, 8 N), `Z` presses down firmly
-  (30 N, seats a snap fit), `X` lifts (8 N), `Shift` makes 0.1 mm fine
+  (30 N, seats a jammed part), `X` lifts (8 N), `Shift` makes 0.1 mm fine
   steps, `Esc` deselects. The status line reports how far it actually
   moved; "blocked" means a wall or fit stopped it. `PgDn`/`PgUp` work
   too; WASD is deliberately unused. From the console,

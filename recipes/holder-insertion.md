@@ -89,17 +89,19 @@ boxes are exactly the geometry every check and measurement runs against.
 
 ## If the contact forces look huge after placing
 
-Check whether the fit is a SNAP fit before blaming the placement. The
-dvt01 case↔holder pair is one: the pocket's end ledges leave the
-opening ~0.3 mm narrower than the case corners, so there is NO
-penetration-free rest pose — the real part clicks past flexing
-plastic, which rigid bodies cannot do. The solver represents that grip
-as a few hundred newtons of wall force with the part held slightly
-proud of the floor. That is the model's truth, not a bug. To verify:
-scan the held part's probe points against the pocket's wall boxes over
-a grid of offsets — if the minimum achievable overlap is positive, the
-fit is interference (see the 'settle may only relax' test in
-`test/mujoco.test.mjs` for the scan).
+Suspect the COLLISION MESH before the placement or the physics. A part
+hanging on the pocket walls at hundreds of newtons, never reaching the
+floor, means the collision geometry says the part does not fit. The
+pocket here is a clearance fit (74.4 x 48.0 mm for a 74.1 x 47.8 mm
+case) — but a simplified collision mesh once had its walls skewed up
+to 1 mm inward, and that read exactly like an interference fit.
+
+To check: section the item's `.collision.stl` and its `.glb` at the
+same height and compare the cavity outline; they must agree. To fix:
+`node scripts/collision-from-visual.mjs cell/<cell>/meshes/<item>`
+rebuilds the collision mesh from the visual one, triangle for
+triangle. The 'the case FITS the holder pocket' test in
+`test/mujoco.test.mjs` guards this pair.
 
 When measuring "how far off centre" a placed part is, compare poses in
 the HOLDER's frame against the measured pocket rectangle — never

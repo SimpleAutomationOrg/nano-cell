@@ -1,5 +1,5 @@
 {
-  "name": "Drop demo: let go above the holder",
+  "name": "Drop demo: gravity places the case",
   "cell": "dvt01",
   "tool": "rcup16_p0",
   "segments": [

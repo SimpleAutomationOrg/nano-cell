@@ -99,20 +99,22 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
 <mujoco>
   <compiler angle="radian"/>
   <default>
-    <!-- plastic-on-plastic, not MuJoCo's rubber-like 1.0: wedged parts
-         must be able to SLIDE into place under their own weight.
-         SOFT contacts: sub-millimetre overlaps (the case↔holder snap
-         fit is ~0.3 mm interference) push back gently, like the real
-         plastic flexing, instead of hard-solver hundreds of newtons.
-         solimp starts at low impedance and firms up fully by 0.8 mm of
-         depth, so sub-snap overlaps are compliant.
+    <!-- friction: smooth machined/moulded parts, not MuJoCo's
+         rubber-like 1.0 — a part must be able to SLIDE into place under
+         its own weight.
+         SOFT at the surface: impedance starts low and firms up fully by
+         0.8 mm of depth. Fits in this cell have ~0.1 mm clearance per
+         side, so a placement that is a hair off overlaps a wall by a few
+         hundredths of a millimetre; with the default (stiff from the
+         first micron) that pins the part on the walls above the floor.
+         Tested: 'the case FITS the holder pocket'.
          LOSSY contacts: solref is given directly as (-stiffness, -damping).
          The stiffness is MuJoCo's default (so resting forces are
          unchanged); the damping is 10x the default. The default contact
          is a slow critically-damped spring that takes ~10 mm to stop a
          1.5 m/s impact - more than the holder's 6 mm pocket floor, so a
-         dropped case went straight through it. Plastic on plastic does
-         not bounce or sink: this stops the same impact in about 1 mm.
+         dropped case went straight through it. Rigid parts do not sink
+         into each other: this stops the same impact in about 1 mm.
          1000 is the stability limit for the 1 ms settle step.
          Queries are unaffected (distance, not force). -->
     <geom friction="0.3 0.002 0.0001" solimp="0.15 0.95 0.0008" solref="-2500 -1000"/>
@@ -232,10 +234,10 @@ ${wb}
     const adr = w.partAdr.get(id);
     if (adr === undefined) return null;
     setMargin(P, 0);
-    // a settle may only RELAX the part. A press/snap-fit pocket (tighter
-    // than the part — real holders grip) gives rigid-body physics no valid
-    // rest pose: the solver wedges the part deeper and leaves it hanging
-    // on the walls. Detect that and keep the as-placed pose instead.
+    // a settle may only RELAX the part. Released in overlap with a tight
+    // pocket (a misaligned placement, a press fit), rigid-body physics has
+    // no valid rest pose: the solver wedges the part deeper and leaves it
+    // hanging on the walls. Detect that and keep the as-placed pose.
     const scanFit = () => {
       let pen = 0, support = false;
       for (const c of contacts(0)) {
@@ -348,8 +350,7 @@ ${wb}
 
   // PUSH a part with a capped force, like a fingertip: quasi-static
   // (strong damping, speed clamp), gravity on, everything else frozen.
-  // The part slides, stops against hard obstacles, and can press past
-  // soft shallow overlaps (the snap fit). dir is a unit vector in the
+  // The part slides and stops against obstacles. dir is a unit vector in the
   // table frame; dist is how far to push. Returns { pose, moved } —
   // moved < dist means it was blocked.
   function pushPart(id, dir, dist, { force = 25, duration = 1.0 } = {}) {

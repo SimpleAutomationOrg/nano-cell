@@ -175,14 +175,14 @@ test('settle of a press-fit part: slides straight down, no lateral ratchet', { s
   assert.ok(before[11] - after[11] > 1e-3, 'part must have dropped onto the floor');
 });
 
-test('settle may only relax: a snap-fit case is never wedged deeper', { skip: !mj }, async () => {
+test('the case FITS the holder pocket: clearance, seats on the floor under its own weight', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
-  // the real pocket is a SNAP fit: its end ledges leave the opening
-  // ~0.3 mm narrower than the case corners, so rigid physics has no
-  // penetration-free rest pose. Settling from the ideal insertion pose
-  // must not deepen the overlap or drag the case sideways (the
-  // regression: the case wedged to -2.6 mm, hanging on the walls at
-  // ~500 N with the floor carrying nothing).
+  // The pocket is a clearance fit (74.4 x 48.0 mm for a 74.1 x 47.8 mm
+  // case). A decimated collision mesh once skewed its walls up to 1 mm
+  // inward, which read as a 0.3 mm interference "snap fit": the case
+  // hung on the walls at hundreds of newtons and never reached the
+  // floor. The collision mesh must agree with the visual one — rebuild
+  // it with scripts/collision-from-visual.mjs if this fails.
   const world = await createMjWorld({
     mj, cellData: cell, armCapsules: [], toolCapsules: [],
     loadStlBuffer: async p => readStl(p),
@@ -220,31 +220,21 @@ test('settle may only relax: a snap-fit case is never wedged deeper', { skip: !m
       const p = maxPen(dx, dy);
       if (p < best.pen) best = { pen: p, dx, dy };
     }
-  // the pocket IS tighter than the case — if this ever reads ~0 the
-  // snap-fit premise (and this test's reason to exist) has changed
-  assert.ok(best.pen > 1e-4 && best.pen < 1e-3, `snap interference ${(best.pen * 1000).toFixed(3)} mm`);
+  assert.ok(best.pen < 2e-5, `the case does not fit the pocket: ${(best.pen * 1000).toFixed(3)} mm overlap at the best pose`);
   const pose = IK.mul(IK.mul(H, IK.translate([best.dx, best.dy, zoff])), Hrot);
   world.setPartPose('front_case_1', pose);
-  const penOf = () => {
-    let p = 0;
-    for (const c of world.contacts(0))
-      if ((c.a === 'front_case_1' || c.b === 'front_case_1') && c.dist < p) p = c.dist;
-    return p;
-  };
-  const pen0 = penOf();
-  world.settlePart('front_case_1', { duration: 1.5 });
+  const settled = world.settlePart('front_case_1', { duration: 1.5 });
+  assert.ok(settled?.pose, 'settle found no rest pose in a clearance pocket');
   const after = world.readPartPose('front_case_1');
-  const pen1 = penOf();
-  assert.ok(pen1 >= pen0 - 2e-4,
-    `settle deepened the overlap: ${(pen0 * 1000).toFixed(2)} -> ${(pen1 * 1000).toFixed(2)} mm`);
   const dxy = Math.hypot(after[3] - pose[3], after[7] - pose[7]);
   assert.ok(dxy < 1e-3, `settle dragged the case ${(dxy * 1000).toFixed(2)} mm sideways`);
-  // soft contacts: the snap grip must read as a gentle hold, not the
-  // hard-solver hundreds of newtons it was before solimp tuning
-  const grip = world.contactForces()
+  const mine = world.contacts(0).filter(c => c.a === 'front_case_1' || c.b === 'front_case_1');
+  assert.ok(mine.some(c => Math.abs(c.normalAB[2]) > 0.7), 'the case must rest ON the pocket floor');
+  // nothing but its 20 g weight (0.2 N) should be pressing on it
+  const load = world.contactForces()
     .filter(c => (c.a + c.b).includes('front_case_1') && (c.a + c.b).includes('holder'))
-    .reduce((s, c) => s + c.fn, 0);
-  assert.ok(grip < 200, `snap grip reads ${grip.toFixed(0)} N — soft contacts regressed`);
+    .reduce((t, c) => t + c.fn, 0);
+  assert.ok(load < 2, `the holder presses on the case with ${load.toFixed(1)} N — it should only carry its weight`);
 });
 
 test('pushPart: a firm press seats a press fit, a gentle nudge is blocked by walls', { skip: !mj }, async () => {

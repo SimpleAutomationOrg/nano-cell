@@ -1,10 +1,10 @@
 // Gravity demo: pick the exposed case, hover 120 mm above the holder
 // pocket, and just LET GO — no set-down, no touch descent. The released
-// case falls under MuJoCo gravity and lands ON the holder: the pocket is
-// a snap fit (narrower than the case by a fraction of a millimetre), so
-// a dropped case rests on its ledges instead of clicking in — exactly
-// why the real placement uses a touch descent. Select the case and press
-// Z in the viewer to push it home by hand.
+// case falls under MuJoCo gravity into the pocket. The fit has ~0.1 mm
+// clearance per side, so a drop that is a hair off-square can stop a
+// couple of millimetres short of the floor, pinched between the walls —
+// which is why the real placement uses a touch descent. Select the case
+// and press Z in the viewer to seat it by hand.
 
 import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
 

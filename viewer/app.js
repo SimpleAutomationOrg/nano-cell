@@ -702,10 +702,10 @@ async function main() {
   // ---------- interactive part pushing ----------
   // click a part to select it, then push it with the keyboard. Each
   // press is a REAL physics push (a capped force through MuJoCo): the
-  // part slides, stops against walls, and a firm downward press can
-  // click past the snap fit — it can never teleport or tunnel.
+  // part slides and stops against walls — it can never teleport or
+  // tunnel.
   //   arrows      push horizontally, relative to the camera (8 N)
-  //   Z (or PgDn) press down firmly (30 N — seats a snap fit)
+  //   Z (or PgDn) press down firmly (30 N — seats a jammed part)
   //   X (or PgUp) lift gently (8 N)
   //   Shift       fine steps (0.1 mm instead of 1 mm)
   //   Esc         deselect
