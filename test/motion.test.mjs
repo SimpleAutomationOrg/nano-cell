@@ -7,11 +7,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import * as IK from '../viewer/ik.js';
 import { createPlanner, footprintAzimuth, dockedTools } from '../viewer/planner.js';
+import { loadCell } from '../viewer/cell-data.js';
 
 const d2r = d => d * Math.PI / 180;
 const r2d = r => r * 180 / Math.PI;
 
-const cell = JSON.parse(readFileSync(new URL('../cell/dvt01/cell.json', import.meta.url)));
+const readJson = async p => JSON.parse(readFileSync(new URL(`../${p}`, import.meta.url)));
+const cell = await loadCell(readJson, 'case-assembly');
 const planner = createPlanner({
   cellData: cell,
   mountMat: IK.fromXyzRpy(cell.arm.mount_table.xyz_m, cell.arm.mount_table.rpy),

@@ -3,7 +3,7 @@
 // floor or whatever already lies in it. No computed drop heights, so
 // repeated runs stack correctly by construction.
 
-import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
+import type { CellAPI, Ctx, Entry } from '../../../../../viewer/cell';
 
 // standalone start: tool down above the middle of the work area
 export const entry: Entry = { joints_deg: [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48] };

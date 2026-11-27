@@ -5,7 +5,7 @@
 // same triangles, so the two can never disagree:
 //
 //   node scripts/step-to-mesh.mjs <file.STEP> <body | --all> <out path, no extension> [options]
-//   node scripts/step-to-mesh.mjs cell/print/case.STEP --list
+//   node scripts/step-to-mesh.mjs applications/case-assembly/print/case.STEP --list
 //
 //   -> <out>.glb             (metres, the CAD colours)
 //   -> <out>.collision.stl   (binary, metres, the same triangles)
@@ -26,7 +26,7 @@
 //                              part printed in a colour the CAD does not
 //                              carry
 //
-// Record the options used in the item's `mesh_source` in cell.json.
+// Record the options used in the item's `mesh_source` in application.json.
 // Needs the dev dependency `occt-import-js` (OpenCascade as WebAssembly).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';

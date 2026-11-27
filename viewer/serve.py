@@ -3,7 +3,8 @@
 
     python3 viewer/serve.py [port]
 
-Serves the repository root (the viewer fetches ../arm and ../cell) with
+Serves the repository root (the viewer fetches ../arm, ../robots and
+../applications) with
 caching off. A watcher thread rescans the tracked files twice a second;
 the page long-polls /__reload and reloads itself when anything changed.
 """
@@ -64,6 +65,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/__reload"):
             return self._reload_poll()
+        if self.path.startswith("/__applications"):
+            return self._applications()
         if self.path.startswith("/__tasks"):
             return self._tasks()
         if self.path.startswith("/__chat/events"):
@@ -121,11 +124,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._json({"ok": True})
         return self._json({"error": "not found"}, 404)
 
-    def _tasks(self):
+    def _applications(self):
         import json
+        apps = []
+        adir = os.path.join(ROOT, "applications")
+        for name in sorted(os.listdir(adir)) if os.path.isdir(adir) else []:
+            try:
+                with open(os.path.join(adir, name, "application.json")) as f:
+                    a = json.load(f)
+                apps.append({"id": name, "name": a.get("name", name), "robot": a.get("robot")})
+            except (OSError, ValueError):
+                pass
+        return self._json(apps)
+
+    def _tasks(self):
+        # the tasks of one application: /__tasks?app=<name>
+        import json
+        from urllib.parse import parse_qs, urlparse
+        app = parse_qs(urlparse(self.path).query).get("app", [""])[0]
         tasks = []
-        tdir = os.path.join(ROOT, "tasks")
-        if os.path.isdir(tdir):
+        tdir = os.path.join(ROOT, "applications", app, "tasks")
+        if app and app == os.path.basename(app) and app not in (".", "..") and os.path.isdir(tdir):
             for name in sorted(os.listdir(tdir)):
                 tj = os.path.join(tdir, name, "task.json")
                 if os.path.isfile(tj):
@@ -134,12 +153,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             tasks.append({"id": name, **json.load(f)})
                     except (OSError, ValueError):
                         pass
-        body = json.dumps(tasks).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        return self._json(tasks)
 
     def _reload_poll(self):
         # long-poll: answer when the generation moves past the client's,

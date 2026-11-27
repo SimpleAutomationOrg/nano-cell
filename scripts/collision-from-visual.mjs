@@ -4,7 +4,7 @@
 // with what you see: a decimated collision mesh can skew a pocket wall by
 // a millimetre, which turns a clearance fit into a fake interference fit.
 //
-//   node scripts/collision-from-visual.mjs cell/dvt01/meshes/holder
+//   node scripts/collision-from-visual.mjs applications/case-assembly/meshes/holder
 //
 // reads <path>.glb, writes <path>.collision.stl (binary, metres).
 import { readFileSync, writeFileSync } from 'node:fs';

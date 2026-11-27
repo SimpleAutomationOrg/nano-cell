@@ -64,11 +64,12 @@ function setRunning(on) {
 const post = (action, body = {}) =>
   fetch(`/__chat/${action}`, { method: 'POST', headers: HEAD, body: JSON.stringify(body) }).then(r => r.json());
 
-// what the agent cannot see for itself: which task is up, and how its last run ended
+// what the agent cannot see for itself: which application and task are up, and how the last run ended
 const context = () => {
   const task = document.getElementById('taskSel')?.value || 'none';
   const line = document.getElementById('taskline')?.textContent.trim() || '';
-  return `task selected: ${task}; last status line: "${line}"`;
+  const app = document.documentElement.dataset.application || 'unknown';
+  return `application: ${app}; task selected: ${task}; last status line: "${line}"`;
 };
 
 async function send() {

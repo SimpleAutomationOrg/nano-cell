@@ -155,11 +155,11 @@ export interface CellAPI {
   log(msg: string): void;
 }
 
-/** A fixture or part resolved from cell.json. */
+/** A fixture or part resolved from the application. */
 export interface CellItem {
   id: string;
   name: string;
-  /** The pose recorded in cell.json (load time — may be stale). */
+  /** The pose recorded in application.json (load time — may be stale). */
   pose: { xyz_m: Vec3; rpy: Vec3 };
   /**
    * The item's CURRENT table-frame pose, read from the scene — parts move
@@ -225,7 +225,7 @@ export interface Helpers {
 }
 
 export interface Ctx {
-  /** The parsed cell.json. */
+  /** The composed cell: the robot with the application set up on it (viewer/cell-data.js). */
   cell: Record<string, unknown>;
   /** Look up a part by id (throws if unknown). */
   part(id: string): CellItem;

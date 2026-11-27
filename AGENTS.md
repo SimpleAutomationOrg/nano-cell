@@ -30,8 +30,15 @@ frameworks during installation.
 
 ## The architecture in one paragraph
 
-A **cell is data** (`cell/<name>/cell.json`: arm mount, enclosure,
-tools, fixtures, parts with meshes + collision meshes). The **planner**
+A **cell is data**, in two halves. A **robot**
+(`robots/<name>/robot.json`): arm and mount, table, enclosure, flange
+stack, cameras, IO. An **application**
+(`applications/<name>/application.json`): one job and its environment —
+grippers, tool rack, fixtures and parts with meshes + collision meshes —
+together with its `print/` files and `tasks/`. `viewer/cell-data.js`
+composes the two into the cell everything else works on, and refuses a
+robot that lacks what the application needs (an IO line a gripper
+switches, a tool changer). The **planner**
 (`viewer/planner.js`, pure, node-testable) turns task commands into
 collision-checked joint paths on the MuJoCo backend
 (`viewer/mj-world.js`; obstacles box-decomposed by `viewer/boxify.js`,
@@ -40,19 +47,37 @@ animates them in the three.js scene and owns run state. Tools not on
 the arm rest in their rack stands (`changer.stands[].tool_id`) and are
 obstacles like any fixture; a move that deliberately reaches one names
 the tool id in `ignore`. **Tasks** live
-in `tasks/<name>/`: a `task.json` naming the tool and segment order,
+in `applications/<application>/tasks/<name>/`: a `task.json` naming the tool and segment order,
 and `segments/*.ts` — typed async functions against the cell API
 (`viewer/cell.d.ts`). The server (`viewer/serve.py`) also exposes
-`/__tasks` (task list) and `/__reload` (live reload).
+`/__applications`, `/__tasks?app=<application>` (task list) and
+`/__reload` (live reload).
+
+## Robots and applications
+
+An application must stay movable to another robot. So:
+
+- Everything an application places is in the **table frame**; it holds
+  no arm data, no IO definitions and no joint values. Grippers name the
+  IO lines they need (`vacuum.output`); the robot defines them.
+- Joint-space values taught on one robot (tool-stand joint poses, the
+  changer's unlock interlock) sit under `taught_on.<robot>` in
+  application.json and do not follow the application to another robot.
+- `"robot"` in application.json is the robot it is set up on now. To
+  look at it on another one: `?robot=<name>` in the viewer URL
+  (`?app=<name>` picks the application; default is the first).
+- A new robot is a new `robots/<name>/robot.json`; a new application a
+  new `applications/<name>/` — copy the existing one as the template.
+  `test/cell-data.test.mjs` holds these rules.
 
 ## Geometry comes from the print files
 
-The STEP files in `cell/print/` (what the parts are actually printed or
+The STEP files in `applications/<name>/print/` (what the parts are actually printed or
 machined from) are the source of truth for geometry. Meshes in
-`cell/<name>/meshes/` are generated from them with
+`applications/<name>/meshes/` are generated from them with
 `scripts/step-to-mesh.mjs`, which writes the visual and the collision
-mesh from the same triangles; `mesh_source` in cell.json says which
-file and body. Never hand-edit or simplify a mesh, and when physics
+mesh from the same triangles; `mesh_source` in application.json says which
+file and body (path relative to the application). Never hand-edit or simplify a mesh, and when physics
 says a part does not fit, compare the mesh with its STEP before
 believing it.
 
@@ -66,9 +91,9 @@ spend effort making such contacts settle.
 
 ## Adding a new task
 
-1. Create `tasks/<name>/task.json`:
+1. Create `applications/<application>/tasks/<name>/task.json`:
    ```json
-   { "name": "Human-readable name", "cell": "dvt01",
+   { "name": "Human-readable name",
      "tool": "rcup16_p0", "segments": ["10_first.ts", "20_second.ts"] }
    ```
 2. Write segments by **copying the matching recipe**, not from scratch:
@@ -81,7 +106,7 @@ spend effort making such contacts settle.
    start pose, tool pointing down, mid-cell) and a default async
    function `(cell, ctx) => Promise<void>`.
 3. The task appears in the viewer's dropdown automatically (the server
-   scans `tasks/`). Run each segment alone with its ▶ button while
+   scans the application's `tasks/`). Run each segment alone with its ▶ button while
    iterating; `entry` is what makes that possible.
 
 ## Editing existing tasks or the engine
@@ -92,7 +117,7 @@ spend effort making such contacts settle.
 - New motion behavior goes in `viewer/planner.js` (pure functions),
   never in `cell-host.js` (animation and scene only). That keeps it
   testable under node.
-- **After any change** to `viewer/` or `tasks/`: run
+- **After any change** to `viewer/`, a robot or an application: run
   `./scripts/check.sh` AND re-run the pick-place task in the viewer to
   "task done" before telling the user the change works. The checks
   encode every regression this project has already paid for once.

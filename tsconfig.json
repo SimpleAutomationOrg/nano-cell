@@ -8,5 +8,5 @@
     "skipLibCheck": true,
     "allowJs": true
   },
-  "include": ["tasks/**/*.ts", "viewer/*.d.ts", "viewer/*.js"]
+  "include": ["applications/*/tasks/**/*.ts", "viewer/*.d.ts", "viewer/*.js"]
 }

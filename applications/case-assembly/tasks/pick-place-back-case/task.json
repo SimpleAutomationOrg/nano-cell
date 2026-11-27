@@ -1,6 +1,5 @@
 {
   "name": "Pick a back case into the holder",
-  "cell": "dvt01",
   "tool": "rcup16_p0",
   "segments": [
     "10_pick_back_case.ts",

@@ -15,7 +15,7 @@ python3 viewer/serve.py
 ```
 
 Pick a task in the panel and press **Run all segments**. Edit any file —
-viewer code, a task segment, cell data — and the page reloads itself.
+viewer code, a task segment, robot or application data — and the page reloads itself.
 
 **Agent install**: paste this repository's URL into your coding agent
 with the word `install`. The agent-facing guide is [AGENTS.md](AGENTS.md)
@@ -46,13 +46,19 @@ as free bodies. Without it the scene renders but tasks are disabled.
     spatial hash; the moving side (arm links, tool) as fitted capsules.
     Both are visualizable live (Show → collision points / capsules).
   - `cell.d.ts` — the typed task API, fully documented for IDE hover.
-- **`cell/`** — a cell is data: arm mount, enclosure, tools (with
-  measured cup-lip frames), fixtures and parts with meshes + collision
-  meshes, cameras, IO.
-- **`tasks/<name>/`** — `task.json` (tool, segment order) and
-  `segments/*.ts`. A segment is an async function against the typed
-  cell API; it states intent (`transitTip`, `suctionGrasp`,
-  `moveUntilTouch`) and the planner does the geometry.
+- **`robots/<name>/`** — a robot is data (`robot.json`): the arm and
+  its mount, the table, the enclosure, the flange stack, cameras, IO.
+- **`applications/<name>/`** — an application is one job and its
+  environment (`application.json`): the grippers (with measured cup-lip
+  frames), the tool rack, fixtures and parts with meshes + collision
+  meshes; plus its `print/` files and its tasks. Every pose is in the
+  table frame, so an application can be moved to another robot; the
+  viewer shows it on the robot it names (`?app=<name>` picks the
+  application, `?robot=<name>` tries it on another robot).
+  - `tasks/<name>/` — `task.json` (tool, segment order) and
+    `segments/*.ts`. A segment is an async function against the typed
+    cell API; it states intent (`transitTip`, `suctionGrasp`,
+    `moveUntilTouch`) and the planner does the geometry.
 - **`recipes/`** — step-by-step guides for writing segments
   (suction pick & place, holder insertion), including the pitfalls
   each step avoids.

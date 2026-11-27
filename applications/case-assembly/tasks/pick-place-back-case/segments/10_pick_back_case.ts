@@ -1,7 +1,7 @@
 // Pick the exposed back case from the 45-degree south stack:
 // approach along its face normal, touch, grasp, retreat the same way.
 
-import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
+import type { CellAPI, Ctx, Entry } from '../../../../../viewer/cell';
 
 // standalone start: tool down above the middle of the work area
 export const entry: Entry = { joints_deg: [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48] };

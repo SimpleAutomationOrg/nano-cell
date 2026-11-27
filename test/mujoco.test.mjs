@@ -8,12 +8,14 @@ import * as IK from '../viewer/ik.js';
 import { parseBinaryStl } from '../viewer/stl.js';
 import { boxify } from '../viewer/boxify.js';
 import { createPlanner } from '../viewer/planner.js';
+import { loadCell } from '../viewer/cell-data.js';
 
 const d2r = d => d * Math.PI / 180;
 const ROOT = new URL('..', import.meta.url).pathname;
-const cell = JSON.parse(readFileSync(`${ROOT}cell/dvt01/cell.json`));
+const readJson = async p => JSON.parse(readFileSync(new URL(`../${p}`, import.meta.url)));
+const cell = await loadCell(readJson, 'case-assembly');
 const readStl = p => {
-  const r = readFileSync(`${ROOT}cell/dvt01/${p}`);
+  const r = readFileSync(`${ROOT}${p}`);
   return r.buffer.slice(r.byteOffset, r.byteOffset + r.byteLength);
 };
 
@@ -23,7 +25,7 @@ try {
 } catch { /* not installed */ }
 
 test('boxify preserves cavities (the holder pocket is real)', () => {
-  const tris = parseBinaryStl(readStl('meshes/holder.collision.stl'));
+  const tris = parseBinaryStl(readStl(cell.fixtures.find(f => f.id === 'holder').collision_mesh));
   const boxes = boxify(tris);
   assert.ok(boxes.length > 5 && boxes.length < 100, `${boxes.length} boxes`);
   // cavity centre = footprint centre at mid-height; no box may contain it

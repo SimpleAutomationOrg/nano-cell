@@ -7,6 +7,7 @@ import { createHost } from './cell-host.js';
 import { capsuleFromObject } from './capsules.js';
 import { createMjWorld } from './mj-world.js';
 import { dockedTools } from './planner.js';
+import { loadCell } from './cell-data.js';
 import { physicalKey, shortcutKey, flyDirection, FLY_KEYS } from './keys.js';
 
 const status = m => document.getElementById('status').textContent = m;
@@ -360,7 +361,7 @@ async function importSegment(url) {
   finally { URL.revokeObjectURL(blobUrl); }
 }
 
-async function runSegments(taskId, files, { snapEntry }) {
+async function runSegments(appId, taskId, files, { snapEntry }) {
   if (running) { taskLog('already running'); return; }
   running = true;
   host.reset();
@@ -368,7 +369,7 @@ async function runSegments(taskId, files, { snapEntry }) {
     for (const [i, f] of files.entries()) {
       status(`running ${f}…`);
       taskLog(`▶ ${f}`);
-      const mod = await importSegment(`/tasks/${taskId}/segments/${f}?v=${Date.now()}`);
+      const mod = await importSegment(`/applications/${appId}/tasks/${taskId}/segments/${f}?v=${Date.now()}`);
       if (i === 0 && snapEntry && mod.entry?.joints_deg) {
         host.snapJointsDeg(mod.entry.joints_deg);
       }
@@ -386,7 +387,7 @@ async function runSegments(taskId, files, { snapEntry }) {
 
 async function buildTaskUI(cell, mountToolFn) {
   let tasks = [];
-  try { tasks = await (await fetch('/__tasks')).json(); } catch { /* not serve.py */ }
+  try { tasks = await (await fetch(`/__tasks?app=${encodeURIComponent(cell.application)}`)).json(); } catch { /* not serve.py */ }
   if (!tasks.length) return;
 
   const sel = document.getElementById('taskSel');
@@ -403,13 +404,13 @@ async function buildTaskUI(cell, mountToolFn) {
       const row = document.createElement('div');
       row.className = 'segrow';
       row.innerHTML = `<button title="run this segment alone">▶</button><span>${f.replace(/\.[jt]s$/, '')}</span>`;
-      row.querySelector('button').onclick = () => runSegments(t.id, [f], { snapEntry: true });
+      row.querySelector('button').onclick = () => runSegments(cell.application, t.id, [f], { snapEntry: true });
       segHost.appendChild(row);
     }
     const all = document.createElement('button');
     all.textContent = 'Run all segments';
     all.style.marginTop = '6px';
-    all.onclick = () => runSegments(t.id, t.segments, { snapEntry: true });
+    all.onclick = () => runSegments(cell.application, t.id, t.segments, { snapEntry: true });
     segHost.appendChild(all);
   });
 
@@ -424,8 +425,24 @@ async function buildTaskUI(cell, mountToolFn) {
 
 // ---------- load the cell ----------
 async function main() {
-  const cell = await (await fetch('../cell/dvt01/cell.json')).json();
+  // which application, on which robot: ?app=<name> (default: the first
+  // one) and, to try it on another robot, ?robot=<name>
+  const query = new URLSearchParams(location.search);
+  let appId = query.get('app');
+  if (!appId) {
+    try { appId = (await (await fetch('/__applications')).json())[0]?.id; } catch { /* not serve.py */ }
+  }
+  appId ??= 'case-assembly';
+  let cell;
+  try {
+    cell = await loadCell(async p => {
+      const r = await fetch('../' + p);
+      if (!r.ok) throw new Error(`${p}: not found`);
+      return r.json();
+    }, appId, query.get('robot'));
+  } catch (e) { status('cannot load the cell: ' + e.message); throw e; }
   document.getElementById('cellName').textContent = cell.name;
+  document.documentElement.dataset.application = cell.application;   // the chat panel reads it
   document.title = cell.name;
 
   buildTable(cell.table);
@@ -437,13 +454,13 @@ async function main() {
   const fixtures = new THREE.Group(); world.add(fixtures);
   const parts = new THREE.Group(); world.add(parts);
   status('loading fixtures…');
-  await loadItems(cell.fixtures, '../cell/dvt01/', fixtures);
+  await loadItems(cell.fixtures, '../', fixtures);
   status('loading parts…');
-  await loadItems(cell.parts, '../cell/dvt01/', parts);
+  await loadItems(cell.parts, '../', parts);
 
   const stack = new THREE.Group(); flangeGroup.add(stack);
   status('loading flange stack…');
-  await loadItems(cell.flange_stack, '../cell/dvt01/', stack);
+  await loadItems(cell.flange_stack, '../', stack);
 
   const toolHolder = new THREE.Group(); flangeGroup.add(toolHolder);
   const sel = document.getElementById('toolSel');
@@ -458,7 +475,7 @@ async function main() {
   const rack = new THREE.Group(); world.add(rack);
   async function showRack(mountedId) {
     rack.clear();
-    await loadItems(dockedTools(cell, mountedId).map(({ id, ...rest }) => rest), '../cell/dvt01/', rack);
+    await loadItems(dockedTools(cell, mountedId).map(({ id, ...rest }) => rest), '../', rack);
   }
   let mountedId = null;
   async function mountTool(id) {
@@ -468,7 +485,7 @@ async function main() {
     await showRack(id);
     const t = cell.tools.find(x => x.id === id);
     if (!t || !t.mesh) return;
-    if (!toolCache[id]) toolCache[id] = await loadGlb('../cell/dvt01/' + t.mesh);
+    if (!toolCache[id]) toolCache[id] = await loadGlb('../' + t.mesh);
     const m = toolCache[id].clone();
     tagShadows(m, t.name);
     toolHolder.add(m);
@@ -538,7 +555,7 @@ async function main() {
     mjWorldRef = await createMjWorld({
       getToolId: () => sel.value,
       mj: mjmod, cellData: cell, armCapsules, toolCapsules,
-      loadStlBuffer: p => fetch('../cell/dvt01/' + p).then(r => {
+      loadStlBuffer: p => fetch('../' + p).then(r => {
         if (!r.ok) throw new Error(`${p}: ${r.status}`);
         return r.arrayBuffer();
       }),

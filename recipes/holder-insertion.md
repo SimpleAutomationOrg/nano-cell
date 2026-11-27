@@ -2,7 +2,7 @@
 
 How to place a part INTO a cavity — aligned, centred, resting on the
 floor or on parts already inside. The working example is
-`tasks/pick-place-case/segments/20_place_in_holder.ts`.
+`applications/case-assembly/tasks/pick-place-case/segments/20_place_in_holder.ts`.
 
 The one rule behind every step: **measure geometry, never assume it.**
 CAD origins are datums (often outside the working geometry), frame-axis
@@ -83,15 +83,15 @@ here is a clearance fit (74.5 x 48.1 mm for a 74.1 x 47.8 mm case) —
 but a simplified collision mesh once had its walls skewed up to 1 mm
 inward, and that read exactly like an interference fit.
 
-The print / machining STEP files in `cell/print/` are the source of
+The print / machining STEP files in `applications/<application>/print/` are the source of
 truth for geometry. Build an item's visual AND collision mesh from
 them in one step, so the two cannot disagree:
 
-    node scripts/step-to-mesh.mjs cell/print/<file>.STEP --list
-    node scripts/step-to-mesh.mjs cell/print/<file>.STEP <body> cell/<cell>/meshes/<item>
+    node scripts/step-to-mesh.mjs applications/<application>/print/<file>.STEP --list
+    node scripts/step-to-mesh.mjs applications/<application>/print/<file>.STEP <body> applications/<application>/meshes/<item>
 
 Record where a mesh came from in the item's `mesh_source` in
-cell.json. For an item with no STEP file,
+application.json. For an item with no STEP file,
 `scripts/collision-from-visual.mjs` at least makes the collision mesh
 match the visual one. The 'the case FITS the holder pocket' test in
 `test/mujoco.test.mjs` guards this pair.

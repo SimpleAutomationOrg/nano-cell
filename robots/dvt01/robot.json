@@ -1,0 +1,556 @@
+{
+ "name": "dvt01",
+ "about": "A robot: the arm, where it is mounted, the table it works on, the guard around it, what is bolted to its flange, its cameras and its IO. Nothing here depends on the work being done — that is an application (applications/<name>/application.json), which is set up on a robot and can be moved to another one.",
+ "units": "metres, radians",
+ "conventions": {
+  "rpy": "fixed-axis roll, pitch, yaw: R = Rz(yaw) . Ry(pitch) . Rx(roll) (as URDF); a pose maps the item's frame into its parent",
+  "mesh_frame": "each mesh is in the frame its pose places (flange frame for the flange stack and tools, the fixture's or part's own frame otherwise): metres, z up. GLB vertex data is stored in that frame as is (NOT turned to glTF's y-up).",
+  "collision_stl": "metres, same frame as the GLB; every connected component is one convex piece",
+  "table": "breadboard frame: origin at the lattice corner the cell calls (0, 0), x and y along the hole lattice, z up from the plate top",
+  "flange": "the cell's DH flange: origin on the robot flange face, +z out of the flange. On the public fairino3_v6 URDF it is wrist3_link moved 0.1 m along its +z, same orientation; the DH base frame is base_link."
+ },
+ "arm": {
+  "model": "fr3",
+  "role": "arm-right",
+  "mount_table": {
+   "xyz_m": [
+    1.125275,
+    0.525131,
+    0.011541
+   ],
+   "rpy": [
+    -0.001892,
+    -0.00137,
+    -0.396466
+   ]
+  },
+  "flange_in_urdf_wrist3_link": {
+   "xyz_m": [
+    0.0,
+    0.0,
+    0.1
+   ],
+   "rpy": [
+    0.0,
+    0.0,
+    0.0
+   ]
+  },
+  "calibrated_chain": {
+   "id": "arm-right/cal-a",
+   "convention": "modified_dh_hayati",
+   "formula": "table_from_flange = table_from_arm_base . base . prod_j Rx(alpha_j) Tx(a_j) Ry(beta_j) Rz(q_j + e_j(q_j) + theta_j) Tz(d_j); e_j(q) = sum_k cos_k cos(k q) + sin_k sin(k q)",
+   "table_from_arm_base": [
+    [
+     0.9259890736218651,
+     0.3775314590822307,
+     -0.0037726563800701157,
+     1.1246411032923065
+    ],
+    [
+     -0.37754009609820305,
+     0.9259912925452329,
+     -0.0018978852885399254,
+     0.5251821589595524
+    ],
+    [
+     0.0027769355555569675,
+     0.003181750092452822,
+     0.9999910825078739,
+     0.013272516794184144
+    ],
+    [
+     0.0,
+     0.0,
+     0.0,
+     1.0
+    ]
+   ],
+   "base": {
+    "rotation_wxyz": [
+     0.9999856373727769,
+     -0.0025466707872451922,
+     0.0007006071780918207,
+     -0.0046635464664303745
+    ],
+    "translation_m": [
+     0.0006018528287921043,
+     0.00018619363188610016,
+     -0.001734047498958861
+    ]
+   },
+   "joints": [
+    {
+     "a": -5.64371741070806e-05,
+     "alpha": -0.000807559575575331,
+     "beta": 0.0003356575396756109,
+     "d": 0.13993938345170487,
+     "errors": [
+      {
+       "cos": -0.00033595468878464224,
+       "kind": "harmonic",
+       "order": 1,
+       "sin": 0.0004177612305270759
+      },
+      {
+       "cos": 0.0001263135161924717,
+       "kind": "harmonic",
+       "order": 2,
+       "sin": -1.4483464903401246e-05
+      }
+     ],
+     "theta": -3.8559977800981386e-05
+    },
+    {
+     "a": 5.973486568279092e-05,
+     "alpha": 1.5709540207163852,
+     "beta": -3.910436997280173e-05,
+     "d": 4.717899607426239e-05,
+     "errors": [
+      {
+       "cos": 0.00043342625452784823,
+       "kind": "harmonic",
+       "order": 1,
+       "sin": -0.00021555252009298627
+      },
+      {
+       "cos": -0.00026470608498832825,
+       "kind": "harmonic",
+       "order": 2,
+       "sin": 5.471874267941203e-05
+      }
+     ],
+     "theta": -0.0030459789100650524
+    },
+    {
+     "a": -0.2803122829588831,
+     "alpha": -0.00015568048743801936,
+     "beta": -0.00012611652486133444,
+     "d": 4.742335744022757e-05,
+     "errors": [
+      {
+       "cos": -0.0004228261624997549,
+       "kind": "harmonic",
+       "order": 1,
+       "sin": 0.00015600573010573045
+      },
+      {
+       "cos": 0.0003215758439520726,
+       "kind": "harmonic",
+       "order": 2,
+       "sin": -0.0002053673251391135
+      }
+     ],
+     "theta": 0.0002595459885953079
+    },
+    {
+     "a": -0.240139161117218,
+     "alpha": 7.621460717019609e-05,
+     "beta": -0.00032049084979825557,
+     "d": 0.10204747291182614,
+     "errors": [],
+     "theta": 2.41127474021848e-05
+    },
+    {
+     "a": 7.658786567154693e-06,
+     "alpha": 1.5699162401817426,
+     "beta": 2.3895360577196218e-05,
+     "d": 0.10205569531435393,
+     "errors": [],
+     "theta": 0.00032436639208155915
+    },
+    {
+     "a": -3.319277107478422e-05,
+     "alpha": -1.570613038859581,
+     "beta": -0.0003001553987574232,
+     "d": 0.09996550952374601,
+     "errors": [],
+     "theta": 2.2438627373963058e-08
+    }
+   ],
+   "nominal_dh": [
+    {
+     "a": 0.0,
+     "alpha": 1.5707963267948966,
+     "d": 0.14,
+     "theta": 0.0
+    },
+    {
+     "a": -0.280291532,
+     "alpha": 0.0,
+     "d": 0.0,
+     "theta": 0.0
+    },
+    {
+     "a": -0.23998789099999998,
+     "alpha": 0.0,
+     "d": 0.0,
+     "theta": 0.0
+    },
+    {
+     "a": 0.0,
+     "alpha": 1.5707963267948966,
+     "d": 0.101909369,
+     "theta": 0.0
+    },
+    {
+     "a": 0.0,
+     "alpha": -1.5707963267948966,
+     "d": 0.102081259,
+     "theta": 0.0
+    },
+    {
+     "a": 0.0,
+     "alpha": 0.0,
+     "d": 0.100251743,
+     "theta": 0.0
+    }
+   ]
+  },
+  "start_deg": [
+   -96.7614,
+   -85.3888,
+   -86.5777,
+   -98.0352,
+   89.8929,
+   -52.5349
+  ]
+ },
+ "table": {
+  "size_m": [
+   0.9,
+   0.6
+  ],
+  "min_table_m": [
+   0.3,
+   0.0
+  ],
+  "max_table_m": [
+   1.2,
+   0.6
+  ],
+  "hole_pitch_m": 0.025,
+  "first_hole_m": 0.0125,
+  "note": "breadboard plate on x 0.3..1.2 of the table frame; no mesh"
+ },
+ "guard": {
+  "operator_barrier": {
+   "name": "operator_barrier",
+   "normal": [
+    0.0,
+    1.0,
+    0.0
+   ],
+   "offset_m": -0.15
+  },
+  "envelope_mm": {
+   "x_min_mm": 0,
+   "x_max_mm": 1200,
+   "y_min_mm": 0,
+   "y_max_mm": 600,
+   "z_min_mm": 0,
+   "z_max_mm": 650
+  },
+  "wall_extensions_mm": {
+   "right_wall": 60.0
+  },
+  "operator_boundary_offset_mm": -150.0
+ },
+ "flange_stack": [
+  {
+   "id": "ft_sensor",
+   "name": "F/T sensor with its flange plate and camera bracket (Force_sense_6axis_75mm_my1)",
+   "mesh": "meshes/ft_sensor.glb",
+   "collision_mesh": "meshes/ft_sensor.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "adapter",
+   "name": "adapter plate between the F/T sensor and the changer (adapter1)",
+   "mesh": "meshes/adapter.glb",
+   "collision_mesh": "meshes/adapter.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "changer_master",
+   "name": "tool changer, robot side (interface_50mm_act1)",
+   "mesh": "meshes/changer_master.glb",
+   "collision_mesh": "meshes/changer_master.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "oak_camera",
+   "name": "OAK-D Pro wrist camera (Camera_stereo_NG9097)",
+   "mesh": "meshes/oak_camera.glb",
+   "collision_mesh": "meshes/oak_camera.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  },
+  {
+   "id": "m12_5pin_plug",
+   "name": "M12 5-pin plug of the F/T sensor cable on the wrist (vendor CAD 234947)",
+   "mesh": "meshes/m12_5pin_plug.glb",
+   "collision_mesh": "meshes/m12_5pin_plug.collision.stl",
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  }
+ ],
+ "changer": {
+  "unlock_output": "changer-unlock",
+  "locked_input": null,
+  "bare_tool_id": "changer_bare_p0"
+ },
+ "tools": [
+  {
+   "id": "changer_bare_p0",
+   "name": "bare changer: no tool on the flange stack",
+   "kind": "bare",
+   "mesh": null,
+   "pose_flange": {
+    "xyz_m": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "tip_flange_m": [
+    0.0,
+    0.0,
+    0.06543
+   ],
+   "tip_name": "piston_tip",
+   "catalog_index": 0
+  }
+ ],
+ "cameras": [
+  {
+   "name": "oak-left",
+   "parent": "flange",
+   "pose": {
+    "xyz_m": [
+     0.070888,
+     0.000464,
+     0.035836
+    ],
+    "rpy": [
+     -0.018246,
+     -0.005482,
+     1.578619
+    ]
+   },
+   "size": [
+    4056,
+    3040
+   ],
+   "K": [
+    3320.277388972051,
+    3319.7535031313228,
+    2049.3318128025667,
+    1577.9798469120044
+   ],
+   "frame": "OpenCV camera: +z along the view, +x right, +y down",
+   "stream": "colour still",
+   "D": [
+    0.0032591540964061762,
+    -0.1701826273029053,
+    0.0001551897946514738,
+    3.750622136406338e-05,
+    0.1916990837874502
+   ],
+   "distortion_model": "opencv 5-term",
+   "lens_position": 200
+  },
+  {
+   "name": "oak-left/mono-left",
+   "parent": "flange",
+   "pose": {
+    "xyz_m": [
+     0.070664,
+     -0.037701,
+     0.035413
+    ],
+    "rpy": [
+     -0.049202,
+     -0.004509,
+     1.573319
+    ]
+   },
+   "size": [
+    1280,
+    800
+   ],
+   "K": [
+    801.1154174804688,
+    801.4796752929688,
+    632.7736206054688,
+    390.5470275878906
+   ],
+   "frame": "OpenCV camera: +z along the view, +x right, +y down",
+   "stream": "mono left (global shutter)",
+   "D": [
+    25.21460723876953,
+    -39.54928970336914,
+    -0.0023162891156971455,
+    0.000619746744632721,
+    18.29759407043457,
+    24.525306701660156,
+    -37.5067253112793,
+    16.790483474731445,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.01010760199278593,
+    0.0033947883639484644
+   ],
+   "distortion_model": "opencv 14-term (factory)"
+  },
+  {
+   "name": "oak-left/mono-right",
+   "parent": "flange",
+   "pose": {
+    "xyz_m": [
+     0.07039,
+     0.038006,
+     0.035173
+    ],
+    "rpy": [
+     -0.012239,
+     -0.000864,
+     1.589473
+    ]
+   },
+   "size": [
+    1280,
+    800
+   ],
+   "K": [
+    794.7510986328125,
+    794.9835205078125,
+    645.1537475585938,
+    385.4852294921875
+   ],
+   "frame": "OpenCV camera: +z along the view, +x right, +y down",
+   "stream": "mono right (global shutter)",
+   "D": [
+    25.591148376464844,
+    -40.858497619628906,
+    -0.0007665379671379924,
+    0.00046431421651504934,
+    19.48162078857422,
+    24.961252212524414,
+    -39.01252746582031,
+    18.10664939880371,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0008160884608514607,
+    0.006165793631225824
+   ],
+   "distortion_model": "opencv 14-term (factory)"
+  }
+ ],
+ "io": [
+  {
+   "name": "vacuum-held",
+   "kind": "input",
+   "function": "vacuum_held",
+   "bank": "control_box",
+   "channel": 0,
+   "active_high": true,
+   "arm_role": "arm-right"
+  },
+  {
+   "name": "changer-unlock",
+   "kind": "output",
+   "function": "changer_unlock",
+   "bank": "control_box",
+   "channel": 0,
+   "active_high": true,
+   "arm_role": "arm-right",
+   "on_stop": "safe",
+   "safe_state": false
+  },
+  {
+   "name": "screwdriver-vacuum",
+   "kind": "output",
+   "function": "vacuum_aux",
+   "bank": "control_box",
+   "channel": 3,
+   "active_high": true,
+   "arm_role": "arm-right",
+   "on_stop": "hold",
+   "safe_state": false
+  },
+  {
+   "name": "vacuum",
+   "kind": "output",
+   "function": "vacuum",
+   "bank": "control_box",
+   "channel": 1,
+   "active_high": true,
+   "arm_role": "arm-right",
+   "on_stop": "hold",
+   "safe_state": false
+  }
+ ]
+}

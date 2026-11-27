@@ -1,8 +1,9 @@
 # sa-demo-nano-cell
 
-A browser-only robot cell: the dvt01 cell's data (FR3 arm meshes,
-cell.json, collision STLs) plus a three.js viewer that executes task
-segments with IK and collision checking. No build step, no physics.
+A browser-only robot cell: a ROBOT (arm, mount, table, guard, IO) with an
+APPLICATION set up on it (grippers, tool rack, fixtures, parts, tasks),
+both as data, plus a three.js viewer that executes task segments with IK
+and collision checking. No build step.
 
 Run it: `python3 viewer/serve.py` (live reload; `/__tasks` lists tasks).
 Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
@@ -18,9 +19,20 @@ Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
   `capsules.js` fits the arm/tool capsules; `cell.d.ts` the segment API
   types. Collision, touch, corridor heights, measurements and gravity
   settling all derive from the one MuJoCo model.
-- `cell/dvt01/` — the cell as data (poses in the table frame, z up, metres).
+- `robots/<name>/robot.json` — a robot: arm + mount, table, guard, flange
+  stack (and its meshes), cameras, IO. Knows nothing about the job.
+- `applications/<name>/` — an application: one job and its environment.
+  `application.json` (grippers, tool rack, fixtures, parts — poses in the
+  table frame, z up, metres), `meshes/`, `print/` (STEP source files) and
+  `tasks/`. It names the robot it is set up on and can be moved to
+  another: keep robot facts OUT of it (no arm, IO definitions or joint
+  values — joint-space values taught on one robot live under
+  `taught_on.<robot>`). `viewer/cell-data.js` composes robot + application
+  into the one cell the planner and physics see ("cell.json" in older
+  comments means this composed cell) and checks the robot can run it.
 - `arm/fr3/` — FR3 link meshes; the kinematic chain constants live in `ik.js`.
-- `tasks/<name>/` — `task.json` (tool, segment order) + `segments/*.ts`.
+- `applications/<name>/tasks/<task>/` — `task.json` (tool, segment order) +
+  `segments/*.ts`.
 - `recipes/` — step-by-step guides for writing segments (suction pick &
   place, holder insertion). Follow the matching recipe before writing a
   new segment; when a new motion pattern stabilizes, add a recipe for it.
@@ -31,7 +43,7 @@ Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
   to the part face, approach and retreat along the surface normal. Use
   `ctx.h.suctionGrasp(item, standoff)` — do not hand-build grasp poses.
   The controlled frame for a vacuum tool is the CUP LIP frame from
-  cell.json (`vacuum.lip_centre_flange_m` / `lip_normal_flange`) — the
+  application.json (`vacuum.lip_centre_flange_m` / `lip_normal_flange`) — the
   rcup16's cup is bent ~25° off the flange axis, so the flange axis is
   never the cup axis.
 - **The wrist camera stays parallel to the breadboard while picking** when
@@ -71,7 +83,7 @@ leave them there. The collision model is boxes, so a round shank in a
 round hole has no honest rest pose anyway; do not tune the physics to
 make such a fit settle.
 
-## After any change to viewer/ or tasks/
+## After any change to viewer/, a robot or an application
 
 Run `./scripts/check.sh` (types + `test/motion.test.mjs`) and rerun the
 pick-place task in the viewer before calling the change done. The motion

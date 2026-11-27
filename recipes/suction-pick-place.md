@@ -2,12 +2,12 @@
 
 How to write a segment that picks a part with a vacuum cup and sets it
 down somewhere flat. The working example is
-`tasks/pick-place-case/segments/10_pick_case.ts`.
+`applications/case-assembly/tasks/pick-place-case/segments/10_pick_case.ts`.
 
 ## 1. Choose the target at run time
 
 Part poses in `ctx` are **live** (read from the scene, not from
-cell.json), because parts move between runs. Never hardcode a part id
+application.json), because parts move between runs. Never hardcode a part id
 that an earlier run may have moved — select by current geometry:
 
 ```ts
