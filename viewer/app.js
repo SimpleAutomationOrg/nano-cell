@@ -494,6 +494,27 @@ async function main() {
   });
   document.getElementById('toggles').appendChild(capToggle);
 
+  // reset the SCENE in place (camera stays): parts back to their loaded
+  // poses — including one riding the flange — collision world restored,
+  // run state cleared, arm to the dock pose
+  document.getElementById('btnReset').onclick = () => {
+    host.abort();
+    host.reset();
+    host.state.held = null;
+    host.state.io = {};
+    for (const it of cell.parts ?? []) {
+      const node = partNodes.get(it.id);
+      if (!node) continue;
+      world.attach(node);
+      applyPose(node, it.pose_table);
+      node.updateMatrix();
+      colWorld.place(it.id, IK.fromXyzRpy(it.pose_table.xyz_m, it.pose_table.rpy));
+    }
+    setJoints(POSE_DOCK);
+    taskLog('scene reset');
+    status('scene reset');
+  };
+
   await buildTaskUI(cell, mountToolTracked);
 
   status(`${cell.name} — ready`);
