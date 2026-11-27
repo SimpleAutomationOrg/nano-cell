@@ -1043,32 +1043,29 @@
      0.00213
     ]
    },
-   "collision": "mesh"
+   "collision": "mesh",
+   "mesh_source": "cell/print/BUTTON__LAST2.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)"
   },
   {
    "id": "button_plate",
-   "name": "green button plate (touch-measured body, no CAD)",
-   "mesh": null,
+   "name": "green button plate (matt_holder_80x70_green)",
+   "mesh": "meshes/button_plate.glb",
+   "collision_mesh": "meshes/button_plate.collision.stl",
+   "mesh_source": "cell/print/matt_holder_80x70_green.STEP --color 0.30,0.69,0.31 (scripts/step-to-mesh.mjs)",
    "pose_table": {
     "xyz_m": [
      0.812033,
      0.087549,
-     0.001569
+     0.0
     ],
     "rpy": [
-     -0.00063,
-     -0.0005,
-     -0.00097
+     0.0,
+     0.0,
+     1.569826
     ]
    },
-   "collision": "box",
-   "size_m": [
-    0.082286,
-    0.072442,
-    0.0031
-   ],
-   "geometry_source": "measured",
-   "note": "pose = the centre of the measured body; top face = where the buttons lie"
+   "collision": "mesh",
+   "note": "xy and yaw from the touch-measured body centre (the 72 x 82 mm tray, long side along table x); its four screw holes then fall on the breadboard grid within 0.5 mm. The buttons lie on the recessed floor, 3 mm above the board."
   },
   {
    "id": "pcb_tray",
@@ -1088,7 +1085,8 @@
     ]
    },
    "collision": "mesh",
-   "note": "stands on 60 mm standoffs that are not in the CAD (see MISSING.md)"
+   "note": "stands on 60 mm standoffs that are not in the CAD (see MISSING.md)",
+   "mesh_source": "no print file yet: collision mesh rebuilt from the visual mesh (scripts/collision-from-visual.mjs) so the PCB slots are real"
   }
  ],
  "parts": [
@@ -1349,25 +1347,240 @@
    "mass_kg": 0.01853,
    "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed",
    "on": "stack_south"
+  },
+  {
+   "id": "button_1",
+   "name": "button 1, loose on the green plate, cavity and pin up",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.833033,
+     0.112549,
+     0.003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -1.396263
+    ]
+   },
+   "on": "button_plate",
+   "mesh_source": "cell/print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+   "placement_source": "position and heading estimated from the reference photo; the real cell finds each button with the camera"
+  },
+  {
+   "id": "button_2",
+   "name": "button 2, loose on the green plate, cavity and pin up",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.839033,
+     0.099049,
+     0.003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -1.047198
+    ]
+   },
+   "on": "button_plate",
+   "mesh_source": "cell/print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+   "placement_source": "position and heading estimated from the reference photo; the real cell finds each button with the camera"
+  },
+  {
+   "id": "button_3",
+   "name": "button 3, loose on the green plate, cavity and pin up",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.818033,
+     0.102549,
+     0.003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -1.22173
+    ]
+   },
+   "on": "button_plate",
+   "mesh_source": "cell/print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+   "placement_source": "position and heading estimated from the reference photo; the real cell finds each button with the camera"
+  },
+  {
+   "id": "button_4",
+   "name": "button 4, loose on the green plate, cavity and pin up",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.822033,
+     0.089549,
+     0.003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -1.396263
+    ]
+   },
+   "on": "button_plate",
+   "mesh_source": "cell/print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+   "placement_source": "position and heading estimated from the reference photo; the real cell finds each button with the camera"
+  },
+  {
+   "id": "button_5",
+   "name": "button 5, loose on the green plate, cavity and pin up",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.841033,
+     0.082549,
+     0.003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -1.48353
+    ]
+   },
+   "on": "button_plate",
+   "mesh_source": "cell/print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+   "placement_source": "position and heading estimated from the reference photo; the real cell finds each button with the camera"
+  },
+  {
+   "id": "button_6",
+   "name": "button 6, loose on the green plate, cavity and pin up",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.804033,
+     0.079549,
+     0.003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -0.523599
+    ]
+   },
+   "on": "button_plate",
+   "mesh_source": "cell/print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+   "placement_source": "position and heading estimated from the reference photo; the real cell finds each button with the camera"
+  },
+  {
+   "id": "button_7",
+   "name": "button 7, loose on the green plate, cavity and pin up",
+   "mesh": "meshes/button.glb",
+   "collision_mesh": "meshes/button.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.784033,
+     0.106549,
+     0.003
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     -1.22173
+    ]
+   },
+   "on": "button_plate",
+   "mesh_source": "cell/print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+   "placement_source": "position and heading estimated from the reference photo; the real cell finds each button with the camera"
+  },
+  {
+   "id": "pcb_1",
+   "name": "PCB with display 1, standing in the tray",
+   "mesh": "meshes/pcb.glb",
+   "collision_mesh": "meshes/pcb.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.788196,
+     0.318503,
+     0.088242
+    ],
+    "rpy": [
+     1.584925,
+     0.000163,
+     -1.569577
+    ]
+   },
+   "on": "pcb_tray",
+   "mesh_source": "cell/print/pcb_fake1_full2_nologo.STEP --all (scripts/step-to-mesh.mjs)",
+   "placement_source": "far holder, slots 3-6 counted from the +x end (estimated from the reference photo); display toward the wide side of the slot; pose = where physics settles it in the guide groove"
+  },
+  {
+   "id": "pcb_2",
+   "name": "PCB with display 2, standing in the tray",
+   "mesh": "meshes/pcb.glb",
+   "collision_mesh": "meshes/pcb.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.772769,
+     0.318505,
+     0.088255
+    ],
+    "rpy": [
+     1.607561,
+     -0.000473,
+     -1.568402
+    ]
+   },
+   "on": "pcb_tray",
+   "mesh_source": "cell/print/pcb_fake1_full2_nologo.STEP --all (scripts/step-to-mesh.mjs)",
+   "placement_source": "far holder, slots 3-6 counted from the +x end (estimated from the reference photo); display toward the wide side of the slot; pose = where physics settles it in the guide groove"
+  },
+  {
+   "id": "pcb_3",
+   "name": "PCB with display 3, standing in the tray",
+   "mesh": "meshes/pcb.glb",
+   "collision_mesh": "meshes/pcb.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.757769,
+     0.318494,
+     0.088279
+    ],
+    "rpy": [
+     1.607562,
+     -0.000489,
+     -1.568402
+    ]
+   },
+   "on": "pcb_tray",
+   "mesh_source": "cell/print/pcb_fake1_full2_nologo.STEP --all (scripts/step-to-mesh.mjs)",
+   "placement_source": "far holder, slots 3-6 counted from the +x end (estimated from the reference photo); display toward the wide side of the slot; pose = where physics settles it in the guide groove"
+  },
+  {
+   "id": "pcb_4",
+   "name": "PCB with display 4, standing in the tray",
+   "mesh": "meshes/pcb.glb",
+   "collision_mesh": "meshes/pcb.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.742769,
+     0.318482,
+     0.088303
+    ],
+    "rpy": [
+     1.607561,
+     -0.000473,
+     -1.568402
+    ]
+   },
+   "on": "pcb_tray",
+   "mesh_source": "cell/print/pcb_fake1_full2_nologo.STEP --all (scripts/step-to-mesh.mjs)",
+   "placement_source": "far holder, slots 3-6 counted from the +x end (estimated from the reference photo); display toward the wide side of the slot; pose = where physics settles it in the guide groove"
   }
  ],
  "unplaced_parts": [
-  {
-   "id": "button",
-   "name": "button (plain BUTTON, surface model)",
-   "mesh": "meshes/button.glb",
-   "collision_mesh": "meshes/button.collision.stl",
-   "on": "button_plate",
-   "placement": "loose on the plate, pin up, any heading; the cell finds each one with the camera",
-   "region_table_m": [
-    0.77789,
-    0.05833,
-    0.84618,
-    0.11677
-   ],
-   "plate_top_z_table_m": 0.003119,
-   "pin_tip_above_plate_m": 0.004023
-  },
   {
    "id": "screw_m2x8",
    "name": "M2x8 countersunk screw (ISO 14581)",
