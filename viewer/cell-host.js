@@ -24,6 +24,7 @@ export function createHost(opts) {
     motion: null,
     timer: null,
     held: null,
+    partAnim: null,      // { node, traj, t, resolve } — settle playback
     io: {},
     events: [],
     busy: false,
@@ -128,6 +129,29 @@ export function createHost(opts) {
         const f = smooth(Math.min(1, m.t / m.legDur[m.leg]));
         setJointsRad(a.map((v, i) => v + (b[i] - v) * f));
       }
+    } else if (st.partAnim) {
+      const a = st.partAnim;
+      a.t += step;
+      let i = a.traj.findIndex(k => k.t > a.t);
+      if (i === -1) {
+        const m = a.traj[a.traj.length - 1].mat;
+        applyMatToNode(a.node, m);
+        st.partAnim = null;
+        finishCommand();
+        a.resolve();
+      } else {
+        i = Math.max(1, i);
+        const k0 = a.traj[i - 1], k1 = a.traj[i];
+        const f = (a.t - k0.t) / Math.max(1e-9, k1.t - k0.t);
+        // positions lerp; orientation snaps per sample (60 Hz: invisible)
+        const m = f < 0.5 ? k0.mat : k1.mat;
+        a.node.position.set(
+          k0.mat[3] + (k1.mat[3] - k0.mat[3]) * f,
+          k0.mat[7] + (k1.mat[7] - k0.mat[7]) * f,
+          k0.mat[11] + (k1.mat[11] - k0.mat[11]) * f);
+        const q = IK.quatFromMat(m);
+        a.node.quaternion.set(q[1], q[2], q[3], q[0]);
+      }
     } else if (st.timer) {
       st.timer.left_s -= step;
       if (st.timer.left_s <= 0) {
@@ -146,6 +170,14 @@ export function createHost(opts) {
     const err = new Error('aborted');
     if (st.motion) { const m = st.motion; st.motion = null; st.busy = false; m.reject(err); }
     if (st.timer) { const t = st.timer; st.timer = null; st.busy = false; t.reject(err); }
+    if (st.partAnim) { const a = st.partAnim; st.partAnim = null; st.busy = false; a.reject?.(err) ?? a.resolve(); }
+  }
+
+  function applyMatToNode(node, m) {
+    node.position.set(m[3], m[7], m[11]);
+    const q = IK.quatFromMat(m);
+    node.quaternion.set(q[1], q[2], q[3], q[0]);
+    node.updateMatrix();
   }
 
   // ---------- the API segments see ----------
@@ -328,14 +360,18 @@ export function createHost(opts) {
           for (const sp of sceneInfo()) mjw.setPartPose(sp.id, sp.mat);
           mjw.setArm(jointsRad());
           const settled = mjw.settlePart(id);
-          if (settled) {
-            const drop = mat[11] - settled[11];
-            mat = settled;
-            node.position.set(mat[3], mat[7], mat[11]);
-            node.quaternion.set(...(() => {
-              const q = IK.quatFromMat(mat); return [q[1], q[2], q[3], q[0]]; // three: x,y,z,w
-            })());
-            node.updateMatrix();
+          if (settled?.pose) {
+            const drop = mat[11] - settled.pose[11];
+            mat = settled.pose;
+            if (settled.traj.length > 2 && Math.abs(drop) > 1e-3) {
+              // PLAY the fall in real time (speed-scaled, pausable)
+              await new Promise((resolve, reject) => {
+                st.partAnim = { node, traj: settled.traj, t: 0, resolve, reject };
+                st.busy = true;
+              });
+            } else {
+              applyMatToNode(node, mat);
+            }
             if (Math.abs(drop) > 1e-4) log(`  settles ${(drop * 1000).toFixed(1)} mm under gravity`);
           }
         } catch (err) { log(`  settle failed: ${err.message ?? err}`); }

@@ -530,6 +530,41 @@ async function main() {
   });
   document.getElementById('toggles').appendChild(capToggle);
 
+  // debug view: the EXACT backend's obstacle geometry — the box
+  // decomposition each item collides as in MuJoCo. Boxes are children of
+  // the item nodes, so they follow moved and held parts live.
+  const mjBoxGroups = [];
+  const mjBoxToggle = document.createElement('label');
+  mjBoxToggle.innerHTML = `<input type="checkbox"> MuJoCo boxes`;
+  mjBoxToggle.querySelector('input').addEventListener('change', e => {
+    while (mjBoxGroups.length) { const g = mjBoxGroups.pop(); g.parent?.remove(g); }
+    if (!e.target.checked) return;
+    const w = mjWorldRef;
+    if (!w) { taskLog('MuJoCo backend not active'); e.target.checked = false; return; }
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0x51e8c8, transparent: true, opacity: 0.22, depthWrite: false,
+    });
+    for (const [id, boxes] of w.getBoxes()) {
+      const node = partNodes.get(id);
+      if (!node) continue;
+      const g = new THREE.Group();
+      g.userData.itemName = `MuJoCo boxes: ${id}`;
+      const edgeMat = new THREE.LineBasicMaterial({ color: 0x19c9a6 });
+      for (const b of boxes) {
+        const geo = new THREE.BoxGeometry(...b.size);
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(...b.center);
+        g.add(m);
+        const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat);
+        e.position.copy(m.position);
+        g.add(e);
+      }
+      node.add(g);
+      mjBoxGroups.push(g);
+    }
+  });
+  document.getElementById('toggles').appendChild(mjBoxToggle);
+
   // reset the SCENE in place (camera stays): parts back to their loaded
   // poses — including one riding the flange — collision world restored,
   // run state cleared, arm to the dock pose

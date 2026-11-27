@@ -73,8 +73,9 @@ test('drop test: a released case falls and settles into the pocket', { skip: !mj
     IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, 0]));
   world.setPartPose('front_case_1', high);
   const settled = world.settlePart('front_case_1', { duration: 1.5 });
-  assert.ok(settled, 'settle returned nothing');
-  const [x, y, z] = [settled[3], settled[7], settled[11]];
+  assert.ok(settled?.pose, 'settle returned nothing');
+  assert.ok(settled.traj.length > 5, 'trajectory must have samples to animate');
+  const [x, y, z] = [settled.pose[3], settled.pose[7], settled.pose[11]];
   assert.ok(Math.hypot(x - HX, y - HY) < 0.02, `landed ${(Math.hypot(x - HX, y - HY) * 1000).toFixed(0)} mm off the pocket centre`);
   assert.ok(z < RIM + 0.01, `rested at z=${(z * 1000).toFixed(1)} mm — above the rim, not inside`);
   assert.ok(z > 0, 'fell through the floor');

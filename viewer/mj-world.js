@@ -52,18 +52,23 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
     return `<geom type="capsule" ${GROUPS[group]} fromto="${vec(c.a)} ${vec(c.b)}" size="${Number(c.r.toFixed(7))}"/>`;
   };
 
+  const boxesByItem = new Map();  // id -> local-frame boxes (debug view)
   async function buildXml(toolCaps) {
     let wb = '';
     for (const it of cellData.fixtures ?? []) {
       if (!it.collision_mesh) continue;
+      const boxes = await boxesFor(it.collision_mesh);
+      boxesByItem.set(it.id, boxes);
       wb += `<body name="${it.id}" pos="${vec(it.pose_table.xyz_m)}" quat="${quatAttr(it.pose_table.rpy)}">
-        ${boxGeoms(await boxesFor(it.collision_mesh), 'fixture')}</body>\n`;
+        ${boxGeoms(boxes, 'fixture')}</body>\n`;
     }
     for (const it of cellData.parts ?? []) {
       if (!it.collision_mesh) continue;
+      const boxes = await boxesFor(it.collision_mesh);
+      boxesByItem.set(it.id, boxes);
       wb += `<body name="${it.id}" pos="${vec(it.pose_table.xyz_m)}" quat="${quatAttr(it.pose_table.rpy)}">
         <freejoint name="fj:${it.id}"/>
-        ${boxGeoms(await boxesFor(it.collision_mesh), 'part')}</body>\n`;
+        ${boxGeoms(boxes, 'part')}</body>\n`;
     }
     // arm chain: capsules per link, hinge about local z, built inside-out
     const mount = cellData.arm.mount_table;
@@ -186,6 +191,8 @@ ${wb}
     g[0] = 0; g[1] = 0; g[2] = -9.81;
     const dt = w.model.opt.timestep;
     const steps = Math.ceil(duration / dt);
+    const every = Math.max(1, Math.round((1 / 60) / dt));   // ~60 Hz samples
+    const traj = [{ t: 0, mat: readPartPose(id) }];
     try {
       for (let i = 0; i < steps; i++) {
         mj.mj_step(w.model, w.data);
@@ -205,6 +212,7 @@ ${wb}
           w.data.qvel[k] = 0;
         }
         // early out when the part is at rest
+        if (i % every === 0) traj.push({ t: (i + 1) * dt, mat: readPartPose(id) });
         let v = 0;
         for (let k = dof0; k < dof0 + 6; k++) v = Math.max(v, Math.abs(w.data.qvel[k]));
         if (i > 10 && v < 1e-3) break;
@@ -212,11 +220,14 @@ ${wb}
     } finally {
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
     }
-    return readPartPose(id);
+    const pose = readPartPose(id);
+    traj.push({ t: traj[traj.length - 1].t + dt, mat: pose });
+    return { pose, traj };
   }
 
   return {
     setArm, setPartPose, contacts, readPartPose, settlePart,
+    getBoxes: () => boxesByItem,
     rebuildTool: caps => rebuild(caps),
     get model() { return w.model; },
     get data() { return w.data; },
