@@ -227,7 +227,7 @@ ${wb}
     for (let i = 0; i < 6; i++) sl.data.qpos[sl.jointAdr[i]] = P.data.qpos[P.jointAdr[i]];
     const a = P.partAdr.get(id), b = sl.partAdr.get(id);
     for (let k = 0; k < 7; k++) sl.data.qpos[b + k] = P.data.qpos[a + k];
-    sl.free = () => { sl.data?.delete?.(); sl.model?.delete?.(); };
+    sl.free = () => { sl.data?.delete?.(); sl.model?.delete?.(); sl.data = sl.model = null; };
     return sl;
   }
 
@@ -313,36 +313,29 @@ ${wb}
   }
   const readPartPose = id => readPartPoseFrom(Q, id);
 
-  // Make every body except one part IMMOVABLE for a physics run. Putting
-  // the neighbours back each step is not enough: inside a step they are
-  // still light free bodies, so a part resting on another part pushes it
-  // down a little, the reset undoes that, and step by step the upper part
-  // sinks straight through the lower one. A huge armature (extra inertia
-  // on the joint) makes them behave like fixtures. Returns the undo.
-  function pinOthers(w, dof0) {
-    const arm = w.model.dof_armature, keep = Float64Array.from({ length: w.model.nv }, (_, k) => arm[k]);
-    // MuJoCo caches each body's inertia (it takes a shortcut for free
-    // bodies), so the change only takes effect after mj_setConst — which
-    // rewrites qpos as a side effect, hence the save and restore
-    const apply = () => {
-      const q = Float64Array.from({ length: w.model.nq }, (_, k) => w.data.qpos[k]);
-      mj.mj_setConst(w.model, w.data);
-      for (let k = 0; k < w.model.nq; k++) w.data.qpos[k] = q[k];
-    };
-    for (let k = 0; k < w.model.nv; k++) if (k < dof0 || k >= dof0 + 6) arm[k] = 1e6;
-    apply();
-    return () => { for (let k = 0; k < w.model.nv; k++) arm[k] = keep[k]; apply(); };
-  }
-
   // PHYSICS: let one part settle under gravity while everything else is
   // static (it runs in a small model of its own where nothing else can
   // move, so the 45° stack cannot slump and the arm cannot fall). Returns the
   // part's settled pose, or null if it never came to rest.
-  function settlePart(id, { duration = 1.5 } = {}) {
+  // settleSteps is the same computation as a GENERATOR: it yields after
+  // every physics step and every trial pose, so a caller with a screen to
+  // keep alive can run it a few milliseconds at a time (the host does);
+  // settlePart runs it straight through. It works in a model of its own,
+  // so nothing else in the cell is disturbed while it is half done — only
+  // the final pose is written back. An abandoned run must be closed with
+  // .return() so that model is freed.
+  function settlePart(id, opts) {
+    const run = settleSteps(id, opts);
+    let s;
+    do s = run.next(); while (!s.done);
+    return s.value;
+  }
+  function* settleSteps(id, { duration = 1.5 } = {}) {
     if (!P.partAdr.has(id)) return null;
     // the part's own SOLO model: it alone moves, everything else — the
     // pile below included — is solid and static
     const w = soloSlot(id);
+    try {
     const adr = w.partAdr.get(id);
     const setPose = m => setPartPose(id, m, [w]);
     setMargin(w, 0);
@@ -415,7 +408,7 @@ ${wb}
     // re-squaring whenever a step catches it, until something solid
     // stops it. Physics then seats it. A part resting properly on a
     // surface is untouched: no small shift takes a floor away.
-    const squareUp = () => {
+    const squareUp = function* () {
       const now = readPartPoseFrom(w, id), c = at(now);
       // the orientation it was RELEASED with, at the place it has reached:
       // a part that tipped over while wedging is stood back up first
@@ -463,7 +456,7 @@ ${wb}
       const STEPS = [[4e-4, 4e-4, 4e-3, 8e-3, 8e-3], [2e-4, 2e-4, 4e-3, 8e-3, 8e-3],
         [1e-4, 1e-4, 2e-3, 4e-3, 4e-3], [5e-5, 5e-5, 1e-3, 2e-3, 2e-3]];
       // most-slack pose near `from` (coordinate descent, coarse to fine)
-      const search = from => {
+      const search = function* (from) {
         base = from;
         let cur = Z.slice(), here = score(cur);
         for (const step of STEPS) {
@@ -473,6 +466,7 @@ ${wb}
               const v = cur.slice(); v[k] += sgn * step[k];
               if (Math.abs(v[k]) > LIM[k] + 1e-12) continue;
               const sc = score(v);
+              yield;
               if (sc > here + 1e-6) { here = sc; cur = v; moved = true; }
             }
           }
@@ -483,7 +477,7 @@ ${wb}
       const start = slack();
       let best = { slack: start, pose: now };
       for (const from of [now, upright]) {
-        const r = search(from);
+        const r = yield* search(from);
         if (r.slack > best.slack + 1e-6) best = r;
       }
       let pose = best.pose;
@@ -491,9 +485,10 @@ ${wb}
         for (let n = 0, rescues = 0; n < 300; n++) {
           const lower = pose.slice(); lower[11] -= 1e-4;
           setPose(lower);
+          yield;
           if (slack() > 0) { pose = lower; continue; }
           if (++rescues > 8) break;
-          const r = search(lower);
+          const r = yield* search(lower);
           if (r.slack <= 0) break;                    // solid: stop above it
           pose = r.pose;
         }
@@ -503,7 +498,7 @@ ${wb}
       return moved;
     };
 
-    const relax = (until) => {
+    const relax = function* (until) {
       let peak = 0;
       for (let i = 0; i < MAX_STEPS && t < until; i++) {
         const speed = Math.hypot(qv[dof0], qv[dof0 + 1], qv[dof0 + 2]);
@@ -515,6 +510,7 @@ ${wb}
         const dt = Math.min(DT_MAX, Math.max(DT_MIN, TRAVEL / Math.max(speed, 1e-9)));
         w.model.opt.timestep = dt;
         mj.mj_step(w.model, w.data);
+        yield;
         t += dt;
         // damp the part's LATERAL and angular motion to bleed off contact
         // chatter (the sideways ratchet); vertical fall stays undamped.
@@ -542,14 +538,14 @@ ${wb}
     };
     let t0 = 0, stall = [Infinity, 0, 0], stallAt = 0;
     try {
-      relax(duration);
+      yield* relax(duration);
       // stalled pinched? square up and let it carry on down, a few times
       for (let pass = 0; pass < 4 && !fellOut; pass++) {
-        if (!squareUp()) break;
+        if (!(yield* squareUp())) break;
         traj.push({ t: (t += 1 / 60), mat: readPartPoseFrom(w, id) });
         nextSample = t + 1 / 60;
         t0 = t; stallAt = t;
-        relax(t + 0.6);
+        yield* relax(t + 0.6);
       }
     } finally {
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
@@ -557,14 +553,12 @@ ${wb}
       for (let k = dof0; k < dof0 + 6; k++) qv[k] = 0;
     }
     if (fellOut) {
-      w.free();
       setPartPose(id, mat0);     // keep the as-placed pose
       throw new Error(`${id} fell out of the cell — nothing below it to land on`);
     }
     const pose = readPartPoseFrom(w, id);
     traj.push({ t: t + DT_MAX, mat: pose });
     const fit1 = scanFit();
-    w.free();
     setPartPose(id, pose);     // the settled pose, into the cell's models
     // drift of the part's geometric CENTRE, not of its origin
     const c0 = at(mat0), c1 = at(pose);
@@ -578,6 +572,7 @@ ${wb}
       return null;
     }
     return { pose, traj };
+    } finally { w.free(); }
   }
 
   // PUSH a part with a capped force, like a fingertip: quasi-static
@@ -586,13 +581,12 @@ ${wb}
   // table frame; dist is how far to push. Returns { pose, moved } —
   // moved < dist means it was blocked.
   function pushPart(id, dir, dist, { force = 25, duration = 1.0 } = {}) {
-    const w = P;
+    if (!P.partAdr.has(id)) return null;
+    const w = soloSlot(id);          // the part alone can move (see settleSteps)
     const adr = w.partAdr.get(id);
-    if (adr === undefined) return null;
-    setMargin(P, 0);
+    setMargin(w, 0);
     const n = Math.hypot(dir[0], dir[1], dir[2]) || 1;
     const d3 = [dir[0] / n, dir[1] / n, dir[2] / n];
-    const frozenQpos = Float64Array.from({ length: w.model.nq }, (_, i) => w.data.qpos[i]);
     const g = w.model.opt.gravity;
     const g0 = [g[0], g[1], g[2]];
     g[0] = 0; g[1] = 0; g[2] = -9.81;
@@ -606,19 +600,10 @@ ${wb}
       (w.data.qpos[adr + 1] - start[1]) * d3[1] +
       (w.data.qpos[adr + 2] - start[2]) * d3[2];
     let stale = 0, last = 0;
-    const unpin = pinOthers(w, dof0);
     try {
       for (let i = 0; i < Math.ceil(duration / dt); i++) {
         for (let k = 0; k < 3; k++) w.data.qfrc_applied[dof0 + k] = d3[k] * force;
         mj.mj_step(w.model, w.data);
-        for (let k = 0; k < w.model.nq; k++) {
-          if (k >= adr && k < adr + 7) continue;
-          w.data.qpos[k] = frozenQpos[k];
-        }
-        for (let k = 0; k < w.model.nv; k++) {
-          if (k >= dof0 && k < dof0 + 6) continue;
-          w.data.qvel[k] = 0;
-        }
         // quasi-static: damp hard and clamp speed, so one step never
         // outruns the soft-contact ramp (no tunnelling)
         for (let k = dof0; k < dof0 + 6; k++) w.data.qvel[k] *= 0.7;
@@ -631,16 +616,11 @@ ${wb}
         if (a - last < 1e-6) { if (++stale > 120) break; }   // blocked
         else { stale = 0; last = a; }
       }
-    } finally {
-      for (let k = 0; k < 3; k++) w.data.qfrc_applied[dof0 + k] = 0;
-      for (let k = dof0; k < dof0 + 6; k++) w.data.qvel[k] = 0;
-      g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
-      w.model.opt.timestep = dt0;
-      unpin();
-    }
-    const pose = readPartPoseFrom(P, id);
-    setPartPose(id, pose);     // sync into BOTH models
-    return { pose, moved: along() };
+    } catch (e) { w.free(); throw e; }
+    const pose = readPartPoseFrom(w, id), moved = along();
+    w.free();
+    setPartPose(id, pose);     // into the cell's models
+    return { pose, moved };
   }
 
   // MEASUREMENT points derived from the SAME boxes MuJoCo collides:
@@ -738,7 +718,7 @@ ${wb}
   }
 
   return {
-    setArm, setPartPose, contacts, readPartPose, settlePart, pushPart, contactForces,
+    setArm, setPartPose, contacts, readPartPose, settlePart, settleSteps, pushPart, contactForces,
     probePoints, corridorMaxZ, maxZAll,
     getBoxes: () => boxesByItem,
     rebuildTool: caps => rebuild(caps),

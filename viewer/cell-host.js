@@ -380,7 +380,21 @@ export function createHost(opts) {
         try {
           for (const sp of sceneInfo()) mjw.setPartPose(sp.id, sp.mat);
           mjw.setArm(jointsRad());
-          const settled = mjw.settlePart(id);
+          // a few milliseconds of the settle per frame: the page keeps
+          // drawing and answering the mouse while it is worked out
+          const run = mjw.settleSteps(id);
+          let settled, step;
+          try {
+            for (;;) {
+              const until = performance.now() + 6;
+              do step = run.next(); while (!step.done && performance.now() < until);
+              if (step.done) { settled = step.value; break; }
+              // (a hidden tab is given a timer tick only once a second — do
+              // not hand it the thread at all)
+              if (typeof document !== 'undefined' && !document.hidden) await new Promise(r => setTimeout(r, 0));
+              if (st.aborted) throw new Error('aborted');
+            }
+          } finally { run.return(); }          // frees its model if cut short
           if (settled?.pose) {
             const drop = mat[11] - settled.pose[11];
             mat = settled.pose;
@@ -395,7 +409,10 @@ export function createHost(opts) {
             }
             if (Math.abs(drop) > 1e-4) log(`  settles ${(drop * 1000).toFixed(1)} mm under gravity`);
           }
-        } catch (err) { log(`  settle failed: ${err.message ?? err}`); }
+        } catch (err) {
+          if (st.aborted) throw err;
+          log(`  settle failed: ${err.message ?? err}`);
+        }
       }
       emit('release', { part: id });
       log(`release ${id}`);

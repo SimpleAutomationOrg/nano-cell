@@ -461,9 +461,11 @@ async function main() {
     rack.clear();
     await loadItems(dockedTools(cell, mountedId).map(({ id, ...rest }) => rest), '../cell/dvt01/', rack);
   }
+  let mountedId = null;
   async function mountTool(id) {
     toolHolder.clear();
     sel.value = id;
+    mountedId = id;
     await showRack(id);
     const t = cell.tools.find(x => x.id === id);
     if (!t || !t.mesh) return;
@@ -483,7 +485,6 @@ async function main() {
       toolHolder.add(tip);
     }
   }
-  sel.addEventListener('change', e => mountTool(e.target.value));
   status('loading tool…');
   await mountTool(cell.mounted_tool);
 
@@ -497,11 +498,16 @@ async function main() {
   }
   refreshToolCapsule();
   const mountToolTracked = async id => {
+    // already on the arm: nothing to rebuild (rebuilding the physics for
+    // an unchanged tool froze the page every time a task was selected)
+    if (id === mountedId) return;
     await mountTool(id);
     refreshToolCapsule();
     mjWorldRef?.rebuildTool(toolCapsules).catch(e => console.warn('[mj] tool rebuild failed', e));
   };
-  sel.addEventListener('change', refreshToolCapsule);
+  // picking a tool by hand goes the same way, so the physics always has
+  // the tool that is drawn
+  sel.addEventListener('change', e => mountToolTracked(e.target.value));
 
 
   // red marker where a predicted collision was reported

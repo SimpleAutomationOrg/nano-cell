@@ -202,6 +202,31 @@ test('drop test: a released case falls INTO the pocket and seats on its floor', 
   }
 });
 
+test('settle in slices: same result as in one go, and a run cut short changes nothing', { skip: !mj }, async () => {
+  // the viewer runs the settle a few milliseconds per frame so the page
+  // never freezes; that must not change the answer, and an aborted run
+  // must leave the cell as it was
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  const world = await createMjWorld({ mj, cellData: cell, armCapsules: [], toolCapsules: [], loadStlBuffer: async p => readStl(p) });
+  const holder = cell.fixtures.find(f => f.id === 'holder');
+  const start = IK.mul(IK.fromXyzRpy(holder.pose_table.xyz_m, holder.pose_table.rpy), IK.fromXyzRpy([0.0003, 0, 0.05], [Math.PI, 0, 0.004]));
+  world.setPartPose('front_case_1', start);
+  const whole = world.settlePart('front_case_1');
+  assert.ok(whole?.pose, 'settle returned nothing');
+  world.setPartPose('front_case_1', start);
+  const run = world.settleSteps('front_case_1');
+  let slices = 0, step;
+  do { step = run.next(); slices++; } while (!step.done);
+  assert.ok(slices > 50, `only ${slices} slices — nothing to interleave with drawing`);
+  assert.deepEqual(step.value.pose, whole.pose);
+  world.setPartPose('front_case_1', start);
+  const cut = world.settleSteps('front_case_1');
+  for (let i = 0; i < 40; i++) cut.next();
+  cut.return();
+  const after = world.readPartPose('front_case_1');
+  assert.ok(Math.hypot(after[3] - start[3], after[7] - start[7], after[11] - start[11]) < 1e-9, 'a run cut short moved the part');
+});
+
 test('settle: a part with nothing below it is reported, not left falling', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const world = await createMjWorld({
