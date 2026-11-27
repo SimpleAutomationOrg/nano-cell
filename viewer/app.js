@@ -5,6 +5,7 @@ import { CHAIN } from './ik.js';
 import * as IK from './ik.js';
 import { createHost } from './cell-host.js';
 import { CollisionWorld, capsuleFromObject } from './collision.js';
+import { createMjWorld } from './mj-world.js';
 
 const status = m => document.getElementById('status').textContent = m;
 
@@ -381,7 +382,11 @@ async function main() {
       .filter(Boolean);
   }
   refreshToolCapsule();
-  const mountToolTracked = async id => { await mountTool(id); refreshToolCapsule(); };
+  const mountToolTracked = async id => {
+    await mountTool(id);
+    refreshToolCapsule();
+    mjWorldRef?.rebuildTool(toolCapsules).catch(e => console.warn('[mj] tool rebuild failed', e));
+  };
   sel.addEventListener('change', refreshToolCapsule);
 
   // collision world from the repo's *.collision.stl files
@@ -407,6 +412,30 @@ async function main() {
   addToggle('parts', parts);
   addToggle('flange stack', stack);
 
+  // exact collision backend (optional): MuJoCo loads from node_modules
+  // when installed; without it the sampled fallback runs — the viewer
+  // itself stays zero-dependency
+  let mjWorldRef = null;
+  window.mjWorld = () => mjWorldRef;   // console/debug access
+  (async () => {
+    try {
+      const loadMujoco = (await import('/node_modules/@mujoco/mujoco/mujoco.js')).default;
+      const mjmod = await loadMujoco();
+      mjWorldRef = await createMjWorld({
+        mj: mjmod, cellData: cell, armCapsules, toolCapsules,
+        loadStlBuffer: p => fetch('../cell/dvt01/' + p).then(r => {
+          if (!r.ok) throw new Error(`${p}: ${r.status}`);
+          return r.arrayBuffer();
+        }),
+      });
+      taskLog('exact collision backend active (MuJoCo)');
+      console.log('[mj] exact collision backend active');
+    } catch (e) {
+      console.warn('[mj] backend unavailable, using sampled collision:', e);
+      taskLog('mj backend failed: ' + (e && e.message ? e.message : e));
+    }
+  })();
+
   // the task host
   host = createHost({
     cellData: cell,
@@ -426,6 +455,7 @@ async function main() {
     })(),
     armCapsules,
     getToolCapsules: () => toolCapsules,
+    getMjWorld: () => mjWorldRef,
     onCollision: (point) => { hitMarker.position.fromArray(point); hitMarker.visible = true; },
   });
   window.host = host;  // console access for debugging segments

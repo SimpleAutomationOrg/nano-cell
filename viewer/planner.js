@@ -69,7 +69,15 @@ export class CollisionError extends Error {
 export function createPlanner(opts) {
   // opts: { cellData, mountMat, getToolId,
   //         world?, armCapsules?, getToolCapsules?, guardBox?,
+  //         mjWorld?: () => mjWorldOrNull   (exact backend, mj-world.js),
   //         collisionCheck?: () => boolean }
+  //
+  // Collision backends: when `mjWorld` returns a world, configuration
+  // contacts are EXACT (MuJoCo: box-decomposed obstacles vs arm/tool
+  // capsules, held part as a posed free body). Otherwise the sampled
+  // point-cloud world is used. The guard ceiling is analytic in both.
+  // Touch probing (planUntilTouch) stays on the sampled points — its
+  // interior-probe semantics are part of the contract.
   const { cellData, mountMat } = opts;
   const invMount = IK.invRigid(mountMat);
   const world = opts.world ?? null;
@@ -115,36 +123,78 @@ export function createPlanner(opts) {
     return mats;
   }
 
-  function configHits(q, ignore) {
+  // guard-ceiling check over the capsules (analytic, both backends)
+  function guardHits(q, ignore) {
+    if (ignore.has('guard')) return [];
     const found = [];
     const mats = linkMats(q);
     for (const c of opts.armCapsules ?? []) {
       const m = mats[c.jointIdx];
-      const wa = applyMat(m, c.a), wb = applyMat(m, c.b);
-      const hit = (world ? world.hitCapsule(wa, wb, c.r + MARGIN, ignore) : null)
-        ?? (ignore.has('guard') ? null : guardHit(wa, wb, c.r));
+      const hit = guardHit(applyMat(m, c.a), applyMat(m, c.b), c.r);
       if (hit) found.push({ ...hit, link: IK.CHAIN[c.jointIdx].link });
     }
     const fl = IK.mul(mountMat, IK.fkFlange(q));
     for (const tc of opts.getToolCapsules?.() ?? []) {
-      const wa = applyMat(fl, tc.a), wb = applyMat(fl, tc.b);
-      const hit = (world ? world.hitCapsule(wa, wb, tc.r + MARGIN, ignore) : null)
-        ?? (ignore.has('guard') ? null : guardHit(wa, wb, tc.r));
+      const hit = guardHit(applyMat(fl, tc.a), applyMat(fl, tc.b), tc.r);
       if (hit) found.push({ ...hit, link: 'tool' });
     }
     return found;
   }
 
+  function configHits(q, ignore, held = null) {
+    const mjw = opts.mjWorld?.();
+    if (mjw) return configHitsMj(mjw, q, ignore, held);
+    const found = [];
+    const mats = linkMats(q);
+    for (const c of opts.armCapsules ?? []) {
+      const m = mats[c.jointIdx];
+      const wa = applyMat(m, c.a), wb = applyMat(m, c.b);
+      const hit = world ? world.hitCapsule(wa, wb, c.r + MARGIN, ignore) : null;
+      if (hit) found.push({ ...hit, link: IK.CHAIN[c.jointIdx].link });
+    }
+    const fl = IK.mul(mountMat, IK.fkFlange(q));
+    for (const tc of opts.getToolCapsules?.() ?? []) {
+      const wa = applyMat(fl, tc.a), wb = applyMat(fl, tc.b);
+      const hit = world ? world.hitCapsule(wa, wb, tc.r + MARGIN, ignore) : null;
+      if (hit) found.push({ ...hit, link: 'tool' });
+    }
+    return found.concat(guardHits(q, ignore));
+  }
+
+  // exact contacts via MuJoCo: arm + tool capsules and the held part
+  // (posed from the flange) against box-decomposed obstacles
+  function configHitsMj(mjw, q, ignore, held) {
+    mjw.setArm(q);
+    if (held?.rel) mjw.setPartPose(held.id, IK.mul(IK.mul(mountMat, IK.fkFlange(q)), held.rel));
+    const found = [];
+    for (const c of mjw.contacts(MARGIN, held ? [held.id] : [])) {
+      const aProbe = c.a.startsWith('arm:') || (held && c.a === held.id);
+      const bProbe = c.b.startsWith('arm:') || (held && c.b === held.id);
+      if (!aProbe && !bProbe) continue;             // world resting contact
+      if (aProbe && bProbe) continue;               // arm/held internal
+      const self = aProbe ? c.a : c.b;
+      const other = aProbe ? c.b : c.a;
+      if (ignore.has(other)) continue;
+      if (c.dist >= MARGIN) continue;
+      const link = self === 'arm:flange' ? 'tool'
+        : self.startsWith('arm:') ? self.slice(4) : `held ${self}`;
+      found.push({ point: c.pos, item: other, dist: c.dist, link });
+    }
+    return found.concat(guardHits(q, ignore));
+  }
+
   // first predicted contact along a joint path, or null.
   // held: { id, rel (flange→part Mat4), pts (part-local sample points) } | null
-  function pathHit(path, ignoreIds, held = null) {
-    if ((!world && !guardBox) || !checkOn()) return null;
+  function pathHit(path, ignoreIds, held = null, scene = null) {
+    const mjw = opts.mjWorld?.();
+    if ((!world && !guardBox && !mjw) || !checkOn()) return null;
     const ignore = new Set(ignoreIds ?? []);
     if (held) ignore.add(held.id);
+    if (mjw && scene) for (const sp of scene) mjw.setPartPose(sp.id, sp.mat);
 
     // contacts already present at the start may persist while departing —
     // only NEW contacts reject the move
-    const preexisting = new Set(configHits(path[0], ignore).map(h => `${h.link}|${h.item}`));
+    const preexisting = new Set(configHits(path[0], ignore, held).map(h => `${h.link}|${h.item}`));
 
     for (let leg = 0; leg + 1 < path.length; leg++) {
       const a = path[leg], b = path[leg + 1];
@@ -152,10 +202,10 @@ export function createPlanner(opts) {
       const steps = Math.max(1, Math.ceil(r2d(maxDelta) / 3));
       for (let s = 0; s <= steps; s++) {
         const q = a.map((v, j) => v + (b[j] - v) * s / steps);
-        for (const h of configHits(q, ignore)) {
+        for (const h of configHits(q, ignore, held)) {
           if (!preexisting.has(`${h.link}|${h.item}`)) return { ...h, q };
         }
-        if (held?.pts && held.rel) {
+        if (!mjw && held?.pts && held.rel) {
           const pm = IK.mul(IK.mul(mountMat, IK.fkFlange(q)), held.rel);
           const n = Math.max(1, Math.floor(held.pts.length / 250));
           for (let i = 0; i < held.pts.length; i += n) {
@@ -170,8 +220,8 @@ export function createPlanner(opts) {
     return null;
   }
 
-  function assertClear(path, cmd, ignore, held) {
-    const hit = pathHit(path, ignore, held);
+  function assertClear(path, cmd, ignore, held, scene) {
+    const hit = pathHit(path, ignore, held, scene);
     if (hit) {
       const p = hit.point.map(v => (v * 1000).toFixed(0)).join(', ');
       const hint = hit.item.startsWith('guard')
@@ -201,23 +251,23 @@ export function createPlanner(opts) {
   }
 
   // ---------- plans (pure: q0 in, path out; throw CollisionError) ----------
-  function planJointMove(q0, targetDeg, { ignore, held } = {}) {
+  function planJointMove(q0, targetDeg, { ignore, held, scene } = {}) {
     const path = [q0, targetDeg.map(d2r)];
-    assertClear(path, 'moveJointsDeg', ignore, held);
+    assertClear(path, 'moveJointsDeg', ignore, held, scene);
     return path;
   }
 
-  function planFlange(q0, pose, { ignore, held } = {}) {
+  function planFlange(q0, pose, { ignore, held, scene } = {}) {
     const path = [q0, IK.ikNear(flangeToBase(pose), q0)];
-    assertClear(path, 'moveFlange', ignore, held);
+    assertClear(path, 'moveFlange', ignore, held, scene);
     return path;
   }
 
-  function planTip(q0, pose, { spin = 'free', ignore, held } = {}) {
+  function planTip(q0, pose, { spin = 'free', ignore, held, scene } = {}) {
     const q = IK.ikNear(IK.mul(invMount, asMat(pose)), q0,
       { freeSpin: spin !== 'exact', tcp: toolTcp() });
     const path = [q0, q];
-    assertClear(path, 'moveTip', ignore, held);
+    assertClear(path, 'moveTip', ignore, held, scene);
     return path;
   }
 
@@ -233,9 +283,9 @@ export function createPlanner(opts) {
     return path;
   }
 
-  function planTipBy(q0, dxyz, { waypoints = 6, ignore, held } = {}) {
+  function planTipBy(q0, dxyz, { waypoints = 6, ignore, held, scene } = {}) {
     const path = linearPath(q0, dxyz, waypoints);
-    assertClear(path, 'moveTipBy', ignore, held);
+    assertClear(path, 'moveTipBy', ignore, held, scene);
     return path;
   }
 
@@ -340,7 +390,7 @@ export function createPlanner(opts) {
   // spin 'exact': every waypoint follows the slerp (which carries the
   // target yaw), so the re-spin blends into the travel, never playing as
   // a second move at the destination.
-  function planTransit(q0, pose, { speed = FULL_TIP_MPS, clearance = 0.10, ignore, spin = 'free', held } = {}) {
+  function planTransit(q0, pose, { speed = FULL_TIP_MPS, clearance = 0.10, ignore, spin = 'free', held, scene } = {}) {
     const target = asMat(pose);
     const tip0 = tipMatAt(q0);
     const qa = IK.quatFromMat(tip0), qb = IK.quatFromMat(target);
@@ -400,7 +450,7 @@ export function createPlanner(opts) {
     const rejected = [];
     let lastHit = null;
     for (const b of built) {
-      lastHit = pathHit(b.path, ignore, held);
+      lastHit = pathHit(b.path, ignore, held, scene);
       if (!lastHit) return { ...b, candidates: built.length, rejected };
       rejected.push({ name: b.name, item: lastHit.item });
     }

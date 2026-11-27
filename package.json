@@ -9,5 +9,8 @@
     "test": "node --test",
     "check": "sh scripts/check.sh"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@mujoco/mujoco": "^4.0.1"
+  }
 }

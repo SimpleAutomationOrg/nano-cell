@@ -39,6 +39,7 @@ export function createHost(opts) {
     guardBox: opts.guardBox ?? null,
     armCapsules: opts.armCapsules ?? [],
     getToolCapsules: opts.getToolCapsules,
+    mjWorld: () => opts.getMjWorld?.() ?? null,
     collisionCheck: () => st.collisionCheck,
   });
 
@@ -63,6 +64,16 @@ export function createHost(opts) {
       rel: [e[0], e[4], e[8], e[12], e[1], e[5], e[9], e[13], e[2], e[6], e[10], e[14], 0, 0, 0, 1],
       pts: world?.items.get(st.held)?.local ?? null,
     };
+  }
+
+  // current part poses for the exact backend (parts move between runs)
+  function sceneInfo() {
+    const out = [];
+    for (const it of cellData.parts ?? []) {
+      const node = partNodes.get(it.id);
+      if (node) out.push({ id: it.id, mat: liveMatrix(node) });
+    }
+    return out;
   }
 
   // report a CollisionError's hit into the scene, then rethrow
@@ -189,7 +200,7 @@ export function createHost(opts) {
       emit('move_joints_deg', { target: targetDeg });
       logCmd(`moveJointsDeg [${targetDeg.map(v => v.toFixed(1)).join(', ')}]`);
       try {
-        const path = planner.planJointMove(jointsRad(), targetDeg, { ignore, held: heldInfo() });
+        const path = planner.planJointMove(jointsRad(), targetDeg, { ignore, held: heldInfo(), scene: sceneInfo() });
         await animate(path, FULL_TIP_MPS, speedDps);
       } catch (e) { reportCollision(e); }
     },
@@ -198,7 +209,7 @@ export function createHost(opts) {
       checkRun('moveFlange');
       emit('move_flange', { pose });
       try {
-        const path = planner.planFlange(jointsRad(), pose, { ignore, held: heldInfo() });
+        const path = planner.planFlange(jointsRad(), pose, { ignore, held: heldInfo(), scene: sceneInfo() });
         logCmd(`moveFlange → [${path[1].map(v => r2d(v).toFixed(1)).join(', ')}]`);
         await animate(path, speed);
       } catch (e) { reportCollision(e); }
@@ -208,7 +219,7 @@ export function createHost(opts) {
       checkRun('moveTip');
       emit('move_tip', { pose });
       try {
-        const path = planner.planTip(jointsRad(), pose, { spin, ignore, held: heldInfo() });
+        const path = planner.planTip(jointsRad(), pose, { spin, ignore, held: heldInfo(), scene: sceneInfo() });
         logCmd(`moveTip → [${path[1].map(v => r2d(v).toFixed(1)).join(', ')}]`);
         await animate(path, speed);
       } catch (e) { reportCollision(e); }
@@ -219,7 +230,7 @@ export function createHost(opts) {
       emit('move_tip_by', { d });
       logCmd(`moveTipBy [${d.map(v => (v * 1000).toFixed(0)).join(', ')}] mm`);
       try {
-        const path = planner.planTipBy(jointsRad(), d, { waypoints, ignore, held: heldInfo() });
+        const path = planner.planTipBy(jointsRad(), d, { waypoints, ignore, held: heldInfo(), scene: sceneInfo() });
         await animate(path, speed);
       } catch (e) { reportCollision(e); }
     },
@@ -229,7 +240,7 @@ export function createHost(opts) {
       emit('transit_tip', { pose });
       try {
         const plan = planner.planTransit(jointsRad(), pose,
-          { speed, clearance, ignore, spin, held: heldInfo() });
+          { speed, clearance, ignore, spin, held: heldInfo(), scene: sceneInfo() });
         for (const r of plan.rejected) log(`  ✗ candidate ${r.name}: would hit ${r.item}`);
         logCmd(`transitTip ${plan.name} · ${plan.est.toFixed(1)} s est (${plan.candidates} candidates)`);
         await animate(plan.path, speed);

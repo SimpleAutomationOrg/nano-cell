@@ -14,14 +14,16 @@ it holds the same working rules in condensed form.
 2. Check prerequisites: `python3 --version` (3.8+). Node 18+ is needed
    only for the checks; if missing, say so and continue — the viewer
    itself has zero dependencies.
-3. Start the viewer: `python3 viewer/serve.py` (background). It serves
+3. Optional: `npm install` (enables the exact MuJoCo collision backend;
+   skip freely — the sampled fallback is fully functional).
+4. Start the viewer: `python3 viewer/serve.py` (background). It serves
    the repo root on port 8742 (pass another port as the first argument
    if taken), opens the browser, and live-reloads on any file change.
-4. Verify: run `./scripts/check.sh` (should end `check: OK`), then in
+5. Verify: run `./scripts/check.sh` (should end `check: OK`), then in
    the viewer select the `pick-place-case` task and run all segments —
    it must end with **task done** in the status line: the arm picks a
    case from the 45° stack and inserts it into the holder pocket.
-5. Report to the user: the viewer URL, check results, and that editing
+6. Report to the user: the viewer URL, check results, and that editing
    any file hot-reloads the page.
 
 There is no build step. Do not add bundlers, package installs, or
@@ -32,7 +34,9 @@ frameworks during installation.
 A **cell is data** (`cell/<name>/cell.json`: arm mount, enclosure,
 tools, fixtures, parts with meshes + collision meshes). The **planner**
 (`viewer/planner.js`, pure, node-testable) turns task commands into
-collision-checked joint paths. The **host** (`viewer/cell-host.js`)
+collision-checked joint paths — on the exact MuJoCo backend when
+`@mujoco/mujoco` is installed (`viewer/mj-world.js`, obstacles
+box-decomposed by `viewer/boxify.js`), else on sampled geometry. The **host** (`viewer/cell-host.js`)
 animates them in the three.js scene and owns run state. **Tasks** live
 in `tasks/<name>/`: a `task.json` naming the tool and segment order,
 and `segments/*.ts` — typed async functions against the cell API

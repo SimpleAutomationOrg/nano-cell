@@ -25,6 +25,13 @@ setup, verification, and how to add or edit tasks.
 Prerequisites: Python 3.8+, a modern browser. Node 18+ only if you run
 the checks (`./scripts/check.sh` — types + motion regression tests).
 
+**Optional — exact collision**: `npm install` adds the MuJoCo WebAssembly
+engine (`@mujoco/mujoco`). When present, the planner's collision checks
+run on exact geometry: obstacles box-decomposed from their collision
+meshes (cavities preserved — `viewer/boxify.js`), arm and tool capsules,
+the held part as a posed body. Without it, the sampled-geometry fallback
+runs and everything still works — precision is the only difference.
+
 ## What's inside
 
 - **`viewer/`** — the page and the engine.
