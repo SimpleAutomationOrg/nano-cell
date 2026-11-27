@@ -46,8 +46,10 @@ as free bodies. Without it the scene renders but tasks are disabled.
     spatial hash; the moving side (arm links, tool) as fitted capsules.
     Both are visualizable live (Show → collision points / capsules).
   - `cell.d.ts` — the typed task API, fully documented for IDE hover.
-- **`robots/<name>/`** — a robot is data (`robot.json`): the arm and
-  its mount, the table, the enclosure, the flange stack, cameras, IO.
+- **`cell_fr3/`** — the design of the cell, as data: `robot.json` (the
+  arm and its mount, the table, the enclosure, the flange stack,
+  cameras, IO), the flange-stack meshes and the arm's link meshes
+  (`arm/`). It is the robot an application runs on.
 - **`applications/<name>/`** — an application is one job and its
   environment (`application.json`): the grippers (with measured cup-lip
   frames), the tool rack, fixtures and parts with meshes + collision
@@ -95,4 +97,4 @@ Every motion rule above is encoded as an assertion in
 ## License
 
 MIT. Arm link meshes are converted from the arm vendor's public CAD;
-see `arm/fr3/arm.json` for details.
+see `cell_fr3/arm/arm.json` for details.

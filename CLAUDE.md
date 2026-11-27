@@ -19,8 +19,10 @@ Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
   `capsules.js` fits the arm/tool capsules; `cell.d.ts` the segment API
   types. Collision, touch, corridor heights, measurements and gravity
   settling all derive from the one MuJoCo model.
-- `robots/<name>/robot.json` — a robot: arm + mount, table, guard, flange
-  stack (and its meshes), cameras, IO. Knows nothing about the job.
+- `cell_fr3/` — the design of the cell, i.e. the robot an application runs
+  on: `robot.json` (arm + mount, table, guard, flange stack, cameras, IO),
+  `meshes/` (flange stack) and `arm/` (FR3 link meshes; the kinematic
+  chain constants live in `ik.js`). Knows nothing about the job.
 - `applications/<name>/` — an application: one job and its environment.
   `application.json` (grippers, tool rack, fixtures, parts — poses in the
   table frame, z up, metres), `meshes/`, `print/` (STEP source files) and
@@ -30,7 +32,6 @@ Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
   `taught_on.<robot>`). `viewer/cell-data.js` composes robot + application
   into the one cell the planner and physics see ("cell.json" in older
   comments means this composed cell) and checks the robot can run it.
-- `arm/fr3/` — FR3 link meshes; the kinematic chain constants live in `ik.js`.
 - `applications/<name>/tasks/<task>/` — `task.json` (tool, segment order) +
   `segments/*.ts`.
 - `recipes/` — step-by-step guides for writing segments (suction pick &

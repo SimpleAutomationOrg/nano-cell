@@ -3,7 +3,7 @@
 
     python3 viewer/serve.py [port]
 
-Serves the repository root (the viewer fetches ../arm, ../robots and
+Serves the repository root (the viewer fetches ../cell_fr3 and
 ../applications) with
 caching off. A watcher thread rescans the tracked files twice a second;
 the page long-polls /__reload and reloads itself when anything changed.

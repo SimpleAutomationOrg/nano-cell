@@ -188,7 +188,7 @@ export interface Helpers {
    * surface — tool axis anti-parallel to the face's outward normal, tip at
    * `standoff` metres along it. Always grasp through this helper (approach
    * with a larger standoff, touch with ~0.002), never at an angle.
-   * `face` is the part-frame axis of the exposed face ('-z' for the dvt01
+   * `face` is the part-frame axis of the exposed face ('-z' for the cell_fr3
    * cases, which lie flipped on the 45° stack).
    */
   suctionGrasp(item: CellItem, standoff: number, face?: '+x' | '-x' | '+y' | '-y' | '+z' | '-z',

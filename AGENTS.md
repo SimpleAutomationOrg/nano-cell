@@ -31,7 +31,8 @@ frameworks during installation.
 ## The architecture in one paragraph
 
 A **cell is data**, in two halves. A **robot**
-(`robots/<name>/robot.json`): arm and mount, table, enclosure, flange
+(`cell_fr3/`: `robot.json`, flange-stack `meshes/`, and the arm's link
+meshes in `arm/` — the whole design of the cell): arm and mount, table, enclosure, flange
 stack, cameras, IO. An **application**
 (`applications/<name>/application.json`): one job and its environment —
 grippers, tool rack, fixtures and parts with meshes + collision meshes —
@@ -66,7 +67,8 @@ An application must stay movable to another robot. So:
 - `"robot"` in application.json is the robot it is set up on now. To
   look at it on another one: `?robot=<name>` in the viewer URL
   (`?app=<name>` picks the application; default is the first).
-- A new robot is a new `robots/<name>/robot.json`; a new application a
+- A robot is a folder in the repository root named after it (`cell_fr3/`);
+  a new robot is a new such folder with its `robot.json`; a new application a
   new `applications/<name>/` — copy the existing one as the template.
   `test/cell-data.test.mjs` holds these rules.
 

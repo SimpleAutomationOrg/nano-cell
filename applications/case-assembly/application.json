@@ -1,7 +1,7 @@
 {
  "name": "case assembly",
  "about": "An application: everything that belongs to one job and its environment — the grippers, the tool rack, the fixtures and parts on the table, and the tasks (tasks/). Every pose is in the table frame, so the application does not depend on which robot runs it; 'robot' names the one it is set up on now. What was taught in joint space on a particular robot is kept apart under 'taught_on' and has to be taught again on another robot.",
- "robot": "dvt01",
+ "robot": "cell_fr3",
  "units": "metres, radians",
  "conventions": {
   "rpy": "fixed-axis roll, pitch, yaw: R = Rz(yaw) . Ry(pitch) . Rx(roll) (as URDF); a pose maps the item's frame into its parent",
@@ -1110,7 +1110,7 @@
  ],
  "unplaced_parts": [],
  "taught_on": {
-  "dvt01": {
+  "cell_fr3": {
    "unlock_interlock": {
     "poses_deg": [
      [

@@ -10,7 +10,7 @@ const ROOT = new URL('..', import.meta.url);
 const readJson = async p => JSON.parse(readFileSync(new URL(p, ROOT)));
 const APP = 'case-assembly';
 const application = { ...await readJson(`applications/${APP}/application.json`), id: APP };
-const robot = { ...await readJson(`robots/${application.robot}/robot.json`), id: application.robot };
+const robot = { ...await readJson(`${application.robot}/robot.json`), id: application.robot };
 
 test('every application composes onto its robot, and every mesh it names exists', async () => {
   for (const name of readdirSync(new URL('applications/', ROOT))) {

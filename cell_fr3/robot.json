@@ -1,6 +1,6 @@
 {
- "name": "dvt01",
- "about": "A robot: the arm, where it is mounted, the table it works on, the guard around it, what is bolted to its flange, its cameras and its IO. Nothing here depends on the work being done — that is an application (applications/<name>/application.json), which is set up on a robot and can be moved to another one.",
+ "name": "cell_fr3",
+ "about": "The design of the cell — the robot an application runs on: the arm (arm/: its link meshes), where it is mounted, the table it works on, the guard around it, what is bolted to its flange, its cameras and its IO. Nothing here depends on the work being done — that is an application (applications/<name>/application.json), which is set up on a robot and can be moved to another one.",
  "units": "metres, radians",
  "conventions": {
   "rpy": "fixed-axis roll, pitch, yaw: R = Rz(yaw) . Ry(pitch) . Rx(roll) (as URDF); a pose maps the item's frame into its parent",

@@ -1,6 +1,7 @@
 // A cell is a ROBOT with an APPLICATION set up on it.
 //
-//   robots/<name>/robot.json              the arm, its mount, the table, the
+//   cell_<arm>/robot.json                 the design of the cell: the arm (and
+//                                         arm/, its meshes), its mount, the table, the
 //                                         guard, the flange stack, cameras, IO
 //   applications/<name>/application.json  the job and its environment: the
 //                                         grippers, the tool rack, fixtures,
@@ -11,7 +12,8 @@
 // robot is checked here, with an error that names the missing thing.
 // Pure (no fetch, no three.js): the page and the tests share it.
 
-export const robotDir = name => `robots/${name}/`;
+// a robot is a folder in the repository root, named after it (cell_fr3/)
+export const robotDir = name => `${name}/`;
 export const applicationDir = name => `applications/${name}/`;
 
 // mesh paths are written relative to the file that names them; the
@@ -70,6 +72,7 @@ export function composeCell(robot, application) {
     name: `${application.name ?? app} on ${robot.name ?? rob}`,
     application: app,
     robot: rob,
+    robot_dir: rdir,
     units: robot.units,
     conventions: { ...application.conventions, ...robot.conventions },
     arm: robot.arm,

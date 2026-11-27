@@ -239,12 +239,12 @@ const spins = [];
 let flangeGroup = null;
 const armCapsules = [];   // {jointIdx, a, b, r} in each link's frame
 
-async function buildArm(armCfg) {
+async function buildArm(armCfg, meshDir) {
   const base = new THREE.Group();
   applyPose(base, armCfg.mount_table);
   world.add(base);
 
-  const baseMesh = await loadGlb('../arm/fr3/meshes/base_link.glb');
+  const baseMesh = await loadGlb(`${meshDir}base_link.glb`);
   tagShadows(baseMesh, 'FR3 base_link');
   base.add(baseMesh);
 
@@ -256,7 +256,7 @@ async function buildArm(armCfg) {
     const spin = new THREE.Group();
     origin.add(spin);
     spins.push(spin);
-    const mesh = await loadGlb(`../arm/fr3/meshes/${j.link}.glb`);
+    const mesh = await loadGlb(`${meshDir}${j.link}.glb`);
     tagShadows(mesh, `FR3 ${j.link}`);
     spin.add(mesh);
     const cap = capsuleFromObject(mesh);
@@ -447,7 +447,7 @@ async function main() {
 
   buildTable(cell.table);
   const guard = buildGuard(cell.guard);
-  await buildArm(cell.arm);
+  await buildArm(cell.arm, `../${cell.robot_dir}arm/meshes/`);
   buildJointUI();
   setJoints(POSE_DOCK);
 
