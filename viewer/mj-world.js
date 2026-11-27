@@ -285,8 +285,45 @@ ${wb}
     return maxZAllCache;
   }
 
+  // static contact FORCES at the current poses: gravity on, one full
+  // forward pass (with the constraint solver), no integration — the
+  // scene does not move. Returns [{a, b, pos, normal, fn, ft}] with
+  // fn/ft the normal/tangential force magnitudes in newtons.
+  function contactForces() {
+    setMargin(0);
+    for (let k = 0; k < w.model.nv; k++) w.data.qvel[k] = 0;
+    const g = w.model.opt.gravity;
+    const g0 = [g[0], g[1], g[2]];
+    g[0] = 0; g[1] = 0; g[2] = -9.81;
+    const out = [];
+    try {
+      mj.mj_forward(w.model, w.data);
+      const vec = w.data.contact;
+      // out-params MUST be the module's DoubleBuffer — a plain
+      // Float64Array is silently ignored by the bindings
+      const fbuf = new mj.DoubleBuffer(6);
+      for (let i = 0; i < w.data.ncon; i++) {
+        const c = vec.get(i);
+        mj.mj_contactForce(w.model, w.data, i, fbuf);
+        const f = fbuf.GetView();
+        out.push({
+          a: w.geomItem[c.geom1], b: w.geomItem[c.geom2],
+          pos: [c.pos[0], c.pos[1], c.pos[2]],
+          normal: [c.frame[0], c.frame[1], c.frame[2]],   // a → b
+          fn: f[0], ft: Math.hypot(f[1], f[2]),
+        });
+        c.delete?.();
+      }
+      fbuf.delete?.();
+      vec.delete?.();
+    } finally {
+      g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
+    }
+    return out;
+  }
+
   return {
-    setArm, setPartPose, contacts, readPartPose, settlePart,
+    setArm, setPartPose, contacts, readPartPose, settlePart, contactForces,
     probePoints, corridorMaxZ, maxZAll,
     getBoxes: () => boxesByItem,
     rebuildTool: caps => rebuild(caps),

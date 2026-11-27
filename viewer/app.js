@@ -526,6 +526,54 @@ async function main() {
   });
   document.getElementById('toggles').appendChild(mjBoxToggle);
 
+  // CONTACT FORCES: static equilibrium under gravity at the current
+  // poses — an arrow per contact (direction = push on the second body,
+  // length/colour = magnitude). Refreshes twice a second while enabled.
+  let forceGroup = null, forceTimer = null;
+  const d2rApp = d => d * Math.PI / 180;
+  function liveMat(node) {
+    node.updateWorldMatrix(true, false);
+    world.updateWorldMatrix(true, false);
+    const m = world.matrixWorld.clone().invert().multiply(node.matrixWorld);
+    const e = m.elements;
+    return [e[0], e[4], e[8], e[12], e[1], e[5], e[9], e[13], e[2], e[6], e[10], e[14], 0, 0, 0, 1];
+  }
+  function refreshForces() {
+    const w2 = mjWorldRef;
+    if (!w2) return;
+    if (forceGroup) { world.remove(forceGroup); forceGroup = null; }
+    try {
+      w2.setArm(host.api.joints().map(d2rApp));
+      for (const it of cell.parts ?? []) {
+        const node = partNodes.get(it.id);
+        if (node) w2.setPartPose(it.id, liveMat(node));
+      }
+      const fs = w2.contactForces().filter(f => f.fn > 0.01);
+      forceGroup = new THREE.Group();
+      for (const f of fs) {
+        const mag = Math.sqrt(f.fn);                      // visual scale
+        const len = Math.min(0.12, 0.02 + 0.04 * mag);
+        const color = f.fn < 0.3 ? 0x7fd0a0 : f.fn < 1.5 ? 0xffc94d : 0xff5f5f;
+        const dir = new THREE.Vector3(...f.normal).normalize();
+        const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(...f.pos), len, color, len * 0.35, len * 0.2);
+        arrow.traverse(o => { o.userData.itemName = `${f.fn.toFixed(2)} N · ${f.a} ↔ ${f.b}`; });
+        forceGroup.add(arrow);
+      }
+      world.add(forceGroup);
+    } catch (e) { console.warn('[forces]', e); }
+  }
+  const forceToggle = document.createElement('label');
+  forceToggle.innerHTML = `<input type="checkbox"> contact forces`;
+  forceToggle.querySelector('input').addEventListener('change', e => {
+    if (forceTimer) { clearInterval(forceTimer); forceTimer = null; }
+    if (forceGroup) { world.remove(forceGroup); forceGroup = null; }
+    if (!e.target.checked) return;
+    if (!mjWorldRef) { taskLog('physics backend not active'); e.target.checked = false; return; }
+    refreshForces();
+    forceTimer = setInterval(refreshForces, 500);
+  });
+  document.getElementById('toggles').appendChild(forceToggle);
+
   // reset the SCENE in place (camera stays): parts back to their loaded
   // poses — including one riding the flange — collision world restored,
   // run state cleared, arm to the dock pose
