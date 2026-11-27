@@ -47,7 +47,7 @@ under the part's edges never reads as support — the part passes the rim
 and stops on the **floor** or on a **part already inside** (`touch.item`
 tells you which). No drop heights, no pile counting, no blind zones.
 
-## 5. Release and leave
+## 3. Release and leave
 
 ```ts
 await cell.release();
