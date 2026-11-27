@@ -3,21 +3,33 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { physicalKey, shortcutKey, flyDirection, FLY_KEYS } from '../viewer/keys.js';
 
-const FWD = [0, 0, -1], RIGHT = [1, 0, 0], UP = [0, 1, 0];
-const fly = (...keys) => flyDirection(new Set(keys), FWD, RIGHT, UP);
+const near = (a, b, msg) => a.forEach((v, i) => assert.ok(Math.abs(v - b[i]) < 1e-9, `${msg ?? ''} got [${a}] want [${b}]`));
 // a key press as the browser reports it: the character printed, and the physical key
 const press = (key, code, extra = {}) => ({ key, code, target: { tagName: 'BODY' }, ...extra });
 
-test('fly keys: W/S rise and sink, A/D strafe, E/Q forward and back', () => {
-  assert.deepEqual(fly('w'), [0, 1, 0]);
-  assert.deepEqual(fly('s'), [0, -1, 0]);
-  assert.deepEqual(fly('d'), [1, 0, 0]);
-  assert.deepEqual(fly('a'), [-1, 0, 0]);
-  assert.deepEqual(fly('e'), [0, 0, -1]);
-  assert.deepEqual(fly('q'), [0, 0, 1]);
-  assert.deepEqual(fly('w', 'd'), [1, 1, 0], 'two keys add up');
-  assert.deepEqual(fly('w', 's'), [0, 0, 0], 'opposite keys cancel');
-  assert.deepEqual(fly(), [0, 0, 0]);
+test('fly keys move relative to the CAMERA: W/S up and down the screen, A/D across it, E/Q into and out of it', () => {
+  // camera looking level along -z: screen-up is the world's up
+  const FWD = [0, 0, -1], RIGHT = [1, 0, 0];
+  const fly = (...keys) => flyDirection(new Set(keys), FWD, RIGHT);
+  near(fly('w'), [0, 1, 0]);
+  near(fly('s'), [0, -1, 0]);
+  near(fly('d'), [1, 0, 0]);
+  near(fly('a'), [-1, 0, 0]);
+  near(fly('e'), [0, 0, -1]);
+  near(fly('q'), [0, 0, 1]);
+  near(fly('w', 'd'), [1, 1, 0], 'two keys add up');
+  near(fly('w', 's'), [0, 0, 0], 'opposite keys cancel');
+  near(fly(), [0, 0, 0]);
+  // regression: W/S followed the WORLD's vertical whatever the view. With
+  // the camera pitched 45 deg down, up-on-screen leans forward; looking
+  // straight down it lies flat — W then slides the view, it does not lift
+  const r = Math.SQRT1_2;
+  near(flyDirection(new Set(['w']), [0, -r, -r], RIGHT), [0, r, -r], 'pitched 45 deg down:');
+  near(flyDirection(new Set(['w']), [0, -1, 0], RIGHT), [0, 0, -1], 'looking straight down:');
+  near(flyDirection(new Set(['s']), [0, -1, 0], RIGHT), [0, 0, 1], 'looking straight down:');
+  // and W is always square to the view direction and to "right"
+  const w = flyDirection(new Set(['w']), [0.6, -0.48, -0.64], [0.7295372041, 0, 0.6839411288]);
+  assert.ok(Math.abs(w[0] * 0.6 + w[1] * -0.48 + w[2] * -0.64) < 1e-6, 'W must not move along the view direction');
 });
 
 test('WASD work under any keyboard layout, with Shift and with Caps Lock', () => {

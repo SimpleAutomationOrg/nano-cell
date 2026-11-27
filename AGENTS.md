@@ -125,8 +125,9 @@ to the page's own origin.
 - A rejected move's error names the colliding link, the item, and the
   position, and suggests the fix (`transitTip` to route around, or the
   exact `ignore` id when the contact is deliberate).
-- **Moving the camera**: drag to orbit, or fly — `W`/`S` rise and
-  sink, `A`/`D` strafe, `E`/`Q` forward and back along the view, `Shift` for
+- **Moving the camera**: drag to orbit, or fly — all relative to the
+  camera: `W`/`S` up and down the screen, `A`/`D` left and right,
+  `E`/`Q` forward and back along the view, `Shift` for
   3x speed. Flight speed scales with the orbit distance, so you crawl
   when nose-up to a part. After a flight the next drag (or scroll)
   re-anchors the orbit pivot on the surface at the centre of the view,
