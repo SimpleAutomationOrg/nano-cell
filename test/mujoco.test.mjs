@@ -214,6 +214,12 @@ test('settle may only relax: a snap-fit case is never wedged deeper', { skip: !m
     `settle deepened the overlap: ${(pen0 * 1000).toFixed(2)} -> ${(pen1 * 1000).toFixed(2)} mm`);
   const dxy = Math.hypot(after[3] - pose[3], after[7] - pose[7]);
   assert.ok(dxy < 1e-3, `settle dragged the case ${(dxy * 1000).toFixed(2)} mm sideways`);
+  // soft contacts: the snap grip must read as a gentle hold, not the
+  // hard-solver hundreds of newtons it was before solimp tuning
+  const grip = world.contactForces()
+    .filter(c => (c.a + c.b).includes('front_case_1') && (c.a + c.b).includes('holder'))
+    .reduce((s, c) => s + c.fn, 0);
+  assert.ok(grip < 200, `snap grip reads ${grip.toFixed(0)} N — soft contacts regressed`);
 });
 
 test('planner on the exact backend: clear transit passes, rack approach rejected', { skip: !mj }, async () => {

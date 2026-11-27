@@ -100,8 +100,15 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
   <compiler angle="radian"/>
   <default>
     <!-- plastic-on-plastic, not MuJoCo's rubber-like 1.0: wedged parts
-         must be able to SLIDE into place under their own weight -->
-    <geom friction="0.3 0.002 0.0001"/>
+         must be able to SLIDE into place under their own weight.
+         SOFT contacts: sub-millimetre overlaps (the case↔holder snap
+         fit is ~0.3 mm interference) push back gently, like the real
+         plastic flexing, instead of hard-solver hundreds of newtons.
+         solimp starts at low impedance and firms up fully by 0.8 mm of
+         depth, so sub-snap overlaps are compliant while impacts (the
+         drop test's 120 mm fall) stop as hard as the MuJoCo default. Queries are
+         unaffected (distance, not force). -->
+    <geom friction="0.3 0.002 0.0001" solimp="0.15 0.95 0.0008"/>
   </default>
   <option gravity="0 0 0"/>
   <worldbody>
