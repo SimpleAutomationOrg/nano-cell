@@ -20,6 +20,12 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 // the simulation fills #app: the window above the steps dock
 const appEl = document.getElementById('app');
 const viewW = () => appEl.clientWidth, viewH = () => appEl.clientHeight;
+// a pointer event's place in the view, -1..1 each way (the view does not
+// start at the window's corner: panels sit beside it)
+const viewPoint = ev => {
+  const b = appEl.getBoundingClientRect();
+  return new THREE.Vector2((ev.clientX - b.left) / b.width * 2 - 1, -((ev.clientY - b.top) / b.height) * 2 + 1);
+};
 renderer.setSize(viewW(), viewH());
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
@@ -775,7 +781,7 @@ async function main() {
     renderer.domElement.addEventListener('pointerdown', ev => { downAt = [ev.clientX, ev.clientY]; });
     renderer.domElement.addEventListener('pointerup', ev => {
       if (!downAt || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;  // orbit drag
-      pickRay.setFromCamera(new THREE.Vector2(ev.clientX / viewW() * 2 - 1, -(ev.clientY / viewH()) * 2 + 1), camera);
+      pickRay.setFromCamera(viewPoint(ev), camera);
       const hits = pickRay.intersectObjects(world.children, true).filter(h =>
         h.object.visible && h.object.isMesh &&
         !(h.object.material?.transparent && h.object.material.opacity < 0.5));
@@ -845,7 +851,7 @@ main().catch(e => { status('load failed: ' + e.message); console.error(e); });
 const ray = new THREE.Raycaster();
 const tipEl = document.getElementById('tip');
 addEventListener('pointermove', ev => {
-  ray.setFromCamera(new THREE.Vector2(ev.clientX / viewW() * 2 - 1, -(ev.clientY / viewH()) * 2 + 1), camera);
+  ray.setFromCamera(viewPoint(ev), camera);
   const hits = ray.intersectObjects(world.children, true).filter(h => h.object.visible && !(h.object.material?.transparent && h.object.material.opacity < 0.2));
   let name = null;
   for (const h of hits) {

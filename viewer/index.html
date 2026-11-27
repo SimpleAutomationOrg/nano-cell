@@ -7,12 +7,13 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #101418; font-family: ui-sans-serif, system-ui, sans-serif; }
-  :root { --dock: 250px; --chat: 380px; }
+  :root { --dock: 250px; --chat: 380px; --left: 290px; }
   body.chat-closed { --chat: 0px; }
-  /* left: the simulation on top, the steps dock below it; right: the chat, full height */
-  #app { position: fixed; top: 0; left: 0; right: var(--chat); bottom: var(--dock); }
+  /* three columns: the cell panel, full height; in the middle the simulation
+     with the steps dock below it; the chat, full height */
+  #app { position: fixed; top: 0; left: var(--left); right: var(--chat); bottom: var(--dock); }
   #dock {
-    position: fixed; left: 0; right: var(--chat); bottom: 0; height: var(--dock); box-sizing: border-box;
+    position: fixed; left: var(--left); right: var(--chat); bottom: 0; height: var(--dock); box-sizing: border-box;
     display: flex; justify-content: center; padding: 10px 14px; background: #0d1115; border-top: 1px solid #2a3340;
     color: #cdd6e0; font-size: 12.5px;
   }
@@ -22,10 +23,9 @@
   #btnLoop { background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
   #btnLoop:hover { background: #2a62a8; }
   #panel {
-    position: fixed; top: 12px; left: 12px; width: 268px; max-height: calc(100% - 24px - var(--dock));
-    overflow-y: auto; background: rgba(16,20,24,.88); border: 1px solid #2a3340;
-    border-radius: 10px; padding: 12px 14px; color: #cdd6e0; font-size: 12.5px;
-    backdrop-filter: blur(6px);
+    position: fixed; top: 0; left: 0; bottom: 0; width: var(--left); box-sizing: border-box;
+    overflow-y: auto; background: #0d1115; border-right: 1px solid #2a3340;
+    padding: 12px 14px; color: #cdd6e0; font-size: 12.5px;
   }
   #panel h1 { font-size: 13px; margin: 0 0 2px; color: #fff; font-weight: 600; }
   #panel .sub { color: #7d8a99; margin-bottom: 10px; }
