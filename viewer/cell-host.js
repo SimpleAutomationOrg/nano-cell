@@ -312,13 +312,37 @@ export function createHost(opts) {
     async release() {
       checkRun('release');
       if (!st.held) return;
-      const node = partNodes.get(st.held);
+      const id = st.held;
+      const node = partNodes.get(id);
       worldGroup.attach(node);
       node.updateMatrix();
       const e = node.matrix.elements;
-      world?.place(st.held, [e[0], e[4], e[8], e[12], e[1], e[5], e[9], e[13], e[2], e[6], e[10], e[14], 0, 0, 0, 1]);
-      emit('release', { part: st.held });
-      log(`release ${st.held}`);
+      let mat = [e[0], e[4], e[8], e[12], e[1], e[5], e[9], e[13], e[2], e[6], e[10], e[14], 0, 0, 0, 1];
+
+      // PHYSICS (exact backend): the released part settles under gravity —
+      // it drops the last millimetres and lies flat on whatever is below,
+      // instead of hanging where the cup let go
+      const mjw = opts.getMjWorld?.();
+      if (mjw) {
+        try {
+          for (const sp of sceneInfo()) mjw.setPartPose(sp.id, sp.mat);
+          mjw.setArm(jointsRad());
+          const settled = mjw.settlePart(id);
+          if (settled) {
+            const drop = mat[11] - settled[11];
+            mat = settled;
+            node.position.set(mat[3], mat[7], mat[11]);
+            node.quaternion.set(...(() => {
+              const q = IK.quatFromMat(mat); return [q[1], q[2], q[3], q[0]]; // three: x,y,z,w
+            })());
+            node.updateMatrix();
+            if (Math.abs(drop) > 1e-4) log(`  settles ${(drop * 1000).toFixed(1)} mm under gravity`);
+          }
+        } catch (err) { log(`  settle failed: ${err.message ?? err}`); }
+      }
+      world?.place(id, mat);
+      emit('release', { part: id });
+      log(`release ${id}`);
       st.held = null;
     },
 

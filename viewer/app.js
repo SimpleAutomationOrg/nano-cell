@@ -417,6 +417,10 @@ async function main() {
   // itself stays zero-dependency
   let mjWorldRef = null;
   window.mjWorld = () => mjWorldRef;   // console/debug access
+  const backendBadge = document.createElement('div');
+  backendBadge.style.cssText = 'margin-top:6px;color:#7d8a99;font-size:11px';
+  backendBadge.textContent = 'collision: sampled (fallback)';
+  document.getElementById('toggles').appendChild(backendBadge);
   (async () => {
     try {
       const loadMujoco = (await import('/node_modules/@mujoco/mujoco/mujoco.js')).default;
@@ -429,6 +433,8 @@ async function main() {
         }),
       });
       taskLog('exact collision backend active (MuJoCo)');
+      backendBadge.textContent = 'collision: exact (MuJoCo) · gravity settle on release';
+      backendBadge.style.color = '#7fd0a0';
       console.log('[mj] exact collision backend active');
     } catch (e) {
       console.warn('[mj] backend unavailable, using sampled collision:', e);

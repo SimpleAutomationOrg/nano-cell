@@ -164,8 +164,59 @@ ${wb}
     return out;
   }
 
+  // read a part's current pose back out as a table-frame row-major mat4
+  function readPartPose(id) {
+    const adr = w.partAdr.get(id);
+    if (adr === undefined) return null;
+    const q = [w.data.qpos[adr + 3], w.data.qpos[adr + 4], w.data.qpos[adr + 5], w.data.qpos[adr + 6]];
+    return IK.matFromQuat(q, [w.data.qpos[adr], w.data.qpos[adr + 1], w.data.qpos[adr + 2]]);
+  }
+
+  // PHYSICS: let one part settle under gravity while everything else is
+  // frozen (arm joints and the other parts are restored every step, so
+  // the 45° stack cannot slump and the arm cannot fall). Returns the
+  // part's settled pose, or null if it never came to rest.
+  function settlePart(id, { duration = 0.8 } = {}) {
+    const adr = w.partAdr.get(id);
+    if (adr === undefined) return null;
+    setMargin(0);
+    const frozenQpos = Float64Array.from({ length: w.model.nq }, (_, i) => w.data.qpos[i]);
+    const g = w.model.opt.gravity;
+    const g0 = [g[0], g[1], g[2]];
+    g[0] = 0; g[1] = 0; g[2] = -9.81;
+    const dt = w.model.opt.timestep;
+    const steps = Math.ceil(duration / dt);
+    try {
+      for (let i = 0; i < steps; i++) {
+        mj.mj_step(w.model, w.data);
+        // freeze everything except the settling part
+        for (let k = 0; k < w.model.nq; k++) {
+          if (k >= adr && k < adr + 7) continue;
+          w.data.qpos[k] = frozenQpos[k];
+        }
+        for (let k = 0; k < w.model.nv; k++) {
+          // zero all velocities except the part's 6 dofs
+          // (freejoint dof address = jnt_dofadr of its joint)
+        }
+        // crude but sufficient: zero every velocity not belonging to the part
+        const dof0 = w.model.jnt_dofadr[mj.mj_name2id(w.model, mj.mjtObj.mjOBJ_JOINT.value, `fj:${id}`)];
+        for (let k = 0; k < w.model.nv; k++) {
+          if (k >= dof0 && k < dof0 + 6) continue;
+          w.data.qvel[k] = 0;
+        }
+        // early out when the part is at rest
+        let v = 0;
+        for (let k = dof0; k < dof0 + 6; k++) v = Math.max(v, Math.abs(w.data.qvel[k]));
+        if (i > 10 && v < 1e-3) break;
+      }
+    } finally {
+      g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
+    }
+    return readPartPose(id);
+  }
+
   return {
-    setArm, setPartPose, contacts,
+    setArm, setPartPose, contacts, readPartPose, settlePart,
     rebuildTool: caps => rebuild(caps),
     get model() { return w.model; },
     get data() { return w.data; },
