@@ -1,0 +1,89 @@
+# Agent guide
+
+You are a coding agent working in (or asked to install) **nano-cell**, a
+browser-only simulated robot cell. This file is your contract: how to
+install it, how to verify it, and how to add or edit tasks without
+re-learning this project's hard-won rules.
+
+If you are Claude Code, also read `CLAUDE.md` (loaded automatically) —
+it holds the same working rules in condensed form.
+
+## Install (what to do when the user says "install")
+
+1. Clone the repository and enter it.
+2. Check prerequisites: `python3 --version` (3.8+). Node 18+ is needed
+   only for the checks; if missing, say so and continue — the viewer
+   itself has zero dependencies.
+3. Start the viewer: `python3 viewer/serve.py` (background). It serves
+   the repo root on port 8742 (pass another port as the first argument
+   if taken), opens the browser, and live-reloads on any file change.
+4. Verify: run `./scripts/check.sh` (should end `check: OK`), then in
+   the viewer select the `pick-place-case` task and run all segments —
+   it must end with **task done** in the status line: the arm picks a
+   case from the 45° stack and inserts it into the holder pocket.
+5. Report to the user: the viewer URL, check results, and that editing
+   any file hot-reloads the page.
+
+There is no build step. Do not add bundlers, package installs, or
+frameworks during installation.
+
+## The architecture in one paragraph
+
+A **cell is data** (`cell/<name>/cell.json`: arm mount, enclosure,
+tools, fixtures, parts with meshes + collision meshes). The **planner**
+(`viewer/planner.js`, pure, node-testable) turns task commands into
+collision-checked joint paths. The **host** (`viewer/cell-host.js`)
+animates them in the three.js scene and owns run state. **Tasks** live
+in `tasks/<name>/`: a `task.json` naming the tool and segment order,
+and `segments/*.ts` — typed async functions against the cell API
+(`viewer/cell.d.ts`). The server (`viewer/serve.py`) also exposes
+`/__tasks` (task list) and `/__reload` (live reload).
+
+## Adding a new task
+
+1. Create `tasks/<name>/task.json`:
+   ```json
+   { "name": "Human-readable name", "cell": "dvt01",
+     "tool": "rcup16_p0", "segments": ["10_first.ts", "20_second.ts"] }
+   ```
+2. Write segments by **copying the matching recipe**, not from scratch:
+   - `recipes/suction-pick-place.md` — vacuum-cup picking and flat
+     set-down.
+   - `recipes/holder-insertion.md` — placing a held part INTO a pocket
+     (alignment, centring, touch descent).
+   Segments import types from `viewer/cell.d.ts`; hover any API call
+   for its contract. Each segment exports `entry` (a safe standalone
+   start pose, tool pointing down, mid-cell) and a default async
+   function `(cell, ctx) => Promise<void>`.
+3. The task appears in the viewer's dropdown automatically (the server
+   scans `tasks/`). Run each segment alone with its ▶ button while
+   iterating; `entry` is what makes that possible.
+
+## Editing existing tasks or the engine
+
+- Follow the rules in `CLAUDE.md` (measured geometry only; segments
+  state intent; `ignore` lists name exactly what a move deliberately
+  touches; tip speeds in m/s). The recipes explain the reasoning.
+- New motion behavior goes in `viewer/planner.js` (pure functions),
+  never in `cell-host.js` (animation and scene only). That keeps it
+  testable under node.
+- **After any change** to `viewer/` or `tasks/`: run
+  `./scripts/check.sh` AND re-run the pick-place task in the viewer to
+  "task done" before telling the user the change works. The checks
+  encode every regression this project has already paid for once.
+- When you fix a motion bug, add an assertion to
+  `test/motion.test.mjs` in the same change.
+
+## Debugging
+
+- The status line shows the running command with elapsed time; the
+  browser console carries the full `[task]` log including per-command
+  durations and planner decisions (which transfer candidate won, what
+  a touch move landed on).
+- Show panel → **collision points** (orange: the obstacle world every
+  query runs against, at live poses) and **collision capsules** (blue:
+  the arm/tool shapes that do the hitting). Every collision message is
+  "a blue capsule met orange points" — with both on, you can see it.
+- A rejected move's error names the colliding link, the item, and the
+  position, and suggests the fix (`transitTip` to route around, or the
+  exact `ignore` id when the contact is deliberate).
