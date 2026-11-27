@@ -244,16 +244,14 @@
    "offset_m": -0.15
   },
   "envelope_mm": {
-   "x_min_mm": 0,
+   "x_min_mm": 300,
    "x_max_mm": 1200,
    "y_min_mm": 0,
    "y_max_mm": 600,
    "z_min_mm": 0,
    "z_max_mm": 650
   },
-  "wall_extensions_mm": {
-   "right_wall": 60.0
-  },
+  "wall_extensions_mm": {},
   "operator_boundary_offset_mm": -150.0
  },
  "flange_stack": [
