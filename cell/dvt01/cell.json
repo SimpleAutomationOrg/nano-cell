@@ -872,7 +872,8 @@
      3.139847
     ]
    },
-   "collision": "mesh"
+   "collision": "mesh",
+   "collision_detail": "coarse"
   },
   {
    "id": "rack_stand1",
@@ -891,7 +892,8 @@
      3.140057
     ]
    },
-   "collision": "mesh"
+   "collision": "mesh",
+   "collision_detail": "coarse"
   },
   {
    "id": "rack_stand2",
@@ -910,7 +912,8 @@
      -3.141052
     ]
    },
-   "collision": "mesh"
+   "collision": "mesh",
+   "collision_detail": "coarse"
   },
   {
    "id": "rack_stand3",
@@ -929,7 +932,8 @@
      3.140825
     ]
    },
-   "collision": "mesh"
+   "collision": "mesh",
+   "collision_detail": "coarse"
   },
   {
    "id": "holder",
@@ -976,7 +980,8 @@
     ]
    },
    "collision": "mesh",
-   "note": "CAD as drawn: the mounted print has the floor channel filled to a flat 45 deg slope (see MISSING.md)"
+   "note": "CAD as drawn: the mounted print has the floor channel filled to a flat 45 deg slope (see MISSING.md)",
+   "collision_detail": "coarse"
   },
   {
    "id": "stack_south",
@@ -996,7 +1001,8 @@
     ]
    },
    "collision": "mesh",
-   "note": "CAD as drawn: the mounted print has the floor channel filled to a flat 45 deg slope (see MISSING.md)"
+   "note": "CAD as drawn: the mounted print has the floor channel filled to a flat 45 deg slope (see MISSING.md)",
+   "collision_detail": "coarse"
   },
   {
    "id": "button_clip",

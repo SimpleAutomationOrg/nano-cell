@@ -26,42 +26,52 @@ const vec = a => a.map(v => Number(v.toFixed(7))).map(v => (Object.is(v, -0) ? 0
 const quatAttr = rpy => vec(IK.quatFromMat(IK.fromXyzRpy([0, 0, 0], rpy)));
 const quatOfMat = m => IK.quatFromMat(m);
 
-// contype/conaffinity: ARM 1/6, FIXTURE 2/5, PART 4/7 (see header)
-const GROUPS = { arm: 'contype="1" conaffinity="6"', fixture: 'contype="2" conaffinity="5"', part: 'contype="4" conaffinity="7"' };
+// TWO models from the same geometry (runtime contype/conaffinity edits
+// are not honored by the binding, so filtering must be baked at build):
+//  - QUERY model: parts collide with the arm/held side only — path
+//    checks never pay for the hundreds of resting world contacts
+//  - PHYSICS model: everything collides — settling and contact forces
+// Poses are synced to both; heavier computations run on PHYSICS.
+const GROUPS_QUERY = { arm: 'contype="1" conaffinity="6"', fixture: 'contype="2" conaffinity="1"', part: 'contype="4" conaffinity="3"' };
+const GROUPS_PHYS = { arm: 'contype="1" conaffinity="6"', fixture: 'contype="2" conaffinity="5"', part: 'contype="4" conaffinity="7"' };
 
 export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, loadStlBuffer }) {
   // --- box decompositions, cached per mesh path (parts share meshes) ---
   const boxCache = new Map();
-  async function boxesFor(meshPath) {
-    if (!boxCache.has(meshPath)) {
+  async function boxesFor(meshPath, detail) {
+    const key = `${meshPath}|${detail}`;
+    if (!boxCache.has(key)) {
       const buf = await loadStlBuffer(meshPath);
-      boxCache.set(meshPath, boxify(parseBinaryStl(buf)));
+      const opts = detail === 'coarse'
+        ? { cell: 0.006, exactWalls: false }   // big ribbed fixtures: no tight fits
+        : {};                                   // exact walls (default)
+      boxCache.set(key, boxify(parseBinaryStl(buf), opts));
     }
-    return boxCache.get(meshPath);
+    return boxCache.get(key);
   }
 
-  const boxGeoms = (boxes, group) => boxes.map(b =>
-    `<geom type="box" ${GROUPS[group]} pos="${vec(b.center)}" size="${vec(b.size.map(v => Math.max(v / 2, 1e-4)))}"/>`
+  const boxGeoms = (G, boxes, group) => boxes.map(b =>
+    `<geom type="box" ${G[group]} pos="${vec(b.center)}" size="${vec(b.size.map(v => Math.max(v / 2, 1e-4)))}"/>`
   ).join('\n');
-  const capGeom = (c, group) => {
+  const capGeom = (G, c, group) => {
     const len = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1], c.b[2] - c.a[2]);
     if (len < 1e-3) {                     // squat fit: MuJoCo rejects a≈b
       const mid = c.a.map((v, i) => (v + c.b[i]) / 2);
-      return `<geom type="sphere" ${GROUPS[group]} pos="${vec(mid)}" size="${Number(c.r.toFixed(7))}"/>`;
+      return `<geom type="sphere" ${G[group]} pos="${vec(mid)}" size="${Number(c.r.toFixed(7))}"/>`;
     }
-    return `<geom type="capsule" ${GROUPS[group]} fromto="${vec(c.a)} ${vec(c.b)}" size="${Number(c.r.toFixed(7))}"/>`;
+    return `<geom type="capsule" ${G[group]} fromto="${vec(c.a)} ${vec(c.b)}" size="${Number(c.r.toFixed(7))}"/>`;
   };
 
   const boxesByItem = new Map();  // id -> local-frame boxes
-  const itemBoxes = async it => it.boxes ?? await boxesFor(it.collision_mesh);
-  async function buildXml(toolCaps) {
+  const itemBoxes = async it => it.boxes ?? await boxesFor(it.collision_mesh, it.collision_detail);
+  async function buildXml(G, toolCaps) {
     let wb = '';
     for (const it of cellData.fixtures ?? []) {
       if (!it.collision_mesh && !it.boxes) continue;
       const boxes = await itemBoxes(it);
       boxesByItem.set(it.id, boxes);
       wb += `<body name="${it.id}" pos="${vec(it.pose_table.xyz_m)}" quat="${quatAttr(it.pose_table.rpy)}">
-        ${boxGeoms(boxes, 'fixture')}</body>\n`;
+        ${boxGeoms(G, boxes, 'fixture')}</body>\n`;
     }
     for (const it of cellData.parts ?? []) {
       if (!it.collision_mesh && !it.boxes) continue;
@@ -69,16 +79,16 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
       boxesByItem.set(it.id, boxes);
       wb += `<body name="${it.id}" pos="${vec(it.pose_table.xyz_m)}" quat="${quatAttr(it.pose_table.rpy)}">
         <freejoint name="fj:${it.id}"/>
-        ${boxGeoms(boxes, 'part')}</body>\n`;
+        ${boxGeoms(G, boxes, 'part')}</body>\n`;
     }
     // arm chain: capsules per link, hinge about local z, built inside-out
     const mount = cellData.arm.mount_table;
     let inner = `<body name="arm:flange" pos="0 0 0.1">
       <geom type="sphere" size="0.001" density="100" contype="0" conaffinity="0"/>
-      ${(toolCaps ?? []).map(c => capGeom(c, 'arm')).join('\n')}</body>`;
+      ${(toolCaps ?? []).map(c => capGeom(G, c, 'arm')).join('\n')}</body>`;
     for (let i = IK.CHAIN.length - 1; i >= 0; i--) {
       const j = IK.CHAIN[i];
-      const caps = (armCapsules ?? []).filter(c => c.jointIdx === i).map(c => capGeom(c, 'arm')).join('\n');
+      const caps = (armCapsules ?? []).filter(c => c.jointIdx === i).map(c => capGeom(G, c, 'arm')).join('\n');
       inner = `<body name="arm:${j.link}" pos="${vec(j.xyz)}" quat="${quatAttr(j.rpy)}">
         <joint name="q${i}" type="hinge" axis="0 0 1"/>
         <geom type="sphere" size="0.001" density="100" contype="0" conaffinity="0"/>
@@ -95,54 +105,58 @@ ${wb}
 </mujoco>`;
   }
 
-  // --- state shared across rebuilds ---
-  const w = {
-    mj, model: null, data: null,
-    jointAdr: [], partAdr: new Map(), geomItem: [],
-  };
+  // --- state: two models (QUERY fast, PHYSICS full) ---
+  const makeSlot = () => ({ model: null, data: null, jointAdr: [], partAdr: new Map(), geomItem: [], geomsByName: new Map() });
+  const Q = makeSlot(), P = makeSlot();
+  const w = Q;   // default slot for queries
 
-  async function rebuild(toolCaps) {
-    const xml = await buildXml(toolCaps);
-    const model = mj.MjModel.from_xml_string(xml);
-    const data = new mj.MjData(model);
-    w.model = model; w.data = data;
-    w.jointAdr = [];
+  function fillSlot(slot, model) {
+    slot.model = model;
+    slot.data = new mj.MjData(model);
+    slot.jointAdr = [];
     for (let i = 0; i < 6; i++) {
       const jid = mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT.value, `q${i}`);
-      w.jointAdr.push(model.jnt_qposadr[jid]);
+      slot.jointAdr.push(model.jnt_qposadr[jid]);
     }
-    w.partAdr = new Map();
+    slot.partAdr = new Map();
     for (const it of cellData.parts ?? []) {
       const jid = mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT.value, `fj:${it.id}`);
-      if (jid >= 0) w.partAdr.set(it.id, model.jnt_qposadr[jid]);
+      if (jid >= 0) slot.partAdr.set(it.id, model.jnt_qposadr[jid]);
     }
-    w.geomItem = [];
-    w.geomsByName = new Map();
+    slot.geomItem = [];
+    slot.geomsByName = new Map();
     for (let g = 0; g < model.ngeom; g++) {
       const name = mj.mj_id2name(model, mj.mjtObj.mjOBJ_BODY.value, model.geom_bodyid[g]) ?? '';
-      w.geomItem.push(name);
-      if (!w.geomsByName.has(name)) w.geomsByName.set(name, []);
-      w.geomsByName.get(name).push(g);
+      slot.geomItem.push(name);
+      if (!slot.geomsByName.has(name)) slot.geomsByName.set(name, []);
+      slot.geomsByName.get(name).push(g);
     }
+  }
+  async function rebuild(toolCaps) {
+    fillSlot(Q, mj.MjModel.from_xml_string(await buildXml(GROUPS_QUERY, toolCaps)));
+    fillSlot(P, mj.MjModel.from_xml_string(await buildXml(GROUPS_PHYS, toolCaps)));
   }
   await rebuild(toolCapsules);
 
   function setArm(qRad) {
-    for (let i = 0; i < 6; i++) w.data.qpos[w.jointAdr[i]] = qRad[i];
+    for (const slot of [Q, P])
+      for (let i = 0; i < 6; i++) slot.data.qpos[slot.jointAdr[i]] = qRad[i];
   }
   function setPartPose(id, mat) {
-    const adr = w.partAdr.get(id);
-    if (adr === undefined) return;
-    w.data.qpos[adr] = mat[3]; w.data.qpos[adr + 1] = mat[7]; w.data.qpos[adr + 2] = mat[11];
     const q = quatOfMat(mat);
-    for (let k = 0; k < 4; k++) w.data.qpos[adr + 3 + k] = q[k];
+    for (const slot of [Q, P]) {
+      const adr = slot.partAdr.get(id);
+      if (adr === undefined) continue;
+      slot.data.qpos[adr] = mat[3]; slot.data.qpos[adr + 1] = mat[7]; slot.data.qpos[adr + 2] = mat[11];
+      for (let k = 0; k < 4; k++) slot.data.qpos[adr + 3 + k] = q[k];
+    }
   }
   // margin ONLY on the probing bodies (arm + optionally a held part):
   // a global margin makes every resting part erupt in contacts
-  function setMargin(m, extraIds = []) {
-    const gm = w.model.geom_margin;
-    for (let g = 0; g < w.model.ngeom; g++) gm[g] = 0;
-    for (const [name, geoms] of w.geomsByName) {
+  function setMargin(slot, m, extraIds = []) {
+    const gm = slot.model.geom_margin;
+    for (let g = 0; g < slot.model.ngeom; g++) gm[g] = 0;
+    for (const [name, geoms] of slot.geomsByName) {
       if (!name.startsWith('arm:') && !extraIds.includes(name)) continue;
       for (const g of geoms) gm[g] = m;
     }
@@ -151,9 +165,12 @@ ${wb}
   // contacts at the current state: [{a, b, dist, pos}], names are item
   // ids, 'arm:<link>', 'arm:flange' (tool), or 'arm:base'
   function contacts(margin, extraIds = []) {
-    setMargin(margin, extraIds);
+    setMargin(Q, margin, extraIds);
     // kinematics + collision only: no constraint solver — queries never
-    // need it, and resting parts would make it expensive
+    // need it (and the QUERY model has no part-part pairs at all).
+    // Note: the held part collides with fixtures AND other parts here
+    // (part conaffinity 3 ∋ fixtures; part contype 4 vs part affinity…
+    // held-vs-part pairs come from contype4 & affinity… see GROUPS_QUERY)
     mj.mj_kinematics(w.model, w.data);
     mj.mj_collision(w.model, w.data);
     const out = [];
@@ -172,21 +189,23 @@ ${wb}
   }
 
   // read a part's current pose back out as a table-frame row-major mat4
-  function readPartPose(id) {
-    const adr = w.partAdr.get(id);
+  function readPartPoseFrom(slot, id) {
+    const adr = slot.partAdr.get(id);
     if (adr === undefined) return null;
-    const q = [w.data.qpos[adr + 3], w.data.qpos[adr + 4], w.data.qpos[adr + 5], w.data.qpos[adr + 6]];
-    return IK.matFromQuat(q, [w.data.qpos[adr], w.data.qpos[adr + 1], w.data.qpos[adr + 2]]);
+    const q = [slot.data.qpos[adr + 3], slot.data.qpos[adr + 4], slot.data.qpos[adr + 5], slot.data.qpos[adr + 6]];
+    return IK.matFromQuat(q, [slot.data.qpos[adr], slot.data.qpos[adr + 1], slot.data.qpos[adr + 2]]);
   }
+  const readPartPose = id => readPartPoseFrom(Q, id);
 
   // PHYSICS: let one part settle under gravity while everything else is
   // frozen (arm joints and the other parts are restored every step, so
   // the 45° stack cannot slump and the arm cannot fall). Returns the
   // part's settled pose, or null if it never came to rest.
   function settlePart(id, { duration = 0.8 } = {}) {
+    const w = P;              // physics model: the pile below is solid
     const adr = w.partAdr.get(id);
     if (adr === undefined) return null;
-    setMargin(0);
+    setMargin(P, 0);
     const frozenQpos = Float64Array.from({ length: w.model.nq }, (_, i) => w.data.qpos[i]);
     const g = w.model.opt.gravity;
     const g0 = [g[0], g[1], g[2]];
@@ -194,7 +213,7 @@ ${wb}
     const dt = w.model.opt.timestep;
     const steps = Math.ceil(duration / dt);
     const every = Math.max(1, Math.round((1 / 60) / dt));   // ~60 Hz samples
-    const traj = [{ t: 0, mat: readPartPose(id) }];
+    const traj = [{ t: 0, mat: readPartPoseFrom(P, id) }];
     try {
       for (let i = 0; i < steps; i++) {
         mj.mj_step(w.model, w.data);
@@ -214,7 +233,7 @@ ${wb}
           w.data.qvel[k] = 0;
         }
         // early out when the part is at rest
-        if (i % every === 0) traj.push({ t: (i + 1) * dt, mat: readPartPose(id) });
+        if (i % every === 0) traj.push({ t: (i + 1) * dt, mat: readPartPoseFrom(P, id) });
         let v = 0;
         for (let k = dof0; k < dof0 + 6; k++) v = Math.max(v, Math.abs(w.data.qvel[k]));
         if (i > 10 && v < 1e-3) break;
@@ -222,8 +241,9 @@ ${wb}
     } finally {
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
     }
-    const pose = readPartPose(id);
+    const pose = readPartPoseFrom(P, id);
     traj.push({ t: traj[traj.length - 1].t + dt, mat: pose });
+    setPartPose(id, pose);     // sync the settled pose into BOTH models
     return { pose, traj };
   }
 
@@ -290,7 +310,8 @@ ${wb}
   // scene does not move. Returns [{a, b, pos, normal, fn, ft}] with
   // fn/ft the normal/tangential force magnitudes in newtons.
   function contactForces() {
-    setMargin(0);
+    const w = P;              // physics model: full world-world contact
+    setMargin(P, 0);
     for (let k = 0; k < w.model.nv; k++) w.data.qvel[k] = 0;
     const g = w.model.opt.gravity;
     const g0 = [g[0], g[1], g[2]];
