@@ -1087,6 +1087,45 @@
    "collision": "mesh",
    "note": "stands on 60 mm standoffs that are not in the CAD (see MISSING.md)",
    "mesh_source": "no print file yet: collision mesh rebuilt from the visual mesh (scripts/collision-from-visual.mjs) so the PCB slots are real"
+  },
+  {
+   "id": "screw_feeder",
+   "name": "screw feeder (simplified envelope), front facing table -y",
+   "mesh": "meshes/screw_feeder.glb",
+   "collision_mesh": "meshes/screw_feeder.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.737808,
+     0.389205,
+     0.0011
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "collision": "mesh",
+   "collision_detail": "coarse",
+   "pick_station": {
+    "xy_table_m": [
+     0.737808,
+     0.419205
+    ],
+    "disc_z_table_m": 0.0784,
+    "nose_over_station_table_m": [
+     0.737808,
+     0.419205,
+     0.108211
+    ],
+    "in_feeder_frame_m": [
+     0.0,
+     0.03,
+     0.0773
+    ]
+   },
+   "mesh_source": "cell/print/PLD_619C_approx.step --all (scripts/step-to-mesh.mjs)",
+   "note": "placed so its pick boss (the 12.4 mm disc on the front shelf) sits on the measured pick station, top at the measured disc height; that leaves the base 1.1 mm above the board (the model is an approximate envelope). Front toward table -y: the body then ends at y 0.59, inside the 0.6 m board, and its centre line is on a breadboard hole column."
   }
  ],
  "parts": [
@@ -1578,28 +1617,30 @@
    "on": "pcb_tray",
    "mesh_source": "cell/print/pcb_fake1_full2_nologo.STEP --all (scripts/step-to-mesh.mjs)",
    "placement_source": "far holder, slots 3-6 counted from the +x end (estimated from the reference photo); display toward the wide side of the slot; pose = where physics settles it in the guide groove"
-  }
- ],
- "unplaced_parts": [
+  },
   {
-   "id": "screw_m2x8",
-   "name": "M2x8 countersunk screw (ISO 14581)",
-   "mesh": "meshes/screw_m2x8.glb",
-   "collision_mesh": "meshes/screw_m2x8.collision.stl",
-   "on": "feeder (not in this file: no CAD)",
-   "placement": "one screw at the feeder's pick station, head up",
-   "pick_station_xy_table_m": [
-    0.737808,
-    0.419205
-   ],
-   "disc_z_table_m": 0.0784,
-   "nose_over_station_table_m": [
-    0.737808,
-    0.419205,
-    0.108211
-   ]
+   "id": "screw_1",
+   "name": "M2x6 socket head cap screw (ISO 4762) at the feeder's pick station, head up",
+   "mesh": "meshes/screw_m2x6.glb",
+   "collision_mesh": "meshes/screw_m2x6.collision.stl",
+   "pose_table": {
+    "xyz_m": [
+     0.737808,
+     0.419205,
+     0.0724
+    ],
+    "rpy": [
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "on": "screw_feeder",
+   "mesh_source": "cell/print/M2x6_ISO4762.step --all (scripts/step-to-mesh.mjs); origin at the shank tip, head up",
+   "note": "hangs by its head: the underside of the head is on the disc, the shank is inside the pick boss — the real feeder has a slot there, the simplified model does not"
   }
  ],
+ "unplaced_parts": [],
  "cameras": [
   {
    "name": "oak-left",
