@@ -1,0 +1,8 @@
+{
+  "name": "Drop demo: gravity places the case",
+  "cell": "dvt01",
+  "tool": "rcup16_p0",
+  "segments": [
+    "10_pick_and_drop.ts"
+  ]
+}

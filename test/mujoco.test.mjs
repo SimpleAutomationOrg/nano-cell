@@ -59,6 +59,27 @@ test('MuJoCo world: dock pose near the rack, home pose clean', { skip: !mj }, as
   assert.equal(home.length, 0, `home pose contacts: ${home.map(c => c.a + '/' + c.b)}`);
 });
 
+test('drop test: a released case falls and settles into the pocket', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  const world = await createMjWorld({
+    mj, cellData: cell, armCapsules: [], toolCapsules: [],
+    loadStlBuffer: async p => readStl(p),
+  });
+  // pocket centre from the holder pose (matches the live measurements)
+  const HX = 0.8982, HY = 0.0864, RIM = 0.0138;
+  // pose a case flat, 120 mm above the pocket, aligned to it
+  const high = IK.mul(
+    IK.fromXyzRpy([HX, HY, RIM + 0.12], [0, 0, -1.572 + Math.PI]),
+    IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, 0]));
+  world.setPartPose('front_case_1', high);
+  const settled = world.settlePart('front_case_1', { duration: 1.5 });
+  assert.ok(settled, 'settle returned nothing');
+  const [x, y, z] = [settled[3], settled[7], settled[11]];
+  assert.ok(Math.hypot(x - HX, y - HY) < 0.02, `landed ${(Math.hypot(x - HX, y - HY) * 1000).toFixed(0)} mm off the pocket centre`);
+  assert.ok(z < RIM + 0.01, `rested at z=${(z * 1000).toFixed(1)} mm — above the rim, not inside`);
+  assert.ok(z > 0, 'fell through the floor');
+});
+
 test('planner on the exact backend: clear transit passes, rack approach rejected', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const toolCaps = [{ a: [0.016, 0, 0.06], b: [0.016, 0, 0.15], r: 0.02 }];
