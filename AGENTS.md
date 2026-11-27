@@ -90,6 +90,12 @@ and `segments/*.ts` — typed async functions against the cell API
 - A rejected move's error names the colliding link, the item, and the
   position, and suggests the fix (`transitTip` to route around, or the
   exact `ignore` id when the contact is deliberate).
+- **Moving the camera**: drag to orbit, or fly — `W`/`S` along the
+  view direction, `A`/`D` strafe, `E`/`Q` rise and sink, `Shift` for
+  3x speed. Flight speed scales with the orbit distance, so you crawl
+  when nose-up to a part. `F` frames the selected part, or returns to
+  the overview when nothing is selected — that is the way back if you
+  fly off into the void.
 - **Pushing parts by hand**: click a part to select it (yellow box),
   then each key press is a real capped-force physics push — arrows
   push horizontally (camera-relative, 8 N), `Z` presses down firmly

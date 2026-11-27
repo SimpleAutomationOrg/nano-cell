@@ -27,6 +27,74 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0.68, 0.28, -0.30);
 controls.enableDamping = true;
 
+// ---------- fly camera: WASD ----------
+// W/S fly along the view direction, A/D strafe, E/Q rise/sink, Shift
+// for fast. The orbit target travels with the camera, so dragging to
+// orbit still pivots around whatever is in front of you. Speed scales
+// with distance to that target: close to a part you creep, far out you
+// cross the cell quickly.
+const flyKeys = new Set();
+let flyFast = false;
+let flyFocus = null;              // the selected part's node, for F
+const FLY = new Set(['w', 'a', 's', 'd', 'q', 'e']);
+const HOME_EYE = new THREE.Vector3(0, 1.05, 1.75);
+const HOME_AT = new THREE.Vector3(0.68, 0.28, -0.30);
+export function setFlyFocus(node) { flyFocus = node; }
+
+// F: frame the selected part, or fly home when nothing is selected —
+// the way back after flying off into the void
+function frameView() {
+  if (flyFocus) {
+    const box = new THREE.Box3().setFromObject(flyFocus);
+    if (!box.isEmpty()) {
+      const c = box.getCenter(new THREE.Vector3());
+      const r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 0.02);
+      const dir = camera.getWorldDirection(new THREE.Vector3());
+      controls.target.copy(c);
+      camera.position.copy(c).addScaledVector(dir, -(r * 3 + 0.12));
+      return;
+    }
+  }
+  camera.position.copy(HOME_EYE);
+  controls.target.copy(HOME_AT);
+}
+
+addEventListener('keydown', ev => {
+  flyFast = ev.shiftKey;
+  if (/INPUT|SELECT|TEXTAREA/.test(ev.target?.tagName ?? '')) return;
+  const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
+  if (k === 'f') { ev.preventDefault(); frameView(); return; }
+  if (!FLY.has(k)) return;
+  ev.preventDefault();
+  flyKeys.add(k);
+});
+addEventListener('keyup', ev => {
+  flyFast = ev.shiftKey;
+  flyKeys.delete(ev.key.length === 1 ? ev.key.toLowerCase() : ev.key);
+});
+addEventListener('blur', () => { flyKeys.clear(); flyFast = false; });
+
+const flyFwd = new THREE.Vector3(), flyRight = new THREE.Vector3(), flyStep = new THREE.Vector3();
+function updateFly(dt) {
+  if (!flyKeys.size) return;
+  camera.getWorldDirection(flyFwd);
+  flyRight.crossVectors(flyFwd, camera.up).normalize();
+  flyStep.set(0, 0, 0);
+  if (flyKeys.has('w')) flyStep.add(flyFwd);
+  if (flyKeys.has('s')) flyStep.sub(flyFwd);
+  if (flyKeys.has('d')) flyStep.add(flyRight);
+  if (flyKeys.has('a')) flyStep.sub(flyRight);
+  if (flyKeys.has('e')) flyStep.add(camera.up);
+  if (flyKeys.has('q')) flyStep.sub(camera.up);
+  if (flyStep.lengthSq() < 1e-9) return;
+  // 0.4 x the orbit distance per second: ~2 s to cross the cell from
+  // the default view, and a crawl once you are nose-up to a part
+  const near = Math.min(Math.max(camera.position.distanceTo(controls.target), 0.15), 2.5);
+  flyStep.normalize().multiplyScalar(near * 0.4 * (flyFast ? 3 : 1) * dt);
+  camera.position.add(flyStep);
+  controls.target.add(flyStep);       // keep orbiting about what's ahead
+}
+
 scene.add(new THREE.HemisphereLight(0xbcd0e8, 0x20262e, 1.0));
 const sun = new THREE.DirectionalLight(0xffffff, 2.2);
 sun.position.set(1.5, 3.0, 1.2);
@@ -615,12 +683,13 @@ async function main() {
     const select = id => {
       if (outline) { scene.remove(outline); outline = null; }
       selected = id;
+      setFlyFocus(id ? partNodes.get(id) : null);   // F frames it
       if (id) {
         // BoxHelper builds scene-space geometry, so it must live on the
         // scene root, not inside the rotated table-frame group
         outline = new THREE.BoxHelper(partNodes.get(id), 0xffc94d);
         scene.add(outline);
-        taskLog(`${id} selected — arrows push · Z press in · X lift · Shift fine · Esc done`);
+        taskLog(`${id} selected — arrows push · Z press in · X lift · F frame · Esc done`);
       }
     };
     window.selectPart = select;              // console/debug access
@@ -730,6 +799,7 @@ renderer.setAnimationLoop(() => {
     const el = ((performance.now() - host.state.currentSince) / 1000).toFixed(1);
     taskLineEl.textContent = `▶ ${host.state.current} · ${el} s`;
   }
+  updateFly(dt);
   controls.update();
   renderer.render(scene, camera);
 });
