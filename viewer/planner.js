@@ -467,7 +467,23 @@ export function createPlanner(opts) {
     const idx = { x: 0, y: 1, z: 2 }[face[1]];
     const n = IK.axis(item.matrix, idx).map(v => v * sign);
     const p = IK.pos(item.matrix);
-    const pose = IK.poseFacing(p.map((v, i) => v + n[i] * standoff), n.map(v => -v));
+    // stand off from the MEASURED face plane, not from the origin: CAD
+    // origins sit behind the surface (the case's by ~5 mm), which once
+    // made a "2 mm" approach a 7 mm air gap that the vacuum seat then
+    // closed as a visible jump
+    let faceOff = 0;
+    const wi = world?.items.get(item.id);
+    if (wi?.local?.length) {
+      const step = Math.max(1, Math.floor(wi.local.length / 400));
+      let m = -Infinity;
+      for (let i = 0; i < wi.local.length; i += step) {
+        const w = applyMat(item.matrix, wi.local[i]);
+        const d = (w[0] - p[0]) * n[0] + (w[1] - p[1]) * n[1] + (w[2] - p[2]) * n[2];
+        if (d > m) m = d;
+      }
+      if (Number.isFinite(m)) faceOff = m;  // the origin may sit on EITHER side of the face
+    }
+    const pose = IK.poseFacing(p.map((v, i) => v + n[i] * (faceOff + standoff)), n.map(v => -v));
     if (lean) return withLean(pose, lean);
     const safeSide = Math.hypot(n[0], n[1]) > 0.1 ? [-n[0], -n[1]] : null;
     return withCameraLevel(pose, safeSide);

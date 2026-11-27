@@ -79,6 +79,40 @@ test('suction grasp: wrist camera parallel to the breadboard, image down', () =>
   assert.ok(yw[2] < 0, 'image must look down, not up');
 });
 
+test('suction grasp stands off from the MEASURED face, not the CAD origin', () => {
+  // a part whose exposed face (-z) lies 5 mm from its origin — like the
+  // front case. Aiming the standoff at the origin once made a "2 mm"
+  // approach a 7 mm air gap, which the vacuum seat closed as a visible jump.
+  const pts = [];
+  for (let x = -0.03; x <= 0.03; x += 0.005)
+    for (let y = -0.02; y <= 0.02; y += 0.005)
+      for (const z of [-0.005, 0.001]) pts.push([x, y, z]);
+  const world = { items: new Map([['slab', { local: pts }]]), maxZ: 0, maxZInCorridor: () => 0, hitCapsule: () => null };
+  const p = createPlanner({
+    cellData: cell,
+    mountMat: IK.fromXyzRpy(cell.arm.mount_table.xyz_m, cell.arm.mount_table.rpy),
+    getToolId: () => 'rcup16_p0',
+    world,
+  });
+  const item = { id: 'slab', matrix: IK.fromXyzRpy([0.5, 0.3, 0.1], [0, 0, 0]) };
+  const pose = p.suctionGrasp(item, 0.01);     // 10 mm standoff requested
+  // face plane along -z sits at origin z − 5 mm = 0.095; lip must be 10 mm past it
+  const lipZ = IK.pos(pose)[2];
+  assert.ok(Math.abs(lipZ - (0.095 - 0.01)) < 1e-6,
+    `lip at z=${(lipZ * 1000).toFixed(1)} mm, expected 85.0 (face 95.0 − standoff 10)`);
+  // and a part whose origin sits IN FRONT of its face (the front case):
+  // the offset must go the other way, not be clamped to zero
+  const pts2 = [];
+  for (let x = -0.03; x <= 0.03; x += 0.005)
+    for (let y = -0.02; y <= 0.02; y += 0.005)
+      for (const z of [0.003, 0.009]) pts2.push([x, y, z]);
+  world.items.set('slab2', { local: pts2 });
+  const item2 = { id: 'slab2', matrix: IK.fromXyzRpy([0.5, 0.3, 0.1], [0, 0, 0]) };
+  const lip2Z = IK.pos(p.suctionGrasp(item2, 0.01))[2];
+  assert.ok(Math.abs(lip2Z - (0.103 - 0.01)) < 1e-6,
+    `lip at z=${(lip2Z * 1000).toFixed(1)} mm, expected 93.0 (face 103.0 − standoff 10)`);
+});
+
 test('free transit: J6 never reverses direction mid-flight', () => {
   const target = planner.suctionGrasp(CASE1, 0.06);
   const plan = planner.planTransit(HOME, target, { spin: 'free' });
