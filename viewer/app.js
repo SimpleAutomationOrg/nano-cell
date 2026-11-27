@@ -337,11 +337,11 @@ function stepLog(msg) {
   el.title = msg.trim();
 }
 
-// .ts segments are transpiled in the page (types stripped by sucrase, loaded
-// once from CDN) and imported as a blob module; .js segments import directly.
+// A step is one file, steps/<name>/step.ts. It is transpiled in the page
+// (types stripped by sucrase, loaded once from CDN) and imported as a blob
+// module.
 let sucrase = null;
-async function importSegment(url) {
-  if (!url.includes('.ts')) return import(url);
+async function importStep(url) {
   const src = await (await fetch(url)).text();
   sucrase ??= await import('https://cdn.jsdelivr.net/npm/sucrase@3.35.0/+esm');
   const js = sucrase.transform(src, { transforms: ['typescript'] }).code;
@@ -350,21 +350,17 @@ async function importSegment(url) {
   finally { URL.revokeObjectURL(blobUrl); }
 }
 
-async function runSegments(appId, stepId, files, { snapEntry }) {
+async function runStep(appId, stepId) {
   if (running) { stepLog('already running'); return; }
   running = true;
   host.reset();
   try {
-    for (const [i, f] of files.entries()) {
-      status(`running ${f}…`);
-      stepLog(`▶ ${f}`);
-      const mod = await importSegment(`/applications/${appId}/steps/${stepId}/segments/${f}?v=${Date.now()}`);
-      if (i === 0 && snapEntry && mod.entry?.joints_deg) {
-        host.snapJointsDeg(mod.entry.joints_deg);
-      }
-      await mod.default(host.api, host.ctx);
-      stepLog(`✓ ${f}`);
-    }
+    status(`running ${stepId}…`);
+    stepLog(`▶ ${stepId}`);
+    const mod = await importStep(`/applications/${appId}/steps/${stepId}/step.ts?v=${Date.now()}`);
+    if (mod.entry?.joints_deg) host.snapJointsDeg(mod.entry.joints_deg);
+    await mod.default(host.api, host.ctx);
+    stepLog(`✓ ${stepId}`);
     status('step done');
   } catch (e) {
     if (e.message === 'aborted') { status('step stopped'); stepLog('■ stopped'); }
@@ -383,24 +379,12 @@ async function buildStepUI(cell, mountToolFn) {
   sel.innerHTML = '<option value="">— pick a step —</option>' +
     steps.map(t => `<option value="${t.id}">${t.name ?? t.id}</option>`).join('');
 
-  const segHost = document.getElementById('segments');
+  const runBtn = document.getElementById('btnRun');
+  runBtn.onclick = () => { if (sel.value) runStep(cell.application, sel.value); };
   sel.addEventListener('change', async () => {
-    segHost.innerHTML = '';
     const t = steps.find(x => x.id === sel.value);
-    if (!t) return;
-    if (t.tool) await mountToolFn(t.tool);
-    for (const f of t.segments) {
-      const row = document.createElement('div');
-      row.className = 'segrow';
-      row.innerHTML = `<button title="run this segment alone">▶</button><span>${f.replace(/\.[jt]s$/, '')}</span>`;
-      row.querySelector('button').onclick = () => runSegments(cell.application, t.id, [f], { snapEntry: true });
-      segHost.appendChild(row);
-    }
-    const all = document.createElement('button');
-    all.textContent = 'Run all segments';
-    all.style.marginTop = '6px';
-    all.onclick = () => runSegments(cell.application, t.id, t.segments, { snapEntry: true });
-    segHost.appendChild(all);
+    runBtn.disabled = !t;
+    if (t?.tool) await mountToolFn(t.tool);
   });
 
   document.getElementById('btnPause').onclick = () => {
@@ -580,7 +564,7 @@ async function main() {
     getMjWorld: () => mjWorldRef,
     onCollision: (point) => { hitMarker.position.fromArray(point); hitMarker.visible = true; },
   });
-  window.host = host;  // console access for debugging segments
+  window.host = host;  // console access for debugging steps
 
   const colToggle = document.createElement('label');
   colToggle.innerHTML = `<input type="checkbox" checked> collision check`;

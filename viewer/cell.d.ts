@@ -1,4 +1,4 @@
-// Types for step segments. The runtime is viewer/cell-host.js (plain JS);
+// Types for steps. The runtime is viewer/cell-host.js (plain JS);
 // these declarations exist for editor IntelliSense and type checking.
 
 /** [x, y, z] in metres, TABLE frame unless stated otherwise. */
@@ -51,7 +51,7 @@ export interface TransitOpts extends MoveOpts {
 }
 
 /**
- * The cell as seen by a segment. Every move resolves when the motion has
+ * The cell as seen by a step. Every move resolves when the motion has
  * finished animating, and is collision-checked BEFORE it runs: a predicted
  * contact rejects the command with the culprit's name.
  */
@@ -241,10 +241,10 @@ export interface Ctx {
   h: Helpers;
 }
 
-/** Joint pose a segment snaps to when run standalone. */
+/** Joint pose the arm snaps to when the step starts. */
 export interface Entry {
   joints_deg: number[];
 }
 
-/** A segment module's default export. */
-export type Segment = (cell: CellAPI, ctx: Ctx) => Promise<void>;
+/** A step module's default export. */
+export type Step = (cell: CellAPI, ctx: Ctx) => Promise<void>;

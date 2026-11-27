@@ -29,8 +29,6 @@
   .checks label { display: flex; gap: 7px; align-items: center; margin: 3px 0; color: #9fb0c0; cursor: pointer; }
   .sect { border-top: 1px solid #263040; margin-top: 10px; padding-top: 8px; }
   .sect b { color: #c6d2de; font-weight: 600; font-size: 12px; }
-  .segrow { display: flex; gap: 8px; align-items: center; margin: 4px 0; color: #9fb0c0; }
-  .segrow button { padding: 1px 8px; }
   #runControls { display: flex; gap: 6px; margin-top: 6px; }
   #stepline {
     margin-top: 6px; padding: 5px 8px; background: #0c0f13; border-radius: 6px;
@@ -101,7 +99,7 @@
         <option value="4">4×</option>
       </select>
     </div>
-    <div id="segments"></div>
+    <button id="btnRun" disabled style="margin-top:6px">Run step</button>
     <div id="runControls">
       <button id="btnPause">Pause</button>
       <button id="btnNext" title="run one command, then pause">Next</button>

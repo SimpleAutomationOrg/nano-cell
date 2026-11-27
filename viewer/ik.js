@@ -197,7 +197,7 @@ function ikNearOne(target, seedRad, { tolM = 1e-4, tolRad = 1e-3, freeSpin = fal
   throw new Error('ik: no convergence (target out of reach or too far from seed)');
 }
 
-// ---------- pose builders (table-frame helpers for segments) ----------
+// ---------- pose builders (table-frame helpers for steps) ----------
 const norm = v => { const n = Math.hypot(...v) || 1; return v.map(x => x / n); };
 const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
 

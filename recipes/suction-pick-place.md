@@ -1,8 +1,8 @@
 # Recipe: pick and place with the suction cup
 
-How to write a segment that picks a part with a vacuum cup and sets it
+How to write a step that picks a part with a vacuum cup and sets it
 down somewhere flat. The working example is
-`applications/case-assembly/steps/pick-place-case/segments/10_pick_case.ts`.
+the pick half of `applications/case-assembly/steps/pick-place-case/step.ts`.
 
 ## 1. Choose the target at run time
 

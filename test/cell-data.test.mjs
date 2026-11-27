@@ -27,7 +27,7 @@ test('every application composes onto its robot, and every mesh it names exists'
       if (!existsSync(new URL(`${t}/step.json`, tdir))) continue;
       const step = await readJson(`applications/${name}/steps/${t}/step.json`);
       assert.ok(cell.tools.some(x => x.id === step.tool), `${name}/${t}: tool '${step.tool}' is not a gripper of the application`);
-      for (const s of step.segments) assert.ok(existsSync(new URL(`${t}/segments/${s}`, tdir)), `${name}/${t}: ${s} is missing`);
+      assert.ok(existsSync(new URL(`${t}/step.ts`, tdir)), `${name}/${t}: step.ts is missing`);
     }
   }
 });

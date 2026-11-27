@@ -1,8 +1,4 @@
 {
   "name": "Pick a front case into the holder",
-  "tool": "rcup16_p0",
-  "segments": [
-    "10_pick_case.ts",
-    "20_place_in_holder.ts"
-  ]
+  "tool": "rcup16_p0"
 }

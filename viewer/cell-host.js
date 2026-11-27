@@ -1,4 +1,4 @@
-// The in-page cell host: executes step segments against the three.js scene.
+// The in-page cell host: executes steps against the three.js scene.
 // Planning (commands → joint paths, collision checking, pose policies)
 // lives in planner.js, which is pure and tested under node; this file only
 // animates planned paths, keeps run state, and moves scene objects.
@@ -177,7 +177,7 @@ export function createHost(opts) {
     node.updateMatrix();
   }
 
-  // ---------- the API segments see ----------
+  // ---------- the API steps see ----------
   /** @type {import('./cell').CellAPI} */
   const api = {
     joints: () => jointsRad().map(r2d),

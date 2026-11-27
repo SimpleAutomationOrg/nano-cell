@@ -14,8 +14,8 @@ python3 viewer/serve.py
 # opens http://127.0.0.1:8742/viewer/ with live reload
 ```
 
-Pick a step in the panel and press **Run all segments**. Edit any file —
-viewer code, a step segment, robot or application data — and the page reloads itself.
+Pick a step in the panel and press **Run step**. Edit any file —
+viewer code, a step, robot or application data — and the page reloads itself.
 
 **Agent install**: paste this repository's URL into your coding agent
 with the word `install`. The agent-facing guide is [AGENTS.md](AGENTS.md)
@@ -57,11 +57,11 @@ as free bodies. Without it the scene renders but steps are disabled.
   table frame, so an application can be moved to another robot; the
   viewer shows it on the robot it names (`?app=<name>` picks the
   application, `?robot=<name>` tries it on another robot).
-  - `steps/<name>/` — `step.json` (tool, segment order) and
-    `segments/*.ts`. A segment is an async function against the typed
+  - `steps/<name>/` — `step.json` (name, tool) and
+    `step.ts`. A step is an async function against the typed
     cell API; it states intent (`transitTip`, `suctionGrasp`,
     `moveUntilTouch`) and the planner does the geometry.
-- **`recipes/`** — step-by-step guides for writing segments
+- **`recipes/`** — step-by-step guides for writing steps
   (suction pick & place, holder insertion), including the pitfalls
   each step avoids.
 - **`test/`** — motion regression tests: IK invariants, path quality
@@ -70,7 +70,7 @@ as free bodies. Without it the scene renders but steps are disabled.
 
 ## Design choices
 
-- **Segments state intent; the planner plans.** Steps survive cell
+- **Steps state intent; the planner plans.** Steps survive cell
   layout changes because routes, heights, and alignments are computed
   from the live cell, not hand-taught.
 - **Measure geometry, never assume it.** Placement and alignment use

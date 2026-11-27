@@ -19,7 +19,7 @@ it holds the same working rules in condensed form.
    the repo root on port 8742 (pass another port as the first argument
    if taken), opens the browser, and live-reloads on any file change.
 5. Verify: run `./scripts/check.sh` (should end `check: OK`), then in
-   the viewer select the `pick-place-case` step and run all segments —
+   the viewer select the `pick-place-case` step and press **Run step** —
    it must end with **step done** in the status line: the arm picks a
    case from the 45° stack and inserts it into the holder pocket.
 6. Report to the user: the viewer URL, check results, and that editing
@@ -48,8 +48,8 @@ animates them in the three.js scene and owns run state. Tools not on
 the arm rest in their rack stands (`changer.stands[].tool_id`) and are
 obstacles like any fixture; a move that deliberately reaches one names
 the tool id in `ignore`. **Steps** live
-in `applications/<application>/steps/<name>/`: a `step.json` naming the tool and segment order,
-and `segments/*.ts` — typed async functions against the cell API
+in `applications/<application>/steps/<name>/`: a `step.json` naming the tool,
+and one `step.ts` — a typed async function against the cell API
 (`viewer/cell.d.ts`). The server (`viewer/serve.py`) also exposes
 `/__applications`, `/__steps?app=<application>` (step list) and
 `/__reload` (live reload).
@@ -96,24 +96,25 @@ spend effort making such contacts settle.
 1. Create `applications/<application>/steps/<name>/step.json`:
    ```json
    { "name": "Human-readable name",
-     "tool": "rcup16_p0", "segments": ["10_first.ts", "20_second.ts"] }
+     "tool": "rcup16_p0" }
    ```
-2. Write segments by **copying the matching recipe**, not from scratch:
+2. Write the step — one file, `step.ts`, next to it — by **copying the
+   matching recipe**, not from scratch:
    - `recipes/suction-pick-place.md` — vacuum-cup picking and flat
      set-down.
    - `recipes/holder-insertion.md` — placing a held part INTO a pocket
      (alignment, centring, touch descent).
-   Segments import types from `viewer/cell.d.ts`; hover any API call
-   for its contract. Each segment exports `entry` (a safe standalone
+   The step imports types from `viewer/cell.d.ts`; hover any API call
+   for its contract. It exports `entry` (a safe standalone
    start pose, tool pointing down, mid-cell) and a default async
    function `(cell, ctx) => Promise<void>`.
 3. The step appears in the viewer's dropdown automatically (the server
-   scans the application's `steps/`). Run each segment alone with its ▶ button while
-   iterating; `entry` is what makes that possible.
+   scans the application's `steps/`). Run it with **Run step** while
+   iterating; every run starts from `entry`.
 
 ## Editing existing steps or the engine
 
-- Follow the rules in `CLAUDE.md` (measured geometry only; segments
+- Follow the rules in `CLAUDE.md` (measured geometry only; steps
   state intent; `ignore` lists name exactly what a move deliberately
   touches; tip speeds in m/s). The recipes explain the reasoning.
 - New motion behavior goes in `viewer/planner.js` (pure functions),

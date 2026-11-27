@@ -2,7 +2,7 @@
 
 A browser-only robot cell: a ROBOT (arm, mount, table, guard, IO) with an
 APPLICATION set up on it (grippers, tool rack, fixtures, parts, steps),
-both as data, plus a three.js viewer that executes step segments with IK
+both as data, plus a three.js viewer that executes steps with IK
 and collision checking. No build step.
 
 Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
@@ -16,7 +16,7 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   scene objects; `ik.js` FK/IK (5-DOF free-spin + TCP); `collision.js`
   `mj-world.js` + `boxify.js` + `stl.js` the geometry/physics backend
   (MuJoCo wasm, REQUIRED via npm; cavity-preserving box decomposition);
-  `capsules.js` fits the arm/tool capsules; `cell.d.ts` the segment API
+  `capsules.js` fits the arm/tool capsules; `cell.d.ts` the step API
   types. Collision, touch, corridor heights, measurements and gravity
   settling all derive from the one MuJoCo model.
 - `cell_fr3/` — the design of the cell, i.e. the robot an application runs
@@ -32,11 +32,11 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   `taught_on.<robot>`). `viewer/cell-data.js` composes robot + application
   into the one cell the planner and physics see ("cell.json" in older
   comments means this composed cell) and checks the robot can run it.
-- `applications/<name>/steps/<step>/` — `step.json` (tool, segment order) +
-  `segments/*.ts`.
-- `recipes/` — step-by-step guides for writing segments (suction pick &
+- `applications/<name>/steps/<step>/` — `step.json` (name, tool) +
+  `step.ts` (the whole step in one file).
+- `recipes/` — step-by-step guides for writing steps (suction pick &
   place, holder insertion). Follow the matching recipe before writing a
-  new segment; when a new motion pattern stabilizes, add a recipe for it.
+  new step; when a new motion pattern stabilizes, add a recipe for it.
 
 ## Step-authoring rules
 
@@ -51,7 +51,7 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   possible: `suctionGrasp`'s default spin levels the oak camera (level
   horizon, image looking down), tie-broken toward the collision-safe lean.
   Pass `lean: [x, y]` only when a layout forces a specific lean direction.
-- Segments state intent; the host plans. Use `transitTip` for transfers
+- Steps state intent; the host plans. Use `transitTip` for transfers
   (it picks the fastest collision-free candidate); explicit `moveTip` /
   `moveTipBy` only near contact, with a slow `speed` (m/s, e.g. 0.03).
 - Deliberate contact needs `ignore: [ids]`; the error message names the id
@@ -68,7 +68,7 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   measured helpers: `topCenter`, `topLongAxis`, `heldFootprintAzimuth`,
   `suctionGrasp`; alignment means OUTLINE edges (`footprintAzimuth`,
   min-area rectangle, in planner.js — regression-tested).
-- Every segment declares `entry` (a safe standalone start pose, tool down,
+- Every step declares `entry` (a safe standalone start pose, tool down,
   clear of the rack) and types itself against `viewer/cell.d.ts`.
 - `speed` is TIP speed in m/s (default 1.0 = full); joint limits are
   enforced on top.

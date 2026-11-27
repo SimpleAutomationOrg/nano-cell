@@ -197,7 +197,7 @@ test('stack picking takes the EXPOSED part, by position — never by id', () => 
 });
 
 test('exact transit: when the short way round runs J6 into its limit, it goes the long way — no back-and-forth', () => {
-  // captured from the place segment: after picking a front case the wrist
+  // captured from the place half of the pick-place step: after picking a front case the wrist
   // sits at J6 = +23°, and the pose over the holder needs J6 = +175°.
   // The shortest reorientation of the TIP turns J6 the other way, toward
   // -185° — past the limit — so the wrist wound 180° negative and then
