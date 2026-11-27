@@ -203,7 +203,7 @@
     "profile_tool": "bigcup_p0",
     "pose_table": {
      "xyz_m": [
-      1.262193,
+      0.887193,
       0.263356,
       0.176277
      ],
@@ -215,7 +215,7 @@
     },
     "pick_pose_table": {
      "xyz_m": [
-      1.262196,
+      0.887196,
       0.263355,
       0.181277
      ],
@@ -234,7 +234,7 @@
     "profile_tool": "rcup16_p0",
     "pose_table": {
      "xyz_m": [
-      1.262496,
+      0.887496,
       0.200911,
       0.176526
      ],
@@ -246,7 +246,7 @@
     },
     "pick_pose_table": {
      "xyz_m": [
-      1.262494,
+      0.887494,
       0.200912,
       0.181527
      ],
@@ -265,7 +265,7 @@
     "profile_tool": "screwdriver_p0",
     "pose_table": {
      "xyz_m": [
-      1.262239,
+      0.887239,
       0.075679,
       0.176989
      ],
@@ -277,7 +277,7 @@
     },
     "pick_pose_table": {
      "xyz_m": [
-      1.262237,
+      0.887237,
       0.075681,
       0.181982
      ],
@@ -296,7 +296,7 @@
     "profile_tool": "rcup6_p0",
     "pose_table": {
      "xyz_m": [
-      1.262514,
+      0.887514,
       0.138263,
       0.176833
      ],
@@ -308,7 +308,7 @@
     },
     "pick_pose_table": {
      "xyz_m": [
-      1.262511,
+      0.887511,
       0.138264,
       0.181828
      ],
@@ -331,7 +331,7 @@
    "collision_mesh": "meshes/rack_stand.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.262196,
+     0.887196,
      0.263355,
      0.000147
     ],
@@ -351,7 +351,7 @@
    "collision_mesh": "meshes/rack_stand.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.262494,
+     0.887494,
      0.200912,
      0.000397
     ],
@@ -371,7 +371,7 @@
    "collision_mesh": "meshes/rack_stand.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.262237,
+     0.887237,
      0.075681,
      0.000852
     ],
@@ -391,7 +391,7 @@
    "collision_mesh": "meshes/rack_stand.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.262511,
+     0.887511,
      0.138264,
      0.000698
     ],
@@ -412,7 +412,7 @@
    "mesh_source": "print/Assem_holder_metal-0.1.STEP, body matt_holder_81x55_legs_gray2_metal (scripts/step-to-mesh.mjs)",
    "pose_table": {
     "xyz_m": [
-     0.900231,
+     0.525231,
      0.087371,
      0.000165
     ],
@@ -432,7 +432,7 @@
    "collision_mesh": "meshes/holder.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.900231,
+     0.525231,
      0.087371,
      0.000165
     ],
@@ -460,7 +460,7 @@
    "collision_mesh": "meshes/stack45.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.977622,
+     0.602622,
      0.162663,
      0.02316
     ],
@@ -481,7 +481,7 @@
    "collision_mesh": "meshes/stack45.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.977917,
+     0.602917,
      0.06251,
      0.02339
     ],
@@ -502,7 +502,7 @@
    "collision_mesh": "meshes/button_clip.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.738054,
+     0.363054,
      0.087437,
      -0.000331
     ],
@@ -523,7 +523,7 @@
    "mesh_source": "print/matt_holder_80x70_green.STEP --color 0.30,0.69,0.31 (scripts/step-to-mesh.mjs)",
    "pose_table": {
     "xyz_m": [
-     0.812033,
+     0.437033,
      0.087549,
      0.0
     ],
@@ -543,7 +543,7 @@
    "collision_mesh": "meshes/pcb_tray.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.750118,
+     0.375118,
      0.275423,
      0.061879
     ],
@@ -564,7 +564,7 @@
    "collision_mesh": "meshes/screw_feeder.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.737808,
+     0.362808,
      0.409205,
      0.0
     ],
@@ -577,12 +577,12 @@
    "collision": "mesh",
    "pick_station": {
     "xy_table_m": [
-     0.737808,
+     0.362808,
      0.419205
     ],
     "disc_z_table_m": 0.0784,
     "nose_over_station_table_m": [
-     0.737808,
+     0.362808,
      0.419205,
      0.108211
     ],
@@ -604,7 +604,7 @@
    "collision_mesh": "meshes/front_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.995831,
+     0.620831,
      0.162802,
      0.034328
     ],
@@ -626,7 +626,7 @@
    "collision_mesh": "meshes/front_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.999928,
+     0.624928,
      0.162822,
      0.038433
     ],
@@ -648,7 +648,7 @@
    "collision_mesh": "meshes/front_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.004025,
+     0.629025,
      0.162843,
      0.042539
     ],
@@ -670,7 +670,7 @@
    "collision_mesh": "meshes/front_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.008122,
+     0.633122,
      0.162863,
      0.046644
     ],
@@ -692,7 +692,7 @@
    "collision_mesh": "meshes/front_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.01222,
+     0.63722,
      0.162884,
      0.050749
     ],
@@ -714,7 +714,7 @@
    "collision_mesh": "meshes/front_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.016317,
+     0.641317,
      0.162904,
      0.054854
     ],
@@ -736,7 +736,7 @@
    "collision_mesh": "meshes/back_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.992454,
+     0.617454,
      0.06269,
      0.030959
     ],
@@ -757,7 +757,7 @@
    "collision_mesh": "meshes/back_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.995832,
+     0.620832,
      0.062702,
      0.034369
     ],
@@ -778,7 +778,7 @@
    "collision_mesh": "meshes/back_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.99921,
+     0.62421,
      0.062715,
      0.037778
     ],
@@ -799,7 +799,7 @@
    "collision_mesh": "meshes/back_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.002589,
+     0.627589,
      0.062727,
      0.041188
     ],
@@ -820,7 +820,7 @@
    "collision_mesh": "meshes/back_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.005967,
+     0.630967,
      0.062739,
      0.044598
     ],
@@ -841,7 +841,7 @@
    "collision_mesh": "meshes/back_case.collision.stl",
    "pose_table": {
     "xyz_m": [
-     1.009345,
+     0.634345,
      0.062751,
      0.048008
     ],
@@ -862,7 +862,7 @@
    "collision_mesh": "meshes/button.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.833033,
+     0.458033,
      0.112549,
      0.003
     ],
@@ -883,7 +883,7 @@
    "collision_mesh": "meshes/button.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.839033,
+     0.464033,
      0.099049,
      0.003
     ],
@@ -904,7 +904,7 @@
    "collision_mesh": "meshes/button.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.818033,
+     0.443033,
      0.102549,
      0.003
     ],
@@ -925,7 +925,7 @@
    "collision_mesh": "meshes/button.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.822033,
+     0.447033,
      0.089549,
      0.003
     ],
@@ -946,7 +946,7 @@
    "collision_mesh": "meshes/button.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.841033,
+     0.466033,
      0.082549,
      0.003
     ],
@@ -967,7 +967,7 @@
    "collision_mesh": "meshes/button.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.804033,
+     0.429033,
      0.079549,
      0.003
     ],
@@ -988,7 +988,7 @@
    "collision_mesh": "meshes/button.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.784033,
+     0.409033,
      0.106549,
      0.003
     ],
@@ -1009,7 +1009,7 @@
    "collision_mesh": "meshes/pcb.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.788196,
+     0.413196,
      0.318503,
      0.088242
     ],
@@ -1030,7 +1030,7 @@
    "collision_mesh": "meshes/pcb.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.772769,
+     0.397769,
      0.318505,
      0.088255
     ],
@@ -1051,7 +1051,7 @@
    "collision_mesh": "meshes/pcb.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.757769,
+     0.382769,
      0.318494,
      0.088279
     ],
@@ -1072,7 +1072,7 @@
    "collision_mesh": "meshes/pcb.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.742769,
+     0.367769,
      0.318482,
      0.088303
     ],
@@ -1093,7 +1093,7 @@
    "collision_mesh": "meshes/screw_m2x6.collision.stl",
    "pose_table": {
     "xyz_m": [
-     0.737808,
+     0.362808,
      0.419205,
      0.0724
     ],

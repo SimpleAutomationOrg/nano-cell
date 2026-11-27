@@ -169,7 +169,7 @@ test('drop test: a released case falls INTO the pocket and seats on its floor', 
   //    wedged a few mm above the floor (the box model has stair-steps
   //    where the real parts have chamfers) — settle now squares it up.
   const RELEASE = [
-    -0.9999944964343017, 0.003317695140755128, 2.4781328796414203e-7, 0.9002326400330014,
+    -0.9999944964343017, 0.003317695140755128, 2.4781328796414203e-7, 0.5252326400330014,
     0.0033176951429548943, 0.9999944963894115, 0.000009477635979200905, 0.08740166683600563,
     -2.1636801726226562e-7, 0.000009478405987350463, -0.9999999999550571, 0.1330620677464584,
     0, 0, 0, 1];
@@ -241,7 +241,7 @@ test('settle: a part with nothing below it is reported, not left falling', { ski
   const after = world.readPartPose('front_case_1');
   assert.ok(Math.abs(after[11] - 0.2) < 1e-6, 'the part must be put back where it was released');
   // and the speed it picked up must not leak into the next settle
-  world.setPartPose('front_case_1', IK.mul(IK.fromXyzRpy([0.8982, 0.0864, 0.0138 + 0.12], [0, 0, -1.572]),
+  world.setPartPose('front_case_1', IK.mul(IK.fromXyzRpy([0.5232, 0.0864, 0.0138 + 0.12], [0, 0, -1.572]),
     IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, 0])));
   const again = world.settlePart('front_case_1');
   assert.ok(again?.pose && again.pose[11] > 0.012, 'a later drop must start from rest');
@@ -395,12 +395,12 @@ test('planner on the exact backend: clear transit passes, rack approach rejected
     ({ id: it.id, mat: IK.fromXyzRpy(it.pose_table.xyz_m, it.pose_table.rpy) }));
 
   // a transfer above the open table must pass
-  const plan = planner.planTransit(HOME, IK.poseZDown([0.75, 0.3, 0.2]), { scene });
+  const plan = planner.planTransit(HOME, IK.poseZDown([0.375, 0.3, 0.2]), { scene });
   assert.ok(plan.path.length > 2);
 
   // driving the tool into the rack region must be rejected with the culprit
   assert.throws(
-    () => planner.planTip(HOME, IK.poseZDown([1.23, 0.14, 0.05]), { scene }),
+    () => planner.planTip(HOME, IK.poseZDown([0.855, 0.14, 0.05]), { scene }),
     e => /rack_stand|guard|collision/.test(String(e.message)),
     'rack approach must collide');
 });
