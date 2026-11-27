@@ -105,10 +105,17 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
          fit is ~0.3 mm interference) push back gently, like the real
          plastic flexing, instead of hard-solver hundreds of newtons.
          solimp starts at low impedance and firms up fully by 0.8 mm of
-         depth, so sub-snap overlaps are compliant while impacts (the
-         drop test's 120 mm fall) stop as hard as the MuJoCo default. Queries are
-         unaffected (distance, not force). -->
-    <geom friction="0.3 0.002 0.0001" solimp="0.15 0.95 0.0008"/>
+         depth, so sub-snap overlaps are compliant.
+         LOSSY contacts: solref is given directly as (-stiffness, -damping).
+         The stiffness is MuJoCo's default (so resting forces are
+         unchanged); the damping is 10x the default. The default contact
+         is a slow critically-damped spring that takes ~10 mm to stop a
+         1.5 m/s impact - more than the holder's 6 mm pocket floor, so a
+         dropped case went straight through it. Plastic on plastic does
+         not bounce or sink: this stops the same impact in about 1 mm.
+         1000 is the stability limit for the 1 ms settle step.
+         Queries are unaffected (distance, not force). -->
+    <geom friction="0.3 0.002 0.0001" solimp="0.15 0.95 0.0008" solref="-2500 -1000"/>
   </default>
   <option gravity="0 0 0"/>
   <worldbody>
@@ -118,7 +125,7 @@ ${wb}
   }
 
   // --- state: two models (QUERY fast, PHYSICS full) ---
-  const makeSlot = () => ({ model: null, data: null, jointAdr: [], partAdr: new Map(), geomItem: [], geomsByName: new Map() });
+  const makeSlot = () => ({ model: null, data: null, jointAdr: [], partAdr: new Map(), partDof: new Map(), geomItem: [], geomsByName: new Map() });
   const Q = makeSlot(), P = makeSlot();
   const w = Q;   // default slot for queries
 
@@ -131,9 +138,12 @@ ${wb}
       slot.jointAdr.push(model.jnt_qposadr[jid]);
     }
     slot.partAdr = new Map();
+    slot.partDof = new Map();
     for (const it of cellData.parts ?? []) {
       const jid = mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT.value, `fj:${it.id}`);
-      if (jid >= 0) slot.partAdr.set(it.id, model.jnt_qposadr[jid]);
+      if (jid < 0) continue;
+      slot.partAdr.set(it.id, model.jnt_qposadr[jid]);
+      slot.partDof.set(it.id, model.jnt_dofadr[jid]);
     }
     slot.geomItem = [];
     slot.geomsByName = new Map();
@@ -161,6 +171,10 @@ ${wb}
       if (adr === undefined) continue;
       slot.data.qpos[adr] = mat[3]; slot.data.qpos[adr + 1] = mat[7]; slot.data.qpos[adr + 2] = mat[11];
       for (let k = 0; k < 4; k++) slot.data.qpos[adr + 3 + k] = q[k];
+      // a posed part is a TELEPORT: it carries no velocity. Without this
+      // the speed left over from an earlier settle launches the next one.
+      const dof = slot.partDof.get(id);
+      for (let k = dof; k < dof + 6; k++) { slot.data.qvel[k] = 0; slot.data.qfrc_applied[k] = 0; }
     }
   }
   // margin ONLY on the probing bodies (arm + optionally a held part):
@@ -237,49 +251,75 @@ ${wb}
     const g = w.model.opt.gravity;
     const g0 = [g[0], g[1], g[2]];
     g[0] = 0; g[1] = 0; g[2] = -9.81;
-    // gentle relaxation, not a sim: a fine timestep plus per-step velocity
-    // damping — the frozen neighbours act as kinematic walls, and at coarse
-    // steps the contact chatter ratchets a tight-fitting part sideways
-    const dt0 = w.model.opt.timestep;
-    w.model.opt.timestep = 0.001;
-    const dt = w.model.opt.timestep;
-    const steps = Math.ceil(duration / dt);
-    const every = Math.max(1, Math.round((1 / 60) / dt));   // ~60 Hz samples
-    const traj = [{ t: 0, mat: readPartPoseFrom(P, id) }];
+    // gentle relaxation, not a sim: a fine timestep plus velocity damping
+    // — the frozen neighbours act as kinematic walls, and at coarse steps
+    // the contact chatter ratchets a tight-fitting part sideways.
+    // The step is also capped by TRAVEL: the part never moves more than
+    // 0.2 mm between collision checks, however fast it falls (a fixed
+    // 1 ms step lets a 1.5 m/s drop cover 1.5 mm — thin shells get
+    // skipped). Capping the step, not the speed, keeps the momentum.
+    const DT_MAX = 0.001, DT_MIN = 2e-5, TRAVEL = 2e-4, MAX_STEPS = 40000;
+    // the lowest solid thing in the cell: a part that ends up below it
+    // has left the world, and would otherwise fall for the whole duration
+    let floorZ = -Infinity;
     try {
-      for (let i = 0; i < steps; i++) {
+      mj.mj_kinematics(w.model, w.data);
+      let lo = Infinity;
+      for (let gi = 0; gi < w.model.ngeom; gi++) {
+        if (w.geomItem[gi] === id || w.geomItem[gi].startsWith('arm:')) continue;
+        lo = Math.min(lo, w.data.geom_xpos[3 * gi + 2] - w.model.geom_rbound[gi]);
+      }
+      if (Number.isFinite(lo)) floorZ = lo - 0.05;
+    } catch { /* binding without these arrays: no guard */ }
+    let fellOut = false;
+    const dt0 = w.model.opt.timestep;
+    const dof0 = w.partDof.get(id);
+    const qv = w.data.qvel;
+    const traj = [{ t: 0, mat: readPartPoseFrom(P, id) }];
+    let t = 0, nextSample = 1 / 60;
+    try {
+      for (let i = 0; i < MAX_STEPS && t < duration; i++) {
+        const speed = Math.hypot(qv[dof0], qv[dof0 + 1], qv[dof0 + 2]);
+        const dt = Math.min(DT_MAX, Math.max(DT_MIN, TRAVEL / Math.max(speed, 1e-9)));
+        w.model.opt.timestep = dt;
         mj.mj_step(w.model, w.data);
+        t += dt;
         // freeze everything except the settling part
         for (let k = 0; k < w.model.nq; k++) {
           if (k >= adr && k < adr + 7) continue;
           w.data.qpos[k] = frozenQpos[k];
         }
         for (let k = 0; k < w.model.nv; k++) {
-          // zero all velocities except the part's 6 dofs
-          // (freejoint dof address = jnt_dofadr of its joint)
-        }
-        // crude but sufficient: zero every velocity not belonging to the part
-        const dof0 = w.model.jnt_dofadr[mj.mj_name2id(w.model, mj.mjtObj.mjOBJ_JOINT.value, `fj:${id}`)];
-        for (let k = 0; k < w.model.nv; k++) {
           if (k >= dof0 && k < dof0 + 6) continue;
-          w.data.qvel[k] = 0;
+          qv[k] = 0;
         }
         // damp the part's LATERAL and angular motion to bleed off contact
-        // chatter (the sideways ratchet); vertical fall stays undamped
-        w.data.qvel[dof0] *= 0.9; w.data.qvel[dof0 + 1] *= 0.9;
-        for (let k = dof0 + 3; k < dof0 + 6; k++) w.data.qvel[k] *= 0.9;
+        // chatter (the sideways ratchet); vertical fall stays undamped.
+        // 0.9 per millisecond, whatever the step
+        const damp = Math.pow(0.9, dt / DT_MAX);
+        qv[dof0] *= damp; qv[dof0 + 1] *= damp;
+        for (let k = dof0 + 3; k < dof0 + 6; k++) qv[k] *= damp;
+        if (t >= nextSample) {                                  // ~60 Hz samples
+          traj.push({ t, mat: readPartPoseFrom(P, id) });
+          nextSample += 1 / 60;
+        }
         // early out when the part is at rest
-        if (i % every === 0) traj.push({ t: (i + 1) * dt, mat: readPartPoseFrom(P, id) });
         let v = 0;
-        for (let k = dof0; k < dof0 + 6; k++) v = Math.max(v, Math.abs(w.data.qvel[k]));
-        if (i > 100 && v < 5e-4) break;
+        for (let k = dof0; k < dof0 + 6; k++) v = Math.max(v, Math.abs(qv[k]));
+        if (t > 0.1 && v < 5e-4) break;
+        if (w.data.qpos[adr + 2] < floorZ) { fellOut = true; break; }
       }
     } finally {
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
       w.model.opt.timestep = dt0;
+      for (let k = dof0; k < dof0 + 6; k++) qv[k] = 0;
+    }
+    if (fellOut) {
+      setPartPose(id, mat0);     // keep the as-placed pose
+      throw new Error(`${id} fell out of the cell — nothing below it to land on`);
     }
     const pose = readPartPoseFrom(P, id);
-    traj.push({ t: traj[traj.length - 1].t + dt, mat: pose });
+    traj.push({ t: t + DT_MAX, mat: pose });
     setPartPose(id, pose);     // sync the settled pose into BOTH models
     const fit1 = scanFit();
     // drift of the part's geometric CENTRE (probe centroid), not of its

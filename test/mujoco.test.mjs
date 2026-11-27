@@ -99,26 +99,51 @@ test('touch on the exact backend: wall ignored, floor stops, settles close', { s
   assert.ok(gap < 0.005, `settled ${(gap * 1000).toFixed(1)} mm above the floor — too high`);
 });
 
-test('drop test: a released case falls and settles into the pocket', { skip: !mj }, async () => {
+test('drop test: a released case lands on the holder and never goes through it', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const world = await createMjWorld({
     mj, cellData: cell, armCapsules: [], toolCapsules: [],
     loadStlBuffer: async p => readStl(p),
   });
-  // pocket centre from the holder pose (matches the live measurements)
   const HX = 0.8982, HY = 0.0864, RIM = 0.0138;
-  // pose a case flat, 120 mm above the pocket, aligned to it
-  const high = IK.mul(
-    IK.fromXyzRpy([HX, HY, RIM + 0.12], [0, 0, -1.572 + Math.PI]),
-    IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, 0]));
-  world.setPartPose('front_case_1', high);
-  const settled = world.settlePart('front_case_1', { duration: 1.5 });
-  assert.ok(settled?.pose, 'settle returned nothing');
-  assert.ok(settled.traj.length > 5, 'trajectory must have samples to animate');
-  const [x, y, z] = [settled.pose[3], settled.pose[7], settled.pose[11]];
-  assert.ok(Math.hypot(x - HX, y - HY) < 0.02, `landed ${(Math.hypot(x - HX, y - HY) * 1000).toFixed(0)} mm off the pocket centre`);
-  assert.ok(z < RIM + 0.01, `rested at z=${(z * 1000).toFixed(1)} mm — above the rim, not inside`);
-  assert.ok(z > 0, 'fell through the floor');
+  // a case flat, 120 mm above the pocket, aligned to it — at BOTH
+  // end-for-end yaws. One of them lands on the pocket ledges; the other
+  // reaches the 6 mm pocket floor at 1.5 m/s, and with MuJoCo's default
+  // (slow-spring) contact it went straight through the floor and fell
+  // for the rest of the settle. The viewer releases at that second yaw.
+  const flip = IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, 0]);
+  for (const yaw of [-1.572 + Math.PI, -1.572]) {
+    world.setPartPose('front_case_1', IK.mul(IK.fromXyzRpy([HX, HY, RIM + 0.12], [0, 0, yaw]), flip));
+    const settled = world.settlePart('front_case_1', { duration: 1.5 });
+    assert.ok(settled?.pose, `yaw ${yaw.toFixed(2)}: settle returned nothing`);
+    assert.ok(settled.traj.length > 5, 'trajectory must have samples to animate');
+    const [x, y, z] = [settled.pose[3], settled.pose[7], settled.pose[11]];
+    const off = Math.hypot(x - HX, y - HY);
+    assert.ok(off < 0.02, `yaw ${yaw.toFixed(2)}: landed ${(off * 1000).toFixed(0)} mm off the pocket centre`);
+    assert.ok(z < RIM + 0.02, `yaw ${yaw.toFixed(2)}: rested at z=${(z * 1000).toFixed(1)} mm — not on the holder`);
+    // seated on the pocket floor the case origin is ~15 mm up: anything
+    // lower, at ANY moment of the fall, is the case inside the floor
+    const low = Math.min(...settled.traj.map(s => s.mat[11]));
+    assert.ok(low > 0.012, `yaw ${yaw.toFixed(2)}: sank to z=${(low * 1000).toFixed(1)} mm — through the pocket floor`);
+  }
+});
+
+test('settle: a part with nothing below it is reported, not left falling', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  const world = await createMjWorld({
+    mj, cellData: cell, armCapsules: [], toolCapsules: [],
+    loadStlBuffer: async p => readStl(p),
+  });
+  const out = IK.fromXyzRpy([3, 3, 0.2], [0, 0, 0]);       // far outside the cell
+  world.setPartPose('front_case_1', out);
+  assert.throws(() => world.settlePart('front_case_1'), /fell out of the cell/);
+  const after = world.readPartPose('front_case_1');
+  assert.ok(Math.abs(after[11] - 0.2) < 1e-6, 'the part must be put back where it was released');
+  // and the speed it picked up must not leak into the next settle
+  world.setPartPose('front_case_1', IK.mul(IK.fromXyzRpy([0.8982, 0.0864, 0.0138 + 0.12], [0, 0, -1.572]),
+    IK.fromXyzRpy([0, 0, 0], [Math.PI, 0, 0])));
+  const again = world.settlePart('front_case_1');
+  assert.ok(again?.pose && again.pose[11] > 0.012, 'a later drop must start from rest');
 });
 
 test('settle of a press-fit part: slides straight down, no lateral ratchet', { skip: !mj }, async () => {

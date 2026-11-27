@@ -1,8 +1,10 @@
 // Gravity demo: pick the exposed case, hover 120 mm above the holder
-// pocket, and just LET GO — no set-down, no touch descent. With the
-// exact backend active the released case falls and settles into the
-// pocket under MuJoCo gravity; on the sampled fallback it stays where
-// the cup released it (which is the visible difference between the two).
+// pocket, and just LET GO — no set-down, no touch descent. The released
+// case falls under MuJoCo gravity and lands ON the holder: the pocket is
+// a snap fit (narrower than the case by a fraction of a millimetre), so
+// a dropped case rests on its ledges instead of clicking in — exactly
+// why the real placement uses a touch descent. Select the case and press
+// Z in the viewer to push it home by hand.
 
 import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
 

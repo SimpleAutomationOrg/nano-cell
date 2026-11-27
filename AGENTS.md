@@ -93,7 +93,9 @@ and `segments/*.ts` — typed async functions against the cell API
 - **Moving the camera**: drag to orbit, or fly — `W`/`S` along the
   view direction, `A`/`D` strafe, `E`/`Q` rise and sink, `Shift` for
   3x speed. Flight speed scales with the orbit distance, so you crawl
-  when nose-up to a part. `F` frames the selected part, or returns to
+  when nose-up to a part. After a flight the next drag (or scroll)
+  re-anchors the orbit pivot on the surface at the centre of the view,
+  so you always orbit around what you are looking at. `F` frames the selected part, or returns to
   the overview when nothing is selected — that is the way back if you
   fly off into the void.
 - **Pushing parts by hand**: click a part to select it (yellow box),

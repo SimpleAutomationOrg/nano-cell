@@ -26,16 +26,20 @@ camera.position.set(0.0, 1.05, 1.75);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0.68, 0.28, -0.30);
 controls.enableDamping = true;
+window.view = { camera, controls, scene };   // console/debug access
 
 // ---------- fly camera: WASD ----------
 // W/S fly along the view direction, A/D strafe, E/Q rise/sink, Shift
-// for fast. The orbit target travels with the camera, so dragging to
-// orbit still pivots around whatever is in front of you. Speed scales
-// with distance to that target: close to a part you creep, far out you
-// cross the cell quickly.
+// for fast. The orbit pivot travels with the camera while you fly, and
+// the next mouse drag re-anchors it on the surface at the centre of the
+// view — so after flying, dragging always orbits around what you are
+// looking at (not around an invisible point somewhere behind it). Speed
+// scales with distance to the pivot: close to a part you creep, far out
+// you cross the cell quickly.
 const flyKeys = new Set();
 let flyFast = false;
 let flyFocus = null;              // the selected part's node, for F
+let flyMoved = false;             // flown since the pivot was last anchored
 const FLY = new Set(['w', 'a', 's', 'd', 'q', 'e']);
 const HOME_EYE = new THREE.Vector3(0, 1.05, 1.75);
 const HOME_AT = new THREE.Vector3(0.68, 0.28, -0.30);
@@ -63,7 +67,7 @@ addEventListener('keydown', ev => {
   flyFast = ev.shiftKey;
   if (/INPUT|SELECT|TEXTAREA/.test(ev.target?.tagName ?? '')) return;
   const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
-  if (k === 'f') { ev.preventDefault(); frameView(); return; }
+  if (k === 'f') { ev.preventDefault(); frameView(); flyMoved = false; return; }
   if (!FLY.has(k)) return;
   ev.preventDefault();
   flyKeys.add(k);
@@ -73,6 +77,38 @@ addEventListener('keyup', ev => {
   flyKeys.delete(ev.key.length === 1 ? ev.key.toLowerCase() : ev.key);
 });
 addEventListener('blur', () => { flyKeys.clear(); flyFast = false; });
+
+// Re-anchor the orbit pivot on whatever is at the centre of the view.
+// The pivot only slides ALONG the view direction, so the picture does
+// not move — only what the next drag turns around.
+const anchorRay = new THREE.Raycaster();
+// centre first, then rings further out: the centre of the view is often
+// a gap (between two arm links, past a part's edge)
+const ANCHOR_RAYS = [[0, 0]];
+for (const r of [0.12, 0.25, 0.4])
+  for (let k = 0; k < 8; k++) ANCHOR_RAYS.push([r * Math.cos(k * Math.PI / 4), r * Math.sin(k * Math.PI / 4)]);
+function anchorPivot() {
+  flyMoved = false;
+  camera.updateMatrixWorld();
+  camera.getWorldDirection(flyFwd);
+  // a mesh is only "there" if every group above it is shown too (the
+  // debug overlays are hidden by their parent) and it is not see-through
+  const shown = o => { for (; o; o = o.parent) if (!o.visible) return false; return true; };
+  for (const [nx, ny] of ANCHOR_RAYS) {
+    anchorRay.setFromCamera(new THREE.Vector2(nx, ny), camera);
+    const hit = anchorRay.intersectObjects(scene.children, true).find(h =>
+      h.object.isMesh && shown(h.object) && !h.object.material?.transparent);
+    if (!hit) continue;
+    // depth of that surface ALONG the view direction
+    const depth = hit.point.sub(camera.position).dot(flyFwd);
+    controls.target.copy(camera.position).addScaledVector(flyFwd, Math.min(Math.max(depth, 0.05), 4));
+    return;
+  }
+  // nothing in view at all: leave the pivot where it travelled to
+}
+// capture phase: anchored before OrbitControls starts its drag or zoom
+for (const type of ['pointerdown', 'wheel'])
+  renderer.domElement.addEventListener(type, () => { if (flyMoved) anchorPivot(); }, { capture: true, passive: true });
 
 const flyFwd = new THREE.Vector3(), flyRight = new THREE.Vector3(), flyStep = new THREE.Vector3();
 function updateFly(dt) {
@@ -92,7 +128,8 @@ function updateFly(dt) {
   const near = Math.min(Math.max(camera.position.distanceTo(controls.target), 0.15), 2.5);
   flyStep.normalize().multiplyScalar(near * 0.4 * (flyFast ? 3 : 1) * dt);
   camera.position.add(flyStep);
-  controls.target.add(flyStep);       // keep orbiting about what's ahead
+  controls.target.add(flyStep);       // the pivot travels with the camera
+  flyMoved = true;
 }
 
 scene.add(new THREE.HemisphereLight(0xbcd0e8, 0x20262e, 1.0));
