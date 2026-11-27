@@ -234,15 +234,6 @@
   "note": "breadboard plate on x 0.3..1.2 of the table frame; no mesh"
  },
  "guard": {
-  "operator_barrier": {
-   "name": "operator_barrier",
-   "normal": [
-    0.0,
-    1.0,
-    0.0
-   ],
-   "offset_m": -0.15
-  },
   "envelope_mm": {
    "x_min_mm": 300,
    "x_max_mm": 1200,
@@ -251,8 +242,7 @@
    "z_min_mm": 0,
    "z_max_mm": 650
   },
-  "wall_extensions_mm": {},
-  "operator_boundary_offset_mm": -150.0
+  "wall_extensions_mm": {}
  },
  "flange_stack": [
   {

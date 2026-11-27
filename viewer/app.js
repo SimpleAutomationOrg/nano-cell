@@ -215,17 +215,6 @@ function buildGuard(guard) {
   edges.position.copy(glass.position);
   g.add(edges);
 
-  if (guard.operator_barrier) {
-    const off = guard.operator_barrier.offset_m;
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(x1 - x0, z1),
-      new THREE.MeshBasicMaterial({ color: 0xff9f43, transparent: true, opacity: 0.06, side: THREE.DoubleSide, depthWrite: false })
-    );
-    plane.rotation.x = Math.PI / 2;
-    plane.position.set((x0 + x1) / 2, off, z1 / 2);
-    plane.userData.itemName = `operator barrier, y = ${off} m`;
-    g.add(plane);
-  }
   world.add(g);
   return g;
 }
