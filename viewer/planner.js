@@ -346,7 +346,10 @@ export function createPlanner(opts) {
         mjw.setPartPose(held.id, heldPose);
       }
       const found = [];
-      for (const c of mjw.contacts(touchTol, held ? [held.id] : [])) {
+      // a held part must see the OTHER PARTS below it too (a case already
+      // in the pocket), not just fixtures — the default query model has
+      // no part-against-part pairs
+      for (const c of mjw.contacts(touchTol, held ? [held.id] : [], { partPairs: !!held })) {
         const aIs = c.a === probeName, bIs = c.b === probeName;
         if (!aIs && !bIs) continue;
         const other = aIs ? c.b : c.a;

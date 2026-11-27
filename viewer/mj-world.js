@@ -191,14 +191,17 @@ ${wb}
   }
 
   // contacts at the current state: [{a, b, dist, pos}], names are item
-  // ids, 'arm:<link>', 'arm:flange' (tool), or 'arm:base'
-  function contacts(margin, extraIds = []) {
-    setMargin(Q, margin, extraIds);
+  // ids, 'arm:<link>', 'arm:flange' (tool), or 'arm:base'.
+  // Default: the QUERY model — arm and parts against fixtures, arm
+  // against parts, but NO part-against-part pairs (path checks never pay
+  // for the hundreds of resting contacts). Pass { partPairs: true } when
+  // a part must be seen against OTHER PARTS (a held case coming down on a
+  // case already in the pocket): that runs on the full PHYSICS model.
+  function contacts(margin, extraIds = [], { partPairs = false } = {}) {
+    const w = partPairs ? P : Q;
+    setMargin(w, margin, extraIds);
     // kinematics + collision only: no constraint solver — queries never
-    // need it (and the QUERY model has no part-part pairs at all).
-    // Note: the held part collides with fixtures AND other parts here
-    // (part conaffinity 3 ∋ fixtures; part contype 4 vs part affinity…
-    // held-vs-part pairs come from contype4 & affinity… see GROUPS_QUERY)
+    // need it
     mj.mj_kinematics(w.model, w.data);
     mj.mj_collision(w.model, w.data);
     const out = [];
@@ -225,6 +228,27 @@ ${wb}
   }
   const readPartPose = id => readPartPoseFrom(Q, id);
 
+  // Make every body except one part IMMOVABLE for a physics run. Putting
+  // the neighbours back each step is not enough: inside a step they are
+  // still light free bodies, so a part resting on another part pushes it
+  // down a little, the reset undoes that, and step by step the upper part
+  // sinks straight through the lower one. A huge armature (extra inertia
+  // on the joint) makes them behave like fixtures. Returns the undo.
+  function pinOthers(w, dof0) {
+    const arm = w.model.dof_armature, keep = Float64Array.from({ length: w.model.nv }, (_, k) => arm[k]);
+    // MuJoCo caches each body's inertia (it takes a shortcut for free
+    // bodies), so the change only takes effect after mj_setConst — which
+    // rewrites qpos as a side effect, hence the save and restore
+    const apply = () => {
+      const q = Float64Array.from({ length: w.model.nq }, (_, k) => w.data.qpos[k]);
+      mj.mj_setConst(w.model, w.data);
+      for (let k = 0; k < w.model.nq; k++) w.data.qpos[k] = q[k];
+    };
+    for (let k = 0; k < w.model.nv; k++) if (k < dof0 || k >= dof0 + 6) arm[k] = 1e6;
+    apply();
+    return () => { for (let k = 0; k < w.model.nv; k++) arm[k] = keep[k]; apply(); };
+  }
+
   // PHYSICS: let one part settle under gravity while everything else is
   // frozen (arm joints and the other parts are restored every step, so
   // the 45° stack cannot slump and the arm cannot fall). Returns the
@@ -240,7 +264,7 @@ ${wb}
     // hanging on the walls. Detect that and keep the as-placed pose.
     const scanFit = () => {
       let pen = 0, support = false;
-      for (const c of contacts(0)) {
+      for (const c of contacts(0, [], { partPairs: true })) {
         if (c.a !== id && c.b !== id) continue;
         if (c.dist < pen) pen = c.dist;
         if (Math.abs(c.normalAB[2]) > 0.7) support = true;
@@ -318,7 +342,8 @@ ${wb}
       // UP is support and counts from the first hundredths.
       const slack = () => {
         let m = 1e-3;
-        for (const k of contacts(0)) {
+        // against other PARTS too: it may be coming down on one
+        for (const k of contacts(0, [], { partPairs: true })) {
           if (k.a !== id && k.b !== id) continue;
           const v = k.dist + (Math.abs(k.normalAB[2]) > 0.7 ? 3e-5 : 2.5e-4);
           if (v < m) m = v;
@@ -436,6 +461,7 @@ ${wb}
       }
     };
     let t0 = 0, stall = [Infinity, 0, 0], stallAt = 0;
+    const unpin = pinOthers(w, dof0);
     try {
       relax(duration);
       // stalled pinched? square up and let it carry on down, a few times
@@ -449,6 +475,7 @@ ${wb}
     } finally {
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
       w.model.opt.timestep = dt0;
+      unpin();
       for (let k = dof0; k < dof0 + 6; k++) qv[k] = 0;
     }
     if (fellOut) {
@@ -499,6 +526,7 @@ ${wb}
       (w.data.qpos[adr + 1] - start[1]) * d3[1] +
       (w.data.qpos[adr + 2] - start[2]) * d3[2];
     let stale = 0, last = 0;
+    const unpin = pinOthers(w, dof0);
     try {
       for (let i = 0; i < Math.ceil(duration / dt); i++) {
         for (let k = 0; k < 3; k++) w.data.qfrc_applied[dof0 + k] = d3[k] * force;
@@ -528,6 +556,7 @@ ${wb}
       for (let k = dof0; k < dof0 + 6; k++) w.data.qvel[k] = 0;
       g[0] = g0[0]; g[1] = g0[1]; g[2] = g0[2];
       w.model.opt.timestep = dt0;
+      unpin();
     }
     const pose = readPartPoseFrom(P, id);
     setPartPose(id, pose);     // sync into BOTH models

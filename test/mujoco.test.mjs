@@ -99,6 +99,45 @@ test('touch on the exact backend: wall ignored, floor stops, settles close', { s
   assert.ok(gap < 0.005, `settled ${(gap * 1000).toFixed(1)} mm above the floor — too high`);
 });
 
+test('touch: a held part stops on ANOTHER PART lying below it, not on the floor under that part', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  // regression: the query model has no part-part collision pairs, so a
+  // held case passed straight through a case already in the pocket and
+  // "touched" the pocket floor beneath it
+  const mount = cell.arm.mount_table;
+  const HOME = [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48].map(d2r);
+  const rel = IK.translate([0, 0, 0.16]);
+  const mountMat = IK.fromXyzRpy(mount.xyz_m, mount.rpy);
+  const pm0 = IK.mul(IK.mul(mountMat, IK.fkFlange(HOME)), rel);
+  const zeroPose = { xyz_m: [0, 0, 0], rpy: [0, 0, 0] };
+  const slab = [{ center: [0, 0, 0], size: [0.04, 0.04, 0.006] }];
+  const synth = {
+    arm: cell.arm, tools: cell.tools, cameras: [],
+    fixtures: [{ id: 'floor', pose_table: zeroPose, boxes: [{ center: [0.85, 0.25, 0.02], size: [0.8, 0.8, 0.06] }] }],
+    parts: [
+      { id: 'held', pose_table: { xyz_m: [0.3, 0.5, 0.05], rpy: [0, 0, 0] }, boxes: slab },
+      // already lying on the floor (its top at z=0.056), under the held
+      // one and a few mm off — real placements are never exactly aligned
+      { id: 'lying', pose_table: { xyz_m: [pm0[3] + 0.003, pm0[7] - 0.002, 0.053], rpy: [0, 0, 0] }, boxes: slab },
+    ],
+  };
+  const world = await createMjWorld({ mj, cellData: synth, armCapsules: [], toolCapsules: [], loadStlBuffer: async () => { throw new Error('no meshes'); } });
+  const planner = createPlanner({ cellData: synth, mountMat, getToolId: () => 'rcup16_p0', mjWorld: () => world });
+  const res = planner.planUntilTouch(HOME, [0, 0, -1], { maxDist: 0.3, held: { id: 'held', rel } });
+  assert.equal(res.item, 'lying', `stopped on '${res.item}' — the part lying below must stop the move`);
+  const pmEnd = IK.mul(IK.mul(mountMat, IK.fkFlange(res.path[res.path.length - 1])), rel);
+  const gap = (pmEnd[11] - 0.003) - 0.056;      // held underside above the lying part's top
+  assert.ok(gap > 0, `went ${(-gap * 1000).toFixed(1)} mm into the part below`);
+  assert.ok(gap < 0.005, `stopped ${(gap * 1000).toFixed(1)} mm above the part below — too high`);
+  // …and when released there it must come to rest ON that part, not be
+  // lowered through it (the settle's square-up step once ignored parts)
+  world.setPartPose('held', pmEnd);
+  const settled = world.settlePart('held');
+  const under = (settled?.pose ?? world.readPartPose('held'))[11] - 0.003;
+  assert.ok(Math.abs(under - 0.056) < 1e-3,
+    `released part rests with its underside at ${(under * 1000).toFixed(2)} mm — the part below tops out at 56.00`);
+});
+
 test('drop test: a released case falls INTO the pocket and seats on its floor', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const world = await createMjWorld({
