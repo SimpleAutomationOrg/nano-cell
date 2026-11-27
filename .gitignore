@@ -4,3 +4,4 @@ runs/
 out/
 dist/
 __pycache__/
+.vscode/
