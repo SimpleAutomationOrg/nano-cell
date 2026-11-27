@@ -103,8 +103,12 @@ The viewer shows this as the **steps dock** under the 3D view, in one
 column: the loop's steps in order, and below them the steps not in the
 loop. Dragging a step reorders the loop or moves the step in or out of
 it, and the server writes the new order into `loop.ts` (only the
-`steps: [...]` list is rewritten — keep comments outside it). The
-viewer runs one step at a time; it does not run the whole loop yet.
+`steps: [...]` list is rewritten — keep comments outside it). Each
+row's ▶ runs that step alone; **▶ Run loop** runs the loop's steps
+back to back (status line ends "loop done"): the arm starts at the
+first step's `entry`, and each later step carries on from where the
+one before left the arm and the parts — so a step in the loop must not
+assume it starts from its own `entry`.
 
 ## Adding a new step
 

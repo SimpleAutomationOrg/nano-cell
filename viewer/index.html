@@ -13,12 +13,14 @@
   #app { position: fixed; top: 0; left: 0; right: var(--chat); bottom: var(--dock); }
   #dock {
     position: fixed; left: 0; right: var(--chat); bottom: 0; height: var(--dock); box-sizing: border-box;
-    display: flex; gap: 14px; padding: 10px 14px; background: #0d1115; border-top: 1px solid #2a3340;
+    display: flex; justify-content: center; padding: 10px 14px; background: #0d1115; border-top: 1px solid #2a3340;
     color: #cdd6e0; font-size: 12.5px;
   }
-  #dockRun { width: 268px; flex: none; }
-  #dockRun b { color: #fff; font-weight: 600; font-size: 13px; }
-  #dockRun .hint { color: #55606d; font-size: 11px; margin-top: 8px; line-height: 1.4; }
+  /* everything that drives the loop sits in the middle, under the simulation */
+  #dockMid { width: 100%; max-width: 620px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  #dockRun { display: flex; gap: 6px; align-items: center; flex: none; }
+  #btnLoop { background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
+  #btnLoop:hover { background: #2a62a8; }
   #panel {
     position: fixed; top: 12px; left: 12px; width: 268px; max-height: calc(100% - 24px - var(--dock));
     overflow-y: auto; background: rgba(16,20,24,.88); border: 1px solid #2a3340;
@@ -41,12 +43,12 @@
   .sect { border-top: 1px solid #263040; margin-top: 10px; padding-top: 8px; }
   .sect b { color: #c6d2de; font-weight: 600; font-size: 12px; }
   #stepline {
-    margin-top: 6px; padding: 5px 8px; background: #0c0f13; border-radius: 6px;
+    flex: 1; min-width: 0; padding: 5px 8px; background: #0c0f13; border-radius: 6px;
     font-family: ui-monospace, monospace; font-size: 11px; color: #8fa3b8;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 15px;
   }
   /* the step list (steps-panel.js) */
-  #steps { flex: 1; min-width: 0; max-width: 520px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+  #steps { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
   #steps.disabled { opacity: .45; pointer-events: none; }
   .steps-sec { border: 1px solid #263040; border-radius: 7px; padding: 4px; }
   .steps-free { border-style: dashed; }
@@ -130,9 +132,13 @@
   </div>
 </div>
 <div id="dock">
-  <div id="dockRun">
-    <b>Steps</b>
-    <div class="row">
+  <div id="dockMid">
+    <div id="dockRun">
+      <button id="btnLoop" title="run every step of the loop, in order, one after the other">▶ Run loop</button>
+      <button id="btnPause">Pause</button>
+      <button id="btnNext" title="run one command, then pause">Next</button>
+      <button id="btnStop">Stop</button>
+      <button id="btnReset" title="parts back to their loaded poses, arm to dock">Reset</button>
       <select id="speedSel" title="playback speed">
         <option value="0.25">0.25×</option>
         <option value="0.5">0.5×</option>
@@ -140,15 +146,10 @@
         <option value="2">2×</option>
         <option value="4">4×</option>
       </select>
-      <button id="btnPause">Pause</button>
-      <button id="btnNext" title="run one command, then pause">Next</button>
-      <button id="btnStop">Stop</button>
-      <button id="btnReset" title="parts back to their loaded poses, arm to dock">Reset</button>
+      <div id="stepline">idle</div>
     </div>
-    <div id="stepline">idle</div>
-    <div class="hint">click a step to select it, ▶ to run it; drag steps to reorder the loop or to move them in and out of it</div>
+    <div id="steps" title="click a step to select it, ▶ to run it alone; drag steps to reorder the loop or to move them in and out of it"></div>
   </div>
-  <div id="steps"></div>
 </div>
 <div id="tip"></div>
 <div id="status">loading…</div>

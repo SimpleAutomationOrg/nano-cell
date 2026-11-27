@@ -35,7 +35,9 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
 - `applications/<name>/loop.ts` — the application's ONE loop: a name and
   the ordered list of steps of one cycle of work. The viewer's steps
   dock shows it and rewrites the `steps: [...]` list when steps are
-  dragged (`viewer/loop.py`); it runs single steps, not the whole loop yet.
+  dragged (`viewer/loop.py`); each row runs its step alone, **Run loop**
+  runs them back to back (later steps start where the previous one ended,
+  not at their own `entry`).
 - `applications/<name>/steps/<step>.ts` — a step is ONE file: it exports
   `name`, `tool`, `entry` and the default async function.
 - `recipes/` — step-by-step guides for writing steps (suction pick &

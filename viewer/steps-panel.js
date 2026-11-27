@@ -10,7 +10,7 @@ const MARK = { idle: '', running: '▶', done: '✓', failed: '✗', stopped: '�
 /**
  * opts: { el, steps, loop: { name, steps }, onSelect(step), onRun(step),
  *         onSave(stepIds) -> Promise }
- * Returns { select(id), setState(id, state), selected() }.
+ * Returns { select(id), setState(id, state), selected(), loopSteps() }.
  */
 export function createStepsPanel({ el, steps, loop, onSelect, onRun, onSave }) {
   let selected = null;
@@ -116,6 +116,8 @@ export function createStepsPanel({ el, steps, loop, onSelect, onRun, onSave }) {
   return {
     select,
     selected: () => selected,
+    /** The loop's steps, in order, as shown now. */
+    loopSteps: () => sections(steps, { steps: order }).loop,
     setState(id, st) { state.set(id, st); render(); },
   };
 }

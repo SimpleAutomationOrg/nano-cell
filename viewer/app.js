@@ -356,23 +356,36 @@ async function importStep(url) {
 }
 
 let stepsPanel = null;
-async function runStep(appId, stepId) {
+// Run steps back to back: one step from its row, or the whole loop. The
+// arm starts at the first step's entry pose; every later step carries on
+// from where the one before it left the arm and the parts. A failure or
+// Stop ends the run there.
+async function runSteps(appId, list, mountToolFn, what = 'step') {
   if (running) { stepLog('already running'); return; }
+  if (!list.length) { status(`${what}: nothing to run`); return; }
   running = true;
   host.reset();
-  stepsPanel?.setState(stepId, 'running');
+  list.forEach(s => stepsPanel?.setState(s.id, 'idle'));
+  let now = null;
   try {
-    status(`running ${stepId}…`);
-    stepLog(`▶ ${stepId}`);
-    const mod = await importStep(`/applications/${appId}/steps/${stepId}.ts?v=${Date.now()}`);
-    if (mod.entry?.joints_deg) host.snapJointsDeg(mod.entry.joints_deg);
-    await mod.default(host.api, host.ctx);
-    stepLog(`✓ ${stepId}`);
-    status('step done');
-    stepsPanel?.setState(stepId, 'done');
+    for (const [i, s] of list.entries()) {
+      now = s.id;
+      stepsPanel?.setState(s.id, 'running');
+      status(list.length > 1 ? `running ${what}: ${s.id} (${i + 1}/${list.length})…` : `running ${s.id}…`);
+      stepLog(`▶ ${s.id}`);
+      if (s.tool) await mountToolFn(s.tool);
+      const mod = await importStep(`/applications/${appId}/steps/${s.id}.ts?v=${Date.now()}`);
+      if (i === 0 && mod.entry?.joints_deg) host.snapJointsDeg(mod.entry.joints_deg);
+      await mod.default(host.api, host.ctx);
+      stepLog(`✓ ${s.id}`);
+      stepsPanel?.setState(s.id, 'done');
+    }
+    status(`${what} done`);
   } catch (e) {
-    if (e.message === 'aborted') { status('step stopped'); stepLog('■ stopped'); stepsPanel?.setState(stepId, 'stopped'); }
-    else { status('step failed: ' + e.message); stepLog('✗ ' + e.message); console.error(e); stepsPanel?.setState(stepId, 'failed'); }
+    const stopped = e.message === 'aborted';
+    if (stopped) { status(`${what} stopped`); stepLog('■ stopped'); }
+    else { status(`${what} failed: ${e.message}`); stepLog('✗ ' + e.message); console.error(e); }
+    if (now) stepsPanel?.setState(now, stopped ? 'stopped' : 'failed');
   } finally {
     running = false;
   }
@@ -393,7 +406,7 @@ async function buildStepUI(cell, mountToolFn) {
       document.documentElement.dataset.step = s.id;      // the chat panel reads it
       if (s.tool && !running) await mountToolFn(s.tool);
     },
-    onRun: s => runStep(cell.application, s.id),
+    onRun: s => runSteps(cell.application, [s], mountToolFn),
     // a drag changed the loop: its order goes into the application's loop.ts
     onSave: async ids => {
       const r = await (await fetch('/__loop/save', {
@@ -404,6 +417,8 @@ async function buildStepUI(cell, mountToolFn) {
       status('step order saved to loop.ts');
     },
   });
+  // the whole loop, in the order the list shows it
+  document.getElementById('btnLoop').onclick = () => runSteps(cell.application, stepsPanel.loopSteps(), mountToolFn, 'loop');
   window.stepsPanel = stepsPanel;   // console access: stepsPanel.select('pick-place-case')
 
   document.getElementById('btnPause').onclick = () => {
