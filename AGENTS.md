@@ -91,6 +91,14 @@ nothing to the picture — a screw in its hole in the feeder disc — are
 NOT simulated: place them from measured geometry and leave them. Do not
 spend effort making such contacts settle.
 
+## Loops
+
+`applications/<application>/loops.ts` lists the application's loops: a
+loop is a named, ordered list of steps that makes up one cycle of work
+(`assemble-case`: front case, then back case). When you add a step that
+belongs to a loop, add it there in its place. The viewer does not run
+loops yet — the file is the record of the order.
+
 ## Adding a new step
 
 1. Create one file, `applications/<application>/steps/<name>.ts`. It

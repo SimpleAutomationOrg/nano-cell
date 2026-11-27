@@ -37,6 +37,22 @@ test('every application composes onto its robot, and every mesh it names exists'
   }
 });
 
+test('loops name steps that exist, each once', () => {
+  for (const name of readdirSync(new URL('applications/', ROOT))) {
+    const file = new URL(`applications/${name}/loops.ts`, ROOT);
+    if (!existsSync(file)) continue;
+    // step names are the quoted entries of each `steps: [...]` list, comments aside
+    const src = readFileSync(file, 'utf8').replace(/\/\/.*$/gm, '');
+    const lists = [...src.matchAll(/steps:\s*\[([^\]]*)\]/g)].map(m => [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]));
+    assert.ok(lists.length, `${name}/loops.ts: no loop found`);
+    for (const steps of lists) {
+      assert.ok(steps.length, `${name}/loops.ts: a loop without steps`);
+      assert.equal(new Set(steps).size, steps.length, `${name}/loops.ts: a step is listed twice`);
+      for (const s of steps) assert.ok(existsSync(new URL(`applications/${name}/steps/${s}.ts`, ROOT)), `${name}/loops.ts: step '${s}' does not exist`);
+    }
+  }
+});
+
 test('an application holds nothing of the robot: no joint values outside taught_on, no arm, no IO', () => {
   const { taught_on, ...rest } = application;
   for (const k of ['arm', 'table', 'guard', 'flange_stack', 'io', 'cameras']) assert.ok(!(k in rest), `application has '${k}'`);
