@@ -7,9 +7,19 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #101418; font-family: ui-sans-serif, system-ui, sans-serif; }
-  #app { position: fixed; inset: 0; }
+  :root { --dock: 176px; }
+  /* the simulation on top, the steps dock below it */
+  #app { position: fixed; top: 0; left: 0; right: 0; bottom: var(--dock); }
+  #dock {
+    position: fixed; left: 0; right: 0; bottom: 0; height: var(--dock); box-sizing: border-box;
+    display: flex; gap: 14px; padding: 10px 14px; background: #0d1115; border-top: 1px solid #2a3340;
+    color: #cdd6e0; font-size: 12.5px;
+  }
+  #dockRun { width: 268px; flex: none; }
+  #dockRun b { color: #fff; font-weight: 600; font-size: 13px; }
+  #dockRun .hint { color: #55606d; font-size: 11px; margin-top: 8px; line-height: 1.4; }
   #panel {
-    position: fixed; top: 12px; left: 12px; width: 268px; max-height: calc(100% - 24px);
+    position: fixed; top: 12px; left: 12px; width: 268px; max-height: calc(100% - 24px - var(--dock));
     overflow-y: auto; background: rgba(16,20,24,.88); border: 1px solid #2a3340;
     border-radius: 10px; padding: 12px 14px; color: #cdd6e0; font-size: 12.5px;
     backdrop-filter: blur(6px);
@@ -29,21 +39,44 @@
   .checks label { display: flex; gap: 7px; align-items: center; margin: 3px 0; color: #9fb0c0; cursor: pointer; }
   .sect { border-top: 1px solid #263040; margin-top: 10px; padding-top: 8px; }
   .sect b { color: #c6d2de; font-weight: 600; font-size: 12px; }
-  #runControls { display: flex; gap: 6px; margin-top: 6px; }
   #stepline {
     margin-top: 6px; padding: 5px 8px; background: #0c0f13; border-radius: 6px;
     font-family: ui-monospace, monospace; font-size: 11px; color: #8fa3b8;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 15px;
   }
+  /* the step list (steps-panel.js) */
+  #steps { flex: 1; min-width: 0; display: flex; gap: 10px; align-items: stretch; }
+  #steps.disabled { opacity: .45; pointer-events: none; }
+  .steps-sec { flex: 1; min-width: 0; max-width: 420px; overflow-y: auto; border: 1px solid #263040; border-radius: 7px; padding: 4px; }
+  .steps-free { border-style: dashed; }
+  .steps-head { color: #7d8a99; font-size: 11px; padding: 2px 4px 4px; }
+  .steps-empty { color: #55606d; font-size: 11px; padding: 6px 4px; font-style: italic; }
+  .step-row {
+    display: grid; grid-template-columns: 12px 14px 1fr 12px auto; gap: 5px; align-items: center;
+    padding: 3px 4px; border-radius: 5px; cursor: pointer; border: 1px solid transparent;
+  }
+  .step-row:hover { background: #1b2430; }
+  .step-row.sel { background: #1c2c40; border-color: #35557a; }
+  .step-row.dragging { opacity: .35; }
+  .step-row .grip { color: #55606d; cursor: grab; font-size: 11px; }
+  .step-row .num { color: #7d8a99; font-variant-numeric: tabular-nums; text-align: right; font-size: 11px; }
+  .step-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .step-row .mark { font-size: 11px; text-align: center; }
+  .step-row.st-running .mark { color: #4da3ff; }
+  .step-row.st-done .mark { color: #7fd0a0; }
+  .step-row.st-failed .mark { color: #ff7b72; }
+  .step-row.st-stopped .mark { color: #d0a060; }
+  .step-row button { padding: 0 6px; font-size: 10px; line-height: 16px; }
+  .steps-drop { height: 2px; background: #4da3ff; border-radius: 1px; margin: 1px 4px; pointer-events: none; }
   #tip {
     position: fixed; pointer-events: none; background: #0c0f13; color: #e8eef4;
     border: 1px solid #334155; border-radius: 6px; padding: 3px 8px; font-size: 12px;
     display: none; z-index: 10; max-width: 320px;
   }
-  #status { position: fixed; right: 14px; bottom: 10px; color: #64748b; font-size: 11.5px; }
+  #status { position: fixed; right: 14px; bottom: calc(var(--dock) + 10px); color: #64748b; font-size: 11.5px; }
   /* chat with the step agent (chat.js) */
   #chat {
-    position: fixed; top: 12px; right: 12px; width: 340px; max-height: calc(100% - 48px);
+    position: fixed; top: 12px; right: 12px; width: 340px; max-height: calc(100% - 48px - var(--dock));
     display: flex; flex-direction: column; background: rgba(16,20,24,.9); border: 1px solid #2a3340;
     border-radius: 10px; color: #cdd6e0; font-size: 12.5px; backdrop-filter: blur(6px);
   }
@@ -87,10 +120,16 @@
     <button id="poseDemo">Dock pose</button>
     <button id="poseUp">Straight up</button>
   </div>
+  <div class="sect checks" id="toggles"><b>Show</b></div>
   <div class="sect">
-    <b>Step</b>
-    <div class="row" style="margin-top:6px">
-      <select id="stepSel" style="flex:1"></select>
+    <b>Tool on flange</b><br>
+    <select id="toolSel" style="width:100%;margin-top:5px"></select>
+  </div>
+</div>
+<div id="dock">
+  <div id="dockRun">
+    <b>Steps</b>
+    <div class="row">
       <select id="speedSel" title="playback speed">
         <option value="0.25">0.25×</option>
         <option value="0.5">0.5×</option>
@@ -98,21 +137,15 @@
         <option value="2">2×</option>
         <option value="4">4×</option>
       </select>
-    </div>
-    <button id="btnRun" disabled style="margin-top:6px">Run step</button>
-    <div id="runControls">
       <button id="btnPause">Pause</button>
       <button id="btnNext" title="run one command, then pause">Next</button>
       <button id="btnStop">Stop</button>
       <button id="btnReset" title="parts back to their loaded poses, arm to dock">Reset</button>
     </div>
     <div id="stepline">idle</div>
+    <div class="hint">click a step to select it, ▶ to run it; drag steps to reorder them or to move them in and out of a loop</div>
   </div>
-  <div class="sect checks" id="toggles"><b>Show</b></div>
-  <div class="sect">
-    <b>Tool on flange</b><br>
-    <select id="toolSel" style="width:100%;margin-top:5px"></select>
-  </div>
+  <div id="steps"></div>
 </div>
 <div id="tip"></div>
 <div id="status">loading…</div>

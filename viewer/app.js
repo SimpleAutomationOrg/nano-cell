@@ -8,6 +8,8 @@ import { capsuleFromObject } from './capsules.js';
 import { createMjWorld } from './mj-world.js';
 import { dockedTools } from './planner.js';
 import { loadCell } from './cell-data.js';
+import { createStepsPanel } from './steps-panel.js';
+import { pollFetch } from './poll.js';
 import { physicalKey, shortcutKey, flyDirection, FLY_KEYS } from './keys.js';
 
 const status = m => document.getElementById('status').textContent = m;
@@ -15,16 +17,19 @@ const status = m => document.getElementById('status').textContent = m;
 // ---------- renderer / scene ----------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
+// the simulation fills #app: the window above the steps dock
+const appEl = document.getElementById('app');
+const viewW = () => appEl.clientWidth, viewH = () => appEl.clientHeight;
+renderer.setSize(viewW(), viewH());
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-document.getElementById('app').appendChild(renderer.domElement);
+appEl.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x11161c);
 
-const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.02, 60);
+const camera = new THREE.PerspectiveCamera(45, viewW() / viewH(), 0.02, 60);
 camera.position.set(0.0, 1.05, 1.75);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0.68, 0.28, -0.30);
@@ -350,10 +355,12 @@ async function importStep(url) {
   finally { URL.revokeObjectURL(blobUrl); }
 }
 
+let stepsPanel = null;
 async function runStep(appId, stepId) {
   if (running) { stepLog('already running'); return; }
   running = true;
   host.reset();
+  stepsPanel?.setState(stepId, 'running');
   try {
     status(`running ${stepId}…`);
     stepLog(`▶ ${stepId}`);
@@ -362,30 +369,42 @@ async function runStep(appId, stepId) {
     await mod.default(host.api, host.ctx);
     stepLog(`✓ ${stepId}`);
     status('step done');
+    stepsPanel?.setState(stepId, 'done');
   } catch (e) {
-    if (e.message === 'aborted') { status('step stopped'); stepLog('■ stopped'); }
-    else { status('step failed: ' + e.message); stepLog('✗ ' + e.message); console.error(e); }
+    if (e.message === 'aborted') { status('step stopped'); stepLog('■ stopped'); stepsPanel?.setState(stepId, 'stopped'); }
+    else { status('step failed: ' + e.message); stepLog('✗ ' + e.message); console.error(e); stepsPanel?.setState(stepId, 'failed'); }
   } finally {
     running = false;
   }
 }
 
 async function buildStepUI(cell, mountToolFn) {
-  let steps = [];
-  try { steps = await (await fetch(`/__steps?app=${encodeURIComponent(cell.application)}`)).json(); } catch { /* not serve.py */ }
+  const app = encodeURIComponent(cell.application);
+  let steps = [], loops = [];
+  try {
+    steps = await (await fetch(`/__steps?app=${app}`)).json();
+    loops = await (await fetch(`/__loops?app=${app}`)).json();
+  } catch { /* not serve.py */ }
   if (!steps.length) return;
 
-  const sel = document.getElementById('stepSel');
-  sel.innerHTML = '<option value="">— pick a step —</option>' +
-    steps.map(t => `<option value="${t.id}">${t.name ?? t.id}</option>`).join('');
-
-  const runBtn = document.getElementById('btnRun');
-  runBtn.onclick = () => { if (sel.value) runStep(cell.application, sel.value); };
-  sel.addEventListener('change', async () => {
-    const t = steps.find(x => x.id === sel.value);
-    runBtn.disabled = !t;
-    if (t?.tool) await mountToolFn(t.tool);
+  stepsPanel = createStepsPanel({
+    el: document.getElementById('steps'), steps, loops,
+    onSelect: async s => {
+      document.documentElement.dataset.step = s.id;      // the chat panel reads it
+      if (s.tool && !running) await mountToolFn(s.tool);
+    },
+    onRun: s => runStep(cell.application, s.id),
+    // a drag changed a loop: its order goes into the application's loops.ts
+    onSave: async loop => {
+      const r = await (await fetch('/__loops/save', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Nano-Cell': 'chat' },
+        body: JSON.stringify({ app: cell.application, loop: loop.id, steps: loop.steps }),
+      })).json();
+      if (r.error) { status('step order not saved: ' + r.error); throw new Error(r.error); }
+      status(`step order saved to loops.ts (${loop.name})`);
+    },
   });
+  window.stepsPanel = stepsPanel;   // console access: stepsPanel.select('pick-place-case')
 
   document.getElementById('btnPause').onclick = () => {
     if (host.state.paused) { host.resume(); document.getElementById('btnPause').textContent = 'Pause'; }
@@ -540,7 +559,7 @@ async function main() {
     backendBadge.textContent = 'physics: UNAVAILABLE — run `npm install`, then reload';
     backendBadge.style.color = '#ff7f7f';
     stepLog('MuJoCo failed to load — steps disabled (run `npm install`)');
-    document.getElementById('stepSel').disabled = true;
+    document.getElementById('steps').classList.add('disabled');
   }
 
   // the step host
@@ -741,7 +760,7 @@ async function main() {
     renderer.domElement.addEventListener('pointerdown', ev => { downAt = [ev.clientX, ev.clientY]; });
     renderer.domElement.addEventListener('pointerup', ev => {
       if (!downAt || Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;  // orbit drag
-      pickRay.setFromCamera(new THREE.Vector2(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1), camera);
+      pickRay.setFromCamera(new THREE.Vector2(ev.clientX / viewW() * 2 - 1, -(ev.clientY / viewH()) * 2 + 1), camera);
       const hits = pickRay.intersectObjects(world.children, true).filter(h =>
         h.object.visible && h.object.isMesh &&
         !(h.object.material?.transparent && h.object.material.opacity < 0.5));
@@ -811,7 +830,7 @@ main().catch(e => { status('load failed: ' + e.message); console.error(e); });
 const ray = new THREE.Raycaster();
 const tipEl = document.getElementById('tip');
 addEventListener('pointermove', ev => {
-  ray.setFromCamera(new THREE.Vector2(ev.clientX / innerWidth * 2 - 1, -(ev.clientY / innerHeight) * 2 + 1), camera);
+  ray.setFromCamera(new THREE.Vector2(ev.clientX / viewW() * 2 - 1, -(ev.clientY / viewH()) * 2 + 1), camera);
   const hits = ray.intersectObjects(world.children, true).filter(h => h.object.visible && !(h.object.material?.transparent && h.object.material.opacity < 0.2));
   let name = null;
   for (const h of hits) {
@@ -828,9 +847,9 @@ addEventListener('pointermove', ev => {
 });
 
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
+  camera.aspect = viewW() / viewH();
   camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
+  renderer.setSize(viewW(), viewH());
 });
 
 const clock = new THREE.Clock();
@@ -852,7 +871,8 @@ renderer.setAnimationLoop(() => {
   let gen = -1;
   for (;;) {
     try {
-      const r = await fetch(`/__reload?gen=${gen}`);
+      const r = await pollFetch(`/__reload?gen=${gen}`);
+      if (!r) continue;               // the tab was hidden: wait until it is shown
       if (!r.ok) return;
       const g = parseInt(await r.text(), 10);
       if (gen !== -1 && g > gen) location.reload();

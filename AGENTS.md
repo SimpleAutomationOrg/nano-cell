@@ -19,7 +19,7 @@ it holds the same working rules in condensed form.
    the repo root on port 8742 (pass another port as the first argument
    if taken), opens the browser, and live-reloads on any file change.
 5. Verify: run `./scripts/check.sh` (should end `check: OK`), then in
-   the viewer select the `pick-place-case` step and press **Run step** —
+   the viewer select the `pick-place-case` step in the steps dock under the 3D view and press its ▶ —
    it must end with **step done** in the status line: the arm picks a
    case from the 45° stack and inserts it into the holder pocket.
 6. Report to the user: the viewer URL, check results, and that editing
@@ -96,8 +96,15 @@ spend effort making such contacts settle.
 `applications/<application>/loops.ts` lists the application's loops: a
 loop is a named, ordered list of steps that makes up one cycle of work
 (`assemble-case`: front case, then back case). When you add a step that
-belongs to a loop, add it there in its place. The viewer does not run
-loops yet — the file is the record of the order.
+belongs to a loop, add it there in its place. Steps in no loop still
+exist and run on their own (a fallback, a demo).
+
+The viewer shows this as the **steps dock** under the 3D view: one
+section per loop with its steps in order, and one for the steps in no
+loop. Dragging a step reorders it or moves it in or out of a loop, and
+the server writes the new order into `loops.ts` (only the `steps: [...]`
+lists are rewritten — keep comments outside them). The viewer runs one
+step at a time; it does not run a whole loop yet.
 
 ## Adding a new step
 
@@ -117,8 +124,9 @@ loops yet — the file is the record of the order.
    for its contract. It exports `entry` (a safe standalone
    start pose, tool pointing down, mid-cell) and a default async
    function `(cell, ctx) => Promise<void>`.
-3. The step appears in the viewer's dropdown automatically (the server
-   scans the application's `steps/`). Run it with **Run step** while
+3. The step appears in the viewer's steps dock automatically, under
+   "Not in a loop" (the server scans the application's `steps/`). Run
+   it with its ▶ while
    iterating; every run starts from `entry`.
 
 ## Editing existing steps or the engine

@@ -4,7 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { composeCell, loadCell } from '../viewer/cell-data.js';
+import { sections, moveStep } from '../viewer/step-order.js';
 
 const ROOT = new URL('..', import.meta.url);
 const readJson = async p => JSON.parse(readFileSync(new URL(p, ROOT)));
@@ -35,6 +37,51 @@ test('every application composes onto its robot, and every mesh it names exists'
       assert.match(src, /^export default async function/m, `${name}/steps/${t}: no default function`);
     }
   }
+});
+
+test('the step list: sections follow the loops, and a drag reorders, adds or removes', () => {
+  const steps = ['a', 'b', 'c', 'd'].map(id => ({ id, name: id.toUpperCase() }));
+  const loops = [{ id: 'main', name: 'Main', steps: ['c', 'a'] }];
+  const ids = secs => secs.map(s => [s.loop, s.steps.map(x => x.id)]);
+  assert.deepEqual(ids(sections(steps, loops)), [['main', ['c', 'a']], [null, ['b', 'd']]]);
+  // a loop naming a step that no longer exists just does not show it
+  assert.deepEqual(ids(sections(steps, [{ id: 'main', name: 'Main', steps: ['gone', 'a'] }])), [['main', ['a']], [null, ['b', 'c', 'd']]]);
+
+  const after = (...args) => { const r = moveStep(loops, ...args); return [r.loops[0].steps, r.changed]; };
+  assert.deepEqual(after('a', 'main', 'main', 0), [['a', 'c'], ['main']], 'reorder up');
+  assert.deepEqual(after('c', 'main', 'main', 2), [['a', 'c'], ['main']], 'reorder down, past the end');
+  assert.deepEqual(after('c', 'main', 'main', 1), [['c', 'a'], []], 'dropped where it was: nothing to save');
+  assert.deepEqual(after('b', null, 'main', 1), [['c', 'b', 'a'], ['main']], 'a free step joins the loop in its place');
+  assert.deepEqual(after('a', 'main', null, 0), [['c'], ['main']], 'dragged out: it leaves the loop but still exists');
+  assert.deepEqual(after('b', null, null, 1), [['c', 'a'], []], 'free steps have no order to save');
+  assert.deepEqual(loops[0].steps, ['c', 'a'], 'the input must not be changed');
+
+  // between two loops: it leaves the first and lands in the second
+  const two = [{ id: 'x', name: 'X', steps: ['a', 'b'] }, { id: 'y', name: 'Y', steps: ['c'] }];
+  const r = moveStep(two, 'a', 'x', 'y', 0);
+  assert.deepEqual(r.loops.map(l => l.steps), [['b'], ['a', 'c']]);
+  assert.deepEqual(r.changed.sort(), ['x', 'y']);
+});
+
+test('loops.ts is read and rewritten by the server without touching anything but the step list', () => {
+  const run = code => execFileSync('python3', ['-c', code], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' });
+  const file = `../applications/${APP}/loops.ts`;
+  const out = JSON.parse(run(`
+import json, loops
+src = open(${JSON.stringify(file)}, encoding='utf-8').read()
+was = loops.parse(src)[0]
+same = loops.with_steps(src, was['id'], was['steps'])
+rev = loops.with_steps(src, was['id'], was['steps'][::-1])
+none = loops.with_steps(src, was['id'], [])
+strip = lambda t: [l for l in t.splitlines() if not l.strip().startswith("'") and 'steps:' not in l and l.strip() != '],']
+print(json.dumps({'was': was, 'same': same == src, 'rev': loops.parse(rev)[0]['steps'], 'none': loops.parse(none)[0]['steps'],
+  'rest': strip(rev) == strip(src), 'missing': loops.with_steps(src, 'no-such-loop', []) is None}))`));
+  assert.ok(out.was.steps.length >= 2, 'the loop has steps to reorder');
+  assert.ok(out.same, 'saving the same order must leave the file byte for byte');
+  assert.deepEqual(out.rev, [...out.was.steps].reverse());
+  assert.deepEqual(out.none, []);
+  assert.ok(out.rest, 'something outside the step list changed');
+  assert.ok(out.missing);
 });
 
 test('loops name steps that exist, each once', () => {

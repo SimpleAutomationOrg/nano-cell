@@ -14,7 +14,7 @@ python3 viewer/serve.py
 # opens http://127.0.0.1:8742/viewer/ with live reload
 ```
 
-Pick a step in the panel and press **Run step**. Edit any file —
+Pick a step in the dock under the 3D view and press its **▶**. Edit any file —
 viewer code, a step, robot or application data — and the page reloads itself.
 
 **Agent install**: paste this repository's URL into your coding agent

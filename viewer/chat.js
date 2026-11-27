@@ -5,6 +5,8 @@
 // list of everything said and done. This file only draws that list and
 // sends what you type — so when the agent saves a file and the page
 // reloads itself, the chat comes back exactly as it was.
+import { pollFetch } from './poll.js';
+
 const HEAD = { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/json' };
 
 const box = document.createElement('div');
@@ -66,7 +68,7 @@ const post = (action, body = {}) =>
 
 // what the agent cannot see for itself: which application and step are up, and how the last run ended
 const context = () => {
-  const step = document.getElementById('stepSel')?.value || 'none';
+  const step = document.documentElement.dataset.step || 'none';
   const line = document.getElementById('stepline')?.textContent.trim() || '';
   const app = document.documentElement.dataset.application || 'unknown';
   return `application: ${app}; step selected: ${step}; last status line: "${line}"`;
@@ -91,7 +93,9 @@ box.querySelector('#chatNew').addEventListener('click', () => post('new'));
   let epoch = -1, next = 0;
   for (;;) {
     try {
-      const r = await (await fetch(`/__chat/events?epoch=${epoch}&since=${next}`, { headers: HEAD })).json();
+      const resp = await pollFetch(`/__chat/events?epoch=${epoch}&since=${next}`, { headers: HEAD });
+      if (!resp) continue;            // the tab was hidden: wait until it is shown
+      const r = await resp.json();
       if (r.error) throw new Error(r.error);
       if (r.epoch !== epoch) { epoch = r.epoch; log.innerHTML = ''; }
       const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;

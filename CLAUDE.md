@@ -33,8 +33,9 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   into the one cell the planner and physics see ("cell.json" in older
   comments means this composed cell) and checks the robot can run it.
 - `applications/<name>/loops.ts` — the loops of the application: named,
-  ordered lists of steps (one cycle of work). Data only for now; the
-  viewer does not run loops yet.
+  ordered lists of steps (one cycle of work). The viewer's steps dock
+  shows them and rewrites the `steps: [...]` lists when steps are
+  dragged (`viewer/loops.py`); it runs single steps, not whole loops yet.
 - `applications/<name>/steps/<step>.ts` — a step is ONE file: it exports
   `name`, `tool`, `entry` and the default async function.
 - `recipes/` — step-by-step guides for writing steps (suction pick &

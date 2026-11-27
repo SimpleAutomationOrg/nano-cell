@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serve the repo and open the arm-in-cell viewer, reloading it on changes.
 
-    python3 viewer/serve.py [port]
+    python3 viewer/serve.py [port] [--no-open]
 
 Serves the repository root (the viewer fetches ../cell_fr3 and
 ../applications) with
@@ -19,16 +19,22 @@ import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chat import Chat  # noqa: E402
+import loops as loopfile  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8742
+_args = [a for a in sys.argv[1:] if not a.startswith("--")]
+PORT = int(_args[0]) if _args else 8742
+OPEN_BROWSER = "--no-open" not in sys.argv   # a restart need not open one more tab
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
 SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store"}
 
 CHAT = Chat(ROOT)
 
-_generation = 0
+# starts at the clock, not at 0: pages left open across a server restart
+# see a newer generation and reload, instead of running their old code
+_generation = int(time.time())
+_own_writes = {}   # path -> mtime of a file this server just saved itself
 _changed = threading.Condition()
 
 
@@ -53,7 +59,12 @@ def _watch():
         time.sleep(0.5)
         now = _scan()
         if now != last:
+            # a file the page itself asked us to save (the step order) is
+            # already on screen: no reload for that
+            moved = {p for p in set(now) | set(last) if now.get(p) != last.get(p)}
             last = now
+            if all(p in now and _own_writes.get(p) == now[p] for p in moved):
+                continue
             with _changed:
                 _generation += 1
                 _changed.notify_all()
@@ -68,6 +79,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._reload_poll()
         if self.path.startswith("/__applications"):
             return self._applications()
+        if self.path.startswith("/__loops"):
+            return self._loops()
         if self.path.startswith("/__steps"):
             return self._steps()
         if self.path.startswith("/__chat/events"):
@@ -102,7 +115,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         import json
-        if not self.path.startswith("/__chat/"):
+        if not self.path.startswith(("/__chat/", "/__loops/save")):
             return self._json({"error": "not found"}, 404)
         if not self._same_origin():
             return self._json({"error": "forbidden"}, 403)
@@ -113,6 +126,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             data = None
         if not isinstance(data, dict):
             return self._json({"error": "bad request"}, 400)
+        if self.path.startswith("/__loops/save"):
+            return self._save_loop(data)
         action = self.path[len("/__chat/"):]
         if action == "send":
             err = CHAT.send(str(data.get("text", "")), str(data.get("context", ""))[:400])
@@ -137,6 +152,47 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             except (OSError, ValueError):
                 pass
         return self._json(apps)
+
+    def _app_dir(self, app):
+        # an application's folder, or None for anything that is not one
+        d = os.path.join(ROOT, "applications", app)
+        ok = isinstance(app, str) and app and app == os.path.basename(app) and app not in (".", "..")
+        return d if ok and os.path.isfile(os.path.join(d, "application.json")) else None
+
+    def _loops(self):
+        # the loops of one application: /__loops?app=<name>
+        from urllib.parse import parse_qs, urlparse
+        d = self._app_dir(parse_qs(urlparse(self.path).query).get("app", [""])[0])
+        try:
+            with open(os.path.join(d, "loops.ts"), encoding="utf-8") as f:
+                return self._json(loopfile.parse(f.read()))
+        except (OSError, TypeError):
+            return self._json([])
+
+    def _save_loop(self, data):
+        # the page dragged a step: write the loop's new order into loops.ts
+        d = self._app_dir(data.get("app"))
+        steps = data.get("steps")
+        if not d or not isinstance(steps, list) or len(steps) > 200:
+            return self._json({"error": "bad request"}, 400)
+        for s in steps:
+            if not (isinstance(s, str) and re.fullmatch(r"[\w-]+", s)
+                    and os.path.isfile(os.path.join(d, "steps", s + ".ts"))):
+                return self._json({"error": f"no such step: {s}"}, 400)
+        path = os.path.join(d, "loops.ts")
+        try:
+            with open(path, encoding="utf-8") as f:
+                src = f.read()
+            out = loopfile.with_steps(src, str(data.get("loop")), steps)
+            if out is None:
+                return self._json({"error": "no such loop"}, 400)
+            if out != src:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(out)
+                _own_writes[path] = os.stat(path).st_mtime_ns
+        except OSError as e:
+            return self._json({"error": str(e)}, 500)
+        return self._json({"ok": True})
 
     def _steps(self):
         # the steps of one application: /__steps?app=<name>
@@ -200,7 +256,8 @@ if __name__ == "__main__":
     with Server(("127.0.0.1", PORT), Handler) as httpd:
         url = f"http://127.0.0.1:{PORT}/viewer/"
         print(f"viewer: {url}  (live reload on, ctrl-c to stop)")
-        threading.Timer(0.3, webbrowser.open, (url,)).start()
+        if OPEN_BROWSER:
+            threading.Timer(0.3, webbrowser.open, (url,)).start()
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
