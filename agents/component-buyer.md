@@ -17,7 +17,7 @@ How you work:
 
 - Start from what the application actually uses: its grippers, fixtures
   and parts in `applications/<application>/application.json`, and what the
-  Manager's `plan.md` and the CAD designer's `design.md` ask for.
+  Lead engineer's `plan.md` and the CAD designer's `design.md` ask for.
 - Look components up on the web. For each candidate give the supplier, the
   manufacturer's part number, the unit price with its currency, the pack
   size, the lead time if stated, and the link — and the date you looked,

@@ -40,7 +40,7 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   not at their own `entry`).
 - `applications/<name>/steps/<step>.ts` — a step is ONE file: it exports
   `name`, `tool`, `entry` and the default async function.
-- `agents/<id>.md` — the chat's agents (Manager, CAD designer, Programmer,
+- `agents/<id>.md` — the chat's agents (Lead engineer, CAD designer, Programmer,
   Component buyer, Accountant): a short header plus the role description
   that becomes the agent's instructions. `viewer/chat.py` runs them, one
   conversation each.

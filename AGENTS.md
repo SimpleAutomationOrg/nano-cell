@@ -162,7 +162,7 @@ picked. Each agent is a Markdown file in `agents/`:
 
 | file | agent | what it does | keeps |
 | --- | --- | --- | --- |
-| `manager.md` | Manager | turns a goal into tasks and says who does each | `plan.md` |
+| `lead-engineer.md` | Lead engineer | turns a goal into tasks and says who does each | `plan.md` |
 | `cad-designer.md` | CAD designer | print files, meshes, fixtures, parts, placement | `design.md`, `application.json` |
 | `programmer.md` | Programmer | steps, the loop, the viewer's code | `steps/`, `loop.ts` |
 | `component-buyer.md` | Component buyer | finds components to buy (web search) | `purchasing.md` |
@@ -184,7 +184,7 @@ may read, search and edit files and run `./scripts/check.sh`; `tools:`
 in its header can add only what `EXTRA_TOOLS` in `chat.py` lists (web
 search for the buyer, `step-to-mesh` for the CAD designer). Agents
 cannot see or drive the viewer, and cannot message each other — the
-Manager writes a task so that the user can paste it to the right one.
+Lead engineer writes a task so that the user can paste it to the right one.
 The endpoints answer only to the page's own origin.
 
 ## Debugging
