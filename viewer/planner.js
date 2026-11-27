@@ -612,7 +612,7 @@ export function createPlanner(opts) {
   // The EXPOSED part of a stack: among the parts still near the stack,
   // the frontmost along their own outward face normal (the one a cup can
   // reach without touching the others). Pure: matrices in, item out.
-  // Selecting by position, never by id, is what lets a task be re-run.
+  // Selecting by position, never by id, is what lets a step be re-run.
   const exposedOnStack = (parts, stackMatrix, { radius = 0.12, face = 2, sign = -1 } = {}) => {
     const sp = IK.pos(stackMatrix);
     const near = parts.filter(p => {
@@ -629,7 +629,7 @@ export function createPlanner(opts) {
 
   // How far the wrist (J6) must turn to hold the tip at `pose` exactly,
   // starting from joints q0 — Infinity when the pose is unreachable. For
-  // choosing between poses that are equally good for the task (a
+  // choosing between poses that are equally good for the step (a
   // rectangle fits its pocket at two yaws 180 degrees apart).
   const wristTurn = (q0, pose) => {
     try {

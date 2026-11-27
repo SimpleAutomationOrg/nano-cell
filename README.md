@@ -2,7 +2,7 @@
 
 A simulated robot work cell that runs entirely in the browser: a 6-axis
 arm inside a guarded enclosure, collision-checked motion planning, and
-tasks written as small TypeScript files. No build step, no physics
+steps written as small TypeScript files. No build step, no physics
 engine, no dependencies to install — one Python server, one page.
 
 ![viewer](docs/viewer.jpg)
@@ -14,13 +14,13 @@ python3 viewer/serve.py
 # opens http://127.0.0.1:8742/viewer/ with live reload
 ```
 
-Pick a task in the panel and press **Run all segments**. Edit any file —
-viewer code, a task segment, robot or application data — and the page reloads itself.
+Pick a step in the panel and press **Run all segments**. Edit any file —
+viewer code, a step segment, robot or application data — and the page reloads itself.
 
 **Agent install**: paste this repository's URL into your coding agent
 with the word `install`. The agent-facing guide is [AGENTS.md](AGENTS.md)
 (Claude Code also reads [CLAUDE.md](CLAUDE.md) automatically); it covers
-setup, verification, and how to add or edit tasks.
+setup, verification, and how to add or edit steps.
 
 Prerequisites: Python 3.8+, Node 18+ (for `npm install` and the checks),
 a modern browser.
@@ -30,7 +30,7 @@ a modern browser.
 contact-seeking moves, gravity settling and geometric measurements all
 run on one model: obstacles box-decomposed from their collision meshes
 (cavities preserved — `viewer/boxify.js`), arm and tool capsules, parts
-as free bodies. Without it the scene renders but tasks are disabled.
+as free bodies. Without it the scene renders but steps are disabled.
 
 ## What's inside
 
@@ -45,7 +45,7 @@ as free bodies. Without it the scene renders but tasks are disabled.
   - `collision.js` — obstacles as surface-sampled point clouds in a
     spatial hash; the moving side (arm links, tool) as fitted capsules.
     Both are visualizable live (Show → collision points / capsules).
-  - `cell.d.ts` — the typed task API, fully documented for IDE hover.
+  - `cell.d.ts` — the typed step API, fully documented for IDE hover.
 - **`cell_fr3/`** — the design of the cell, as data: `robot.json` (the
   arm and its mount, the table, the enclosure, the flange stack,
   cameras, IO), the flange-stack meshes and the arm's link meshes
@@ -53,11 +53,11 @@ as free bodies. Without it the scene renders but tasks are disabled.
 - **`applications/<name>/`** — an application is one job and its
   environment (`application.json`): the grippers (with measured cup-lip
   frames), the tool rack, fixtures and parts with meshes + collision
-  meshes; plus its `print/` files and its tasks. Every pose is in the
+  meshes; plus its `print/` files and its steps. Every pose is in the
   table frame, so an application can be moved to another robot; the
   viewer shows it on the robot it names (`?app=<name>` picks the
   application, `?robot=<name>` tries it on another robot).
-  - `tasks/<name>/` — `task.json` (tool, segment order) and
+  - `steps/<name>/` — `step.json` (tool, segment order) and
     `segments/*.ts`. A segment is an async function against the typed
     cell API; it states intent (`transitTip`, `suctionGrasp`,
     `moveUntilTouch`) and the planner does the geometry.
@@ -70,7 +70,7 @@ as free bodies. Without it the scene renders but tasks are disabled.
 
 ## Design choices
 
-- **Segments state intent; the planner plans.** Tasks survive cell
+- **Segments state intent; the planner plans.** Steps survive cell
   layout changes because routes, heights, and alignments are computed
   from the live cell, not hand-taught.
 - **Measure geometry, never assume it.** Placement and alignment use

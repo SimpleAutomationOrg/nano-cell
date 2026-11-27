@@ -5,7 +5,7 @@
 //                                         guard, the flange stack, cameras, IO
 //   applications/<name>/application.json  the job and its environment: the
 //                                         grippers, the tool rack, fixtures,
-//                                         parts — plus its tasks/ and print/
+//                                         parts — plus its steps/ and print/
 //
 // Everything in an application is in the table frame, so the same
 // application composes onto another robot unchanged. What it needs FROM a

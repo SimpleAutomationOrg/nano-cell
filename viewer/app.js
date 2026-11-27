@@ -336,14 +336,14 @@ async function loadItems(list, base, parentGroup) {
   }
 }
 
-// ---------- task runner ----------
+// ---------- step runner ----------
 let host = null;
 let running = false;
 
 // one line in the panel; full history in the browser console
-function taskLog(msg) {
-  console.log('[task]', msg);
-  const el = document.getElementById('taskline');
+function stepLog(msg) {
+  console.log('[step]', msg);
+  const el = document.getElementById('stepline');
   el.textContent = msg.trim();
   el.title = msg.trim();
 }
@@ -361,43 +361,43 @@ async function importSegment(url) {
   finally { URL.revokeObjectURL(blobUrl); }
 }
 
-async function runSegments(appId, taskId, files, { snapEntry }) {
-  if (running) { taskLog('already running'); return; }
+async function runSegments(appId, stepId, files, { snapEntry }) {
+  if (running) { stepLog('already running'); return; }
   running = true;
   host.reset();
   try {
     for (const [i, f] of files.entries()) {
       status(`running ${f}…`);
-      taskLog(`▶ ${f}`);
-      const mod = await importSegment(`/applications/${appId}/tasks/${taskId}/segments/${f}?v=${Date.now()}`);
+      stepLog(`▶ ${f}`);
+      const mod = await importSegment(`/applications/${appId}/steps/${stepId}/segments/${f}?v=${Date.now()}`);
       if (i === 0 && snapEntry && mod.entry?.joints_deg) {
         host.snapJointsDeg(mod.entry.joints_deg);
       }
       await mod.default(host.api, host.ctx);
-      taskLog(`✓ ${f}`);
+      stepLog(`✓ ${f}`);
     }
-    status('task done');
+    status('step done');
   } catch (e) {
-    if (e.message === 'aborted') { status('task stopped'); taskLog('■ stopped'); }
-    else { status('task failed: ' + e.message); taskLog('✗ ' + e.message); console.error(e); }
+    if (e.message === 'aborted') { status('step stopped'); stepLog('■ stopped'); }
+    else { status('step failed: ' + e.message); stepLog('✗ ' + e.message); console.error(e); }
   } finally {
     running = false;
   }
 }
 
-async function buildTaskUI(cell, mountToolFn) {
-  let tasks = [];
-  try { tasks = await (await fetch(`/__tasks?app=${encodeURIComponent(cell.application)}`)).json(); } catch { /* not serve.py */ }
-  if (!tasks.length) return;
+async function buildStepUI(cell, mountToolFn) {
+  let steps = [];
+  try { steps = await (await fetch(`/__steps?app=${encodeURIComponent(cell.application)}`)).json(); } catch { /* not serve.py */ }
+  if (!steps.length) return;
 
-  const sel = document.getElementById('taskSel');
-  sel.innerHTML = '<option value="">— pick a task —</option>' +
-    tasks.map(t => `<option value="${t.id}">${t.name ?? t.id}</option>`).join('');
+  const sel = document.getElementById('stepSel');
+  sel.innerHTML = '<option value="">— pick a step —</option>' +
+    steps.map(t => `<option value="${t.id}">${t.name ?? t.id}</option>`).join('');
 
   const segHost = document.getElementById('segments');
   sel.addEventListener('change', async () => {
     segHost.innerHTML = '';
-    const t = tasks.find(x => x.id === sel.value);
+    const t = steps.find(x => x.id === sel.value);
     if (!t) return;
     if (t.tool) await mountToolFn(t.tool);
     for (const f of t.segments) {
@@ -418,7 +418,7 @@ async function buildTaskUI(cell, mountToolFn) {
     if (host.state.paused) { host.resume(); document.getElementById('btnPause').textContent = 'Pause'; }
     else { host.pause(); document.getElementById('btnPause').textContent = 'Resume'; }
   };
-  document.getElementById('btnStep').onclick = () => { host.step(); document.getElementById('btnPause').textContent = 'Pause'; };
+  document.getElementById('btnNext').onclick = () => { host.step(); document.getElementById('btnPause').textContent = 'Pause'; };
   document.getElementById('btnStop').onclick = () => host.abort();
   document.getElementById('speedSel').addEventListener('change', e => host.setSpeed(parseFloat(e.target.value)));
 }
@@ -515,7 +515,7 @@ async function main() {
   refreshToolCapsule();
   const mountToolTracked = async id => {
     // already on the arm: nothing to rebuild (rebuilding the physics for
-    // an unchanged tool froze the page every time a task was selected)
+    // an unchanged tool froze the page every time a step was selected)
     if (id === mountedId) return;
     await mountTool(id);
     refreshToolCapsule();
@@ -540,7 +540,7 @@ async function main() {
   addToggle('tools in the rack', rack);
 
   // MuJoCo is THE geometry backend (collision, touch, physics,
-  // measurements). It is required: without `npm install` tasks cannot
+  // measurements). It is required: without `npm install` steps cannot
   // run, though the scene itself still renders for inspection.
   let mjWorldRef = null;
   window.mjWorld = () => mjWorldRef;   // console/debug access
@@ -566,17 +566,17 @@ async function main() {
     console.warn('[mj] backend failed to load:', e);
     backendBadge.textContent = 'physics: UNAVAILABLE — run `npm install`, then reload';
     backendBadge.style.color = '#ff7f7f';
-    taskLog('MuJoCo failed to load — tasks disabled (run `npm install`)');
-    document.getElementById('taskSel').disabled = true;
+    stepLog('MuJoCo failed to load — steps disabled (run `npm install`)');
+    document.getElementById('stepSel').disabled = true;
   }
 
-  // the task host
+  // the step host
   host = createHost({
     cellData: cell,
     spins, flangeGroup, worldGroup: world, partNodes,
     mountMat: IK.fromXyzRpy(cell.arm.mount_table.xyz_m, cell.arm.mount_table.rpy),
     getToolId: () => sel.value,
-    onLog: taskLog,
+    onLog: stepLog,
     onJoints: reflectJointsDeg,
     guardBox: (() => {
       const e = cell.guard.envelope_mm;
@@ -639,7 +639,7 @@ async function main() {
     while (mjBoxGroups.length) { const g = mjBoxGroups.pop(); g.parent?.remove(g); }
     if (!e.target.checked) return;
     const w = mjWorldRef;
-    if (!w) { taskLog('MuJoCo backend not active'); e.target.checked = false; return; }
+    if (!w) { stepLog('MuJoCo backend not active'); e.target.checked = false; return; }
     const mat = new THREE.MeshBasicMaterial({
       color: 0x51e8c8, transparent: true, opacity: 0.22, depthWrite: false,
     });
@@ -706,7 +706,7 @@ async function main() {
     if (forceTimer) { clearInterval(forceTimer); forceTimer = null; }
     if (forceGroup) { world.remove(forceGroup); forceGroup = null; }
     if (!e.target.checked) return;
-    if (!mjWorldRef) { taskLog('physics backend not active'); e.target.checked = false; return; }
+    if (!mjWorldRef) { stepLog('physics backend not active'); e.target.checked = false; return; }
     refreshForces();
     forceTimer = setInterval(refreshForces, 500);
   });
@@ -728,7 +728,7 @@ async function main() {
       node.updateMatrix();
     }
     setJoints(POSE_DOCK);
-    taskLog('scene reset');
+    stepLog('scene reset');
     status('scene reset');
   };
 
@@ -759,7 +759,7 @@ async function main() {
         // scene root, not inside the rotated table-frame group
         outline = new THREE.BoxHelper(partNodes.get(id), 0xffc94d);
         scene.add(outline);
-        taskLog(`${id} selected — arrows push · Z press in · X lift · F frame · Esc done`);
+        stepLog(`${id} selected — arrows push · Z press in · X lift · F frame · Esc done`);
       }
     };
     window.selectPart = select;              // console/debug access
@@ -777,15 +777,15 @@ async function main() {
         while (o && !nodeToPart.has(o)) o = o.parent;
         if (o) { select(nodeToPart.get(o)); return; }
       }
-      if (selected) { select(null); taskLog('push mode off'); }
+      if (selected) { select(null); stepLog('push mode off'); }
     });
     addEventListener('keydown', ev => {
       if (!selected) return;
       const key = shortcutKey(ev);     // null while typing in a field
       if (key === null) return;
-      if (key === 'Escape') { select(null); taskLog('push mode off'); return; }
+      if (key === 'Escape') { select(null); stepLog('push mode off'); return; }
       if (running || host?.state.busy) return;
-      if (host?.state.held === selected) { taskLog(`${selected} is held by the arm`); return; }
+      if (host?.state.held === selected) { stepLog(`${selected} is held by the arm`); return; }
       let dir = null, force = 8;
       if (key === 'z' || key === 'PageDown') { dir = [0, 0, -1]; force = 30; }
       else if (key === 'x' || key === 'PageUp') dir = [0, 0, 1];
@@ -805,7 +805,7 @@ async function main() {
       } else return;
       ev.preventDefault();
       const w2 = mjWorldRef;
-      if (!w2) { taskLog('physics backend not active'); return; }
+      if (!w2) { stepLog('physics backend not active'); return; }
       const step = ev.shiftKey ? 0.0001 : 0.001;
       // push in the CURRENT world: live scene poses and arm
       w2.setArm(host.api.joints().map(v => v * Math.PI / 180));
@@ -824,11 +824,11 @@ async function main() {
       node.updateMatrix();
       outline?.update();
       const blocked = res.moved < step - 1e-6;
-      taskLog(`${selected}: pushed ${(res.moved * 1000).toFixed(2)} mm${blocked ? ' — blocked' : ''}`);
+      stepLog(`${selected}: pushed ${(res.moved * 1000).toFixed(2)} mm${blocked ? ' — blocked' : ''}`);
     });
   }
 
-  await buildTaskUI(cell, mountToolTracked);
+  await buildStepUI(cell, mountToolTracked);
 
   status(`${cell.name} — ready`);
 }
@@ -861,13 +861,13 @@ addEventListener('resize', () => {
 });
 
 const clock = new THREE.Clock();
-const taskLineEl = document.getElementById('taskline');
+const stepLineEl = document.getElementById('stepline');
 renderer.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.1);
   host?.update(dt);
   if (host?.state.busy && host.state.current) {
     const el = ((performance.now() - host.state.currentSince) / 1000).toFixed(1);
-    taskLineEl.textContent = `▶ ${host.state.current} · ${el} s`;
+    stepLineEl.textContent = `▶ ${host.state.current} · ${el} s`;
   }
   updateFly(dt);
   controls.update();

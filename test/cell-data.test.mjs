@@ -21,13 +21,13 @@ test('every application composes onto its robot, and every mesh it names exists'
         if (it[k]) assert.ok(existsSync(new URL(it[k], ROOT)), `${name}: ${it.id} ${k} ${it[k]} is missing`);
       }
     }
-    // tasks belong to the application and use its grippers
-    const tdir = new URL(`applications/${name}/tasks/`, ROOT);
+    // steps belong to the application and use its grippers
+    const tdir = new URL(`applications/${name}/steps/`, ROOT);
     for (const t of existsSync(tdir) ? readdirSync(tdir) : []) {
-      if (!existsSync(new URL(`${t}/task.json`, tdir))) continue;
-      const task = await readJson(`applications/${name}/tasks/${t}/task.json`);
-      assert.ok(cell.tools.some(x => x.id === task.tool), `${name}/${t}: tool '${task.tool}' is not a gripper of the application`);
-      for (const s of task.segments) assert.ok(existsSync(new URL(`${t}/segments/${s}`, tdir)), `${name}/${t}: ${s} is missing`);
+      if (!existsSync(new URL(`${t}/step.json`, tdir))) continue;
+      const step = await readJson(`applications/${name}/steps/${t}/step.json`);
+      assert.ok(cell.tools.some(x => x.id === step.tool), `${name}/${t}: tool '${step.tool}' is not a gripper of the application`);
+      for (const s of step.segments) assert.ok(existsSync(new URL(`${t}/segments/${s}`, tdir)), `${name}/${t}: ${s} is missing`);
     }
   }
 });

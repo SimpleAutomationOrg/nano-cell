@@ -67,8 +67,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._reload_poll()
         if self.path.startswith("/__applications"):
             return self._applications()
-        if self.path.startswith("/__tasks"):
-            return self._tasks()
+        if self.path.startswith("/__steps"):
+            return self._steps()
         if self.path.startswith("/__chat/events"):
             if not self._same_origin():
                 return self._json({"error": "forbidden"}, 403)
@@ -137,23 +137,23 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 pass
         return self._json(apps)
 
-    def _tasks(self):
-        # the tasks of one application: /__tasks?app=<name>
+    def _steps(self):
+        # the steps of one application: /__steps?app=<name>
         import json
         from urllib.parse import parse_qs, urlparse
         app = parse_qs(urlparse(self.path).query).get("app", [""])[0]
-        tasks = []
-        tdir = os.path.join(ROOT, "applications", app, "tasks")
+        steps = []
+        tdir = os.path.join(ROOT, "applications", app, "steps")
         if app and app == os.path.basename(app) and app not in (".", "..") and os.path.isdir(tdir):
             for name in sorted(os.listdir(tdir)):
-                tj = os.path.join(tdir, name, "task.json")
+                tj = os.path.join(tdir, name, "step.json")
                 if os.path.isfile(tj):
                     try:
                         with open(tj) as f:
-                            tasks.append({"id": name, **json.load(f)})
+                            steps.append({"id": name, **json.load(f)})
                     except (OSError, ValueError):
                         pass
-        return self._json(tasks)
+        return self._json(steps)
 
     def _reload_poll(self):
         # long-poll: answer when the generation moves past the client's,

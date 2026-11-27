@@ -1,12 +1,12 @@
 # sa-demo-nano-cell
 
 A browser-only robot cell: a ROBOT (arm, mount, table, guard, IO) with an
-APPLICATION set up on it (grippers, tool rack, fixtures, parts, tasks),
-both as data, plus a three.js viewer that executes task segments with IK
+APPLICATION set up on it (grippers, tool rack, fixtures, parts, steps),
+both as data, plus a three.js viewer that executes step segments with IK
 and collision checking. No build step.
 
-Run it: `python3 viewer/serve.py` (live reload; `/__tasks` lists tasks).
-Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
+Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
+Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
 
 ## Layout
 
@@ -26,19 +26,19 @@ Install procedure and the add/edit-task workflow for agents: `AGENTS.md`.
 - `applications/<name>/` — an application: one job and its environment.
   `application.json` (grippers, tool rack, fixtures, parts — poses in the
   table frame, z up, metres), `meshes/`, `print/` (STEP source files) and
-  `tasks/`. It names the robot it is set up on and can be moved to
+  `steps/`. It names the robot it is set up on and can be moved to
   another: keep robot facts OUT of it (no arm, IO definitions or joint
   values — joint-space values taught on one robot live under
   `taught_on.<robot>`). `viewer/cell-data.js` composes robot + application
   into the one cell the planner and physics see ("cell.json" in older
   comments means this composed cell) and checks the robot can run it.
-- `applications/<name>/tasks/<task>/` — `task.json` (tool, segment order) +
+- `applications/<name>/steps/<step>/` — `step.json` (tool, segment order) +
   `segments/*.ts`.
 - `recipes/` — step-by-step guides for writing segments (suction pick &
   place, holder insertion). Follow the matching recipe before writing a
   new segment; when a new motion pattern stabilizes, add a recipe for it.
 
-## Task-authoring rules
+## Step-authoring rules
 
 - **Suction grasps are always parallel to the surface**: cup face parallel
   to the part face, approach and retreat along the surface normal. Use
@@ -87,7 +87,7 @@ make such a fit settle.
 ## After any change to viewer/, a robot or an application
 
 Run `./scripts/check.sh` (types + `test/motion.test.mjs`) and rerun the
-pick-place task in the viewer before calling the change done. The motion
+pick-place step in the viewer before calling the change done. The motion
 tests encode the rules above plus the regressions already caught once
 (J6 reversals, yaw dumped into a final move, camera level, cup parallel) —
 when a new motion bug is fixed, ADD AN ASSERTION for it there. New motion

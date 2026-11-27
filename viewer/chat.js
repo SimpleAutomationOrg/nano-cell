@@ -1,4 +1,4 @@
-// Chat with the task agent, in the page.
+// Chat with the step agent, in the page.
 //
 // The conversation itself lives in the dev server (viewer/chat.py): each
 // message runs a coding agent in the repository, and the server keeps the
@@ -10,11 +10,11 @@ const HEAD = { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/json' };
 const box = document.createElement('div');
 box.id = 'chat';
 box.innerHTML = `
-  <header title="show / hide"><span class="dot"></span><b>Task agent</b>
+  <header title="show / hide"><span class="dot"></span><b>Step agent</b>
     <button id="chatNew" title="forget this conversation and start a new one">New</button></header>
   <div id="chatBody">
     <div id="chatLog"></div>
-    <form><textarea id="chatIn" placeholder="Ask for a change to the task…  (Enter to send, Shift+Enter for a new line)"></textarea>
+    <form><textarea id="chatIn" placeholder="Ask for a change to the step…  (Enter to send, Shift+Enter for a new line)"></textarea>
       <button id="chatSend">Send</button></form>
   </div>`;
 document.body.appendChild(box);
@@ -64,12 +64,12 @@ function setRunning(on) {
 const post = (action, body = {}) =>
   fetch(`/__chat/${action}`, { method: 'POST', headers: HEAD, body: JSON.stringify(body) }).then(r => r.json());
 
-// what the agent cannot see for itself: which application and task are up, and how the last run ended
+// what the agent cannot see for itself: which application and step are up, and how the last run ended
 const context = () => {
-  const task = document.getElementById('taskSel')?.value || 'none';
-  const line = document.getElementById('taskline')?.textContent.trim() || '';
+  const step = document.getElementById('stepSel')?.value || 'none';
+  const line = document.getElementById('stepline')?.textContent.trim() || '';
   const app = document.documentElement.dataset.application || 'unknown';
-  return `application: ${app}; task selected: ${task}; last status line: "${line}"`;
+  return `application: ${app}; step selected: ${step}; last status line: "${line}"`;
 };
 
 async function send() {
@@ -97,7 +97,7 @@ box.querySelector('#chatNew').addEventListener('click', () => post('new'));
       const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
       if (!r.next && !log.children.length)
         hint(r.available
-          ? 'Tell the agent what to change in the task — for example “place the case 5 mm higher before the touch descent” or “make a new task that stacks two cases”. It edits the files; the page reloads by itself.'
+          ? 'Tell the agent what to change in the step — for example “place the case 5 mm higher before the touch descent” or “make a new step that stacks two cases”. It edits the files; the page reloads by itself.'
           : 'The `claude` command was not found. Install Claude Code and sign in, then restart viewer/serve.py.');
       else if (r.events.length && log.querySelector('.hint')) log.innerHTML = '';
       r.events.forEach(draw);

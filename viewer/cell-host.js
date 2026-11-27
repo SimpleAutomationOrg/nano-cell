@@ -1,4 +1,4 @@
-// The in-page cell host: executes task segments against the three.js scene.
+// The in-page cell host: executes step segments against the three.js scene.
 // Planning (commands → joint paths, collision checking, pose policies)
 // lives in planner.js, which is pure and tested under node; this file only
 // animates planned paths, keeps run state, and moves scene objects.
@@ -429,7 +429,7 @@ export function createHost(opts) {
       });
     },
 
-    log(msg) { emit('log', { msg }); log(`task: ${msg}`); },
+    log(msg) { emit('log', { msg }); log(`step: ${msg}`); },
   };
 
   // ---------- ctx ----------

@@ -15,7 +15,7 @@ const CASES = [1, 2, 3, 4, 5, 6].map(i => `front_case_${i}`);
 const NEAR = ['stack_north', ...CASES];
 
 export default async function (cell: CellAPI, ctx: Ctx): Promise<void> {
-  // pick, as in the pick-place task
+  // pick, as in the pick-place step
   const part = ctx.nextOnStack('stack_north', CASES);
   const above = ctx.h.suctionGrasp(part, 0.06);
   await cell.transitTip(above, { spin: 'exact', ignore: NEAR });

@@ -1,4 +1,4 @@
-// Types for task segments. The runtime is viewer/cell-host.js (plain JS);
+// Types for step segments. The runtime is viewer/cell-host.js (plain JS);
 // these declarations exist for editor IntelliSense and type checking.
 
 /** [x, y, z] in metres, TABLE frame unless stated otherwise. */
@@ -151,7 +151,7 @@ export interface CellAPI {
   /** Wait, scaled by playback speed and pausable. */
   waitMs(ms: number): Promise<void>;
 
-  /** Write a line to the task log. */
+  /** Write a line to the step log. */
   log(msg: string): void;
 }
 
@@ -234,7 +234,7 @@ export interface Ctx {
   /**
    * The part to pick next from a stack: of the listed parts still on it,
    * the EXPOSED one (frontmost along its outward face). Chosen from live
-   * positions, never by id, so a task can be re-run. Throws when the
+   * positions, never by id, so a step can be re-run. Throws when the
    * stack is empty.
    */
   nextOnStack(stackId: string, partIds: string[]): CellItem;

@@ -32,7 +32,7 @@
   .segrow { display: flex; gap: 8px; align-items: center; margin: 4px 0; color: #9fb0c0; }
   .segrow button { padding: 1px 8px; }
   #runControls { display: flex; gap: 6px; margin-top: 6px; }
-  #taskline {
+  #stepline {
     margin-top: 6px; padding: 5px 8px; background: #0c0f13; border-radius: 6px;
     font-family: ui-monospace, monospace; font-size: 11px; color: #8fa3b8;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; height: 15px;
@@ -43,7 +43,7 @@
     display: none; z-index: 10; max-width: 320px;
   }
   #status { position: fixed; right: 14px; bottom: 10px; color: #64748b; font-size: 11.5px; }
-  /* chat with the task agent (chat.js) */
+  /* chat with the step agent (chat.js) */
   #chat {
     position: fixed; top: 12px; right: 12px; width: 340px; max-height: calc(100% - 48px);
     display: flex; flex-direction: column; background: rgba(16,20,24,.9); border: 1px solid #2a3340;
@@ -90,9 +90,9 @@
     <button id="poseUp">Straight up</button>
   </div>
   <div class="sect">
-    <b>Task</b>
+    <b>Step</b>
     <div class="row" style="margin-top:6px">
-      <select id="taskSel" style="flex:1"></select>
+      <select id="stepSel" style="flex:1"></select>
       <select id="speedSel" title="playback speed">
         <option value="0.25">0.25×</option>
         <option value="0.5">0.5×</option>
@@ -104,11 +104,11 @@
     <div id="segments"></div>
     <div id="runControls">
       <button id="btnPause">Pause</button>
-      <button id="btnStep" title="run one command, then pause">Step</button>
+      <button id="btnNext" title="run one command, then pause">Next</button>
       <button id="btnStop">Stop</button>
       <button id="btnReset" title="parts back to their loaded poses, arm to dock">Reset</button>
     </div>
-    <div id="taskline">idle</div>
+    <div id="stepline">idle</div>
   </div>
   <div class="sect checks" id="toggles"><b>Show</b></div>
   <div class="sect">

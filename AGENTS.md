@@ -2,7 +2,7 @@
 
 You are a coding agent working in (or asked to install) **nano-cell**, a
 browser-only simulated robot cell. This file is your contract: how to
-install it, how to verify it, and how to add or edit tasks without
+install it, how to verify it, and how to add or edit steps without
 re-learning this project's hard-won rules.
 
 If you are Claude Code, also read `CLAUDE.md` (loaded automatically) —
@@ -13,14 +13,14 @@ it holds the same working rules in condensed form.
 1. Clone the repository and enter it.
 2. Check prerequisites: `python3 --version` (3.8+) and Node 18+.
 3. `npm install` — REQUIRED: MuJoCo (WebAssembly) is the geometry and
-   physics engine; without it tasks are disabled (the scene still
+   physics engine; without it steps are disabled (the scene still
    renders, and the panel says so).
 4. Start the viewer: `python3 viewer/serve.py` (background). It serves
    the repo root on port 8742 (pass another port as the first argument
    if taken), opens the browser, and live-reloads on any file change.
 5. Verify: run `./scripts/check.sh` (should end `check: OK`), then in
-   the viewer select the `pick-place-case` task and run all segments —
-   it must end with **task done** in the status line: the arm picks a
+   the viewer select the `pick-place-case` step and run all segments —
+   it must end with **step done** in the status line: the arm picks a
    case from the 45° stack and inserts it into the holder pocket.
 6. Report to the user: the viewer URL, check results, and that editing
    any file hot-reloads the page.
@@ -36,22 +36,22 @@ meshes in `arm/` — the whole design of the cell): arm and mount, table, enclos
 stack, cameras, IO. An **application**
 (`applications/<name>/application.json`): one job and its environment —
 grippers, tool rack, fixtures and parts with meshes + collision meshes —
-together with its `print/` files and `tasks/`. `viewer/cell-data.js`
+together with its `print/` files and `steps/`. `viewer/cell-data.js`
 composes the two into the cell everything else works on, and refuses a
 robot that lacks what the application needs (an IO line a gripper
 switches, a tool changer). The **planner**
-(`viewer/planner.js`, pure, node-testable) turns task commands into
+(`viewer/planner.js`, pure, node-testable) turns step commands into
 collision-checked joint paths on the MuJoCo backend
 (`viewer/mj-world.js`; obstacles box-decomposed by `viewer/boxify.js`,
 which also supplies the measurement points and corridor heights). The **host** (`viewer/cell-host.js`)
 animates them in the three.js scene and owns run state. Tools not on
 the arm rest in their rack stands (`changer.stands[].tool_id`) and are
 obstacles like any fixture; a move that deliberately reaches one names
-the tool id in `ignore`. **Tasks** live
-in `applications/<application>/tasks/<name>/`: a `task.json` naming the tool and segment order,
+the tool id in `ignore`. **Steps** live
+in `applications/<application>/steps/<name>/`: a `step.json` naming the tool and segment order,
 and `segments/*.ts` — typed async functions against the cell API
 (`viewer/cell.d.ts`). The server (`viewer/serve.py`) also exposes
-`/__applications`, `/__tasks?app=<application>` (task list) and
+`/__applications`, `/__steps?app=<application>` (step list) and
 `/__reload` (live reload).
 
 ## Robots and applications
@@ -91,9 +91,9 @@ nothing to the picture — a screw in its hole in the feeder disc — are
 NOT simulated: place them from measured geometry and leave them. Do not
 spend effort making such contacts settle.
 
-## Adding a new task
+## Adding a new step
 
-1. Create `applications/<application>/tasks/<name>/task.json`:
+1. Create `applications/<application>/steps/<name>/step.json`:
    ```json
    { "name": "Human-readable name",
      "tool": "rcup16_p0", "segments": ["10_first.ts", "20_second.ts"] }
@@ -107,11 +107,11 @@ spend effort making such contacts settle.
    for its contract. Each segment exports `entry` (a safe standalone
    start pose, tool pointing down, mid-cell) and a default async
    function `(cell, ctx) => Promise<void>`.
-3. The task appears in the viewer's dropdown automatically (the server
-   scans the application's `tasks/`). Run each segment alone with its ▶ button while
+3. The step appears in the viewer's dropdown automatically (the server
+   scans the application's `steps/`). Run each segment alone with its ▶ button while
    iterating; `entry` is what makes that possible.
 
-## Editing existing tasks or the engine
+## Editing existing steps or the engine
 
 - Follow the rules in `CLAUDE.md` (measured geometry only; segments
   state intent; `ignore` lists name exactly what a move deliberately
@@ -120,29 +120,29 @@ spend effort making such contacts settle.
   never in `cell-host.js` (animation and scene only). That keeps it
   testable under node.
 - **After any change** to `viewer/`, a robot or an application: run
-  `./scripts/check.sh` AND re-run the pick-place task in the viewer to
-  "task done" before telling the user the change works. The checks
+  `./scripts/check.sh` AND re-run the pick-place step in the viewer to
+  "step done" before telling the user the change works. The checks
   encode every regression this project has already paid for once.
 - When you fix a motion bug, add an assertion to
   `test/motion.test.mjs` in the same change.
 
 ## The chat panel
 
-The viewer has a **Task agent** panel (top right): the user types a
-request and a coding agent edits the tasks, the page reloading on each
+The viewer has a **Step agent** panel (top right): the user types a
+request and a coding agent edits the steps, the page reloading on each
 save. It is `viewer/chat.js` (the panel) and `viewer/chat.py` (served by
 `serve.py` under `/__chat/*`): every message runs the Claude Code CLI
 (`claude`, installed and signed in) headless in the repository root,
 continuing one conversation. The conversation is kept in the server, so
 it survives page reloads; **New** forgets it. The agent may read, search
 and edit files and run `./scripts/check.sh`; it cannot see or drive the
-viewer, so it asks the user to run the task. The endpoints answer only
+viewer, so it asks the user to run the step. The endpoints answer only
 to the page's own origin.
 
 ## Debugging
 
 - The status line shows the running command with elapsed time; the
-  browser console carries the full `[task]` log including per-command
+  browser console carries the full `[step]` log including per-command
   durations and planner decisions (which transfer candidate won, what
   a touch move landed on).
 - Show panel → **collision points** (orange: the obstacle world every

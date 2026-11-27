@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A browser-only simulated robot cell: a 6-axis arm, collision-checked motion planning, and TypeScript task segments — no build step, no physics engine.",
+  "description": "A browser-only simulated robot cell: a 6-axis arm, collision-checked motion planning, and TypeScript step segments — no build step, no physics engine.",
   "scripts": {
     "serve": "python3 viewer/serve.py",
     "test": "node --test",
