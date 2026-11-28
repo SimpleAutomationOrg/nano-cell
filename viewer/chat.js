@@ -16,8 +16,7 @@ const box = document.createElement('div');
 box.id = 'chat';
 box.innerHTML = `
   <div id="chatMain">
-    <header title="show / hide the conversation"><div class="who"><b id="chatName">Assistant</b></div>
-      <button id="chatNew" title="forget this conversation and start a new one">New</button></header>
+    <header title="show / hide the conversation"><div class="who"><b id="chatName">Assistant</b></div></header>
     <div id="chatBody">
       <div id="chatLog"></div>
       <div id="chatWork" hidden><span class="dots"><i></i><i></i><i></i></span><span id="chatWorkText"></span></div>
@@ -49,7 +48,7 @@ const setClosed = on => {
 };
 setClosed(localStorage.getItem('chat.closed') === '1');
 box.querySelector('header').addEventListener('click', ev => {
-  if (ev.target.id !== 'chatNew') setClosed(!box.classList.contains('closed'));
+  setClosed(!box.classList.contains('closed'));
 });
 
 let agent = null;                   // { name, hint } once the server has said who answers
@@ -288,7 +287,6 @@ box.querySelector('form').addEventListener('submit', ev => { ev.preventDefault()
 input.addEventListener('keydown', ev => {
   if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); send(); }
 });
-box.querySelector('#chatNew').addEventListener('click', () => post('new'));
 
 // follow the conversation from its start (the server has all of it)
 async function follow() {

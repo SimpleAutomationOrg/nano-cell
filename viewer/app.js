@@ -444,7 +444,11 @@ function buildAppUI(apps, current) {
     const fileName = r.headers.get('X-Microfactory-File') ?? `${current}.microfactory`;
     if (desktopApp) {
       // the installed app writes the file itself and shows it in its folder
-      try { status(`exported ${await desktopApp.saveFile(fileName, blob)} (${(blob.size / 1e6).toFixed(1)} MB)`); }
+      try {
+        const path = await desktopApp.saveFile(fileName, blob);
+        status(`exported ${path} (${(blob.size / 1e6).toFixed(1)} MB)`);
+        tell(`Exported “${current}” as one file:\n${path}`);
+      }
       catch (e) { status('export failed: ' + e.message); tell('Export failed: ' + e.message); }
       return;
     }
@@ -454,6 +458,8 @@ function buildAppUI(apps, current) {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
     status(`exported ${fileName} (${(blob.size / 1e6).toFixed(1)} MB)`);
+    // the status line is soon overwritten and a browser may save without showing anything: say it
+    tell(`Exported “${current}” as one file (${(blob.size / 1e6).toFixed(1)} MB):\n${fileName}\n\nThe browser saved it with its downloads — usually the Downloads folder.`);
   };
   const pick = document.getElementById('appPick');
   document.getElementById('appImport').onclick = () => pick.click();
