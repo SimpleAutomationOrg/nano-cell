@@ -151,8 +151,8 @@ test('the build puts the page and a workspace pack in the artifact — tracked f
     const names = Object.keys(publish.files).sort();
     assert.ok(names.includes('viewer/desktop.js') && names.includes('viewer/app.js') && names.includes('ws/files.json'));
     for (const [name, from] of Object.entries(publish.files)) {
-      assert.match(name, /^(viewer\/[\w.-]+\.js|ws\/files\.json|ws\/b\/\d+\.bin)$/, `${name} is not something the app carries`);
-      assert.ok(existsSync(join(ROOT, from.from ?? from)), `${name} was not built`);
+      assert.match(name, /^(viewer\/[\w.-]+\.js|ws\/files\.json|ws\/b\/\d+\.txt)$/, `${name} is not something the app carries`);
+      assert.ok(existsSync(join(ROOT, from)), `${name} was not built`);
     }
     // the pack: only what git tracks, only the starter application, nothing local
     const pack = JSON.parse(readFileSync(join(out, 'ws/files.json'), 'utf8'));
@@ -208,7 +208,7 @@ test('the app makes its workspace from the pack, the engine starts in it, and an
   try {
     execFileSync('node', ['scripts/build-artifact.mjs', '--out', out.slice(ROOT.length)], { cwd: ROOT, encoding: 'utf8' });
     const pack = JSON.parse(readFileSync(join(out, 'ws/files.json'), 'utf8'));
-    const load = async e => new Uint8Array(readFileSync(join(out, e.bin)));
+    const load = async e => fromBase64(readFileSync(join(out, e.bin), 'utf8'));
     const dir = join(tmp, "my cell's place");
     const first = await installWorkspace({ fs: desktopFs, load, dir, pack });
     assert.ok(first.fresh && first.tools && first.written.length === pack.files.length);

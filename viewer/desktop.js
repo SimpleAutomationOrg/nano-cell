@@ -19,7 +19,7 @@
 //
 // In a browser, served by serve.py, this file is not loaded at all.
 
-import { startEngine, engineFetch, absolutePath, chmodCommand, toolsCommand } from './desktop-bridge.js';
+import { startEngine, engineFetch, fromBase64, absolutePath, chmodCommand, toolsCommand } from './desktop-bridge.js';
 import { installWorkspace, readMarker } from './workspace-install.js';
 
 const WS_KEY = 'microfactory.workspace';
@@ -175,7 +175,7 @@ async function main() {
     try {
       const r = await installWorkspace({
         fs: desktop.fs, dir, pack: await loadPack(),
-        load: async e => new Uint8Array(await (await realFetch(new URL('./' + e.bin, document.baseURI))).arrayBuffer()),
+        load: async e => fromBase64(await (await realFetch(new URL('./' + e.bin, document.baseURI))).text()),
         say: progress => busy(title, `Writing Microfactory's files into ${dir} — ${progress} …`),
       });
       if (r.upToDate) return {};

@@ -43,8 +43,8 @@ version of the one named in `artifact.json`.
 How the installed app works:
 
 - **The artifact holds the page and a workspace pack.** The page is
-  `viewer/*.js` and the markup. The pack (`ws/files.json` + the meshes in
-  `ws/b/`) is every file a new workspace is made of: the local programs
+  `viewer/*.js` and the markup. The pack (`ws/files.json` + the meshes, as
+  base64 text, in `ws/b/`) is every file a new workspace is made of: the local programs
   (`viewer/*.py`), `guides/`, `recipes/`, `scripts/`, the robot
   (`cell_fr3/`) and the starter application(s) named in `artifact.json`
   (`"starter"`). What may go in is decided in

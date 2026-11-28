@@ -26,7 +26,7 @@ Run `node scripts/build-artifact.mjs`. It writes `dist/artifact/`:
 - `viewer/*.js` — the page's code;
 - `publish.json` — the arguments for the publish call.
 
-- `ws/files.json` and `ws/b/*.bin` — the workspace pack: the files a new
+- `ws/files.json` and `ws/b/*.txt` — the workspace pack: the files a new
   workspace is made of (local programs, guides, robot, the starter
   application named in `artifact.json`), meshes as separate files.
 
@@ -47,8 +47,7 @@ out, whatever the reason.
 Read `dist/artifact/publish.json` and call the **Artifact** tool with
 `action: "publish"` and, from that file:
 
-- `file_path` and `files` exactly as given (the `.bin` entries carry their
-  content type);
+- `file_path` and `files` exactly as given;
 - `title` and `description` as given.
 
 Then, depending on whether `artifact.json` exists in the repository root:

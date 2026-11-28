@@ -14,7 +14,8 @@
 //                             is made of — the local programs, the guides,
 //                             the robot, the starter application(s) — text
 //                             inline, meshes by reference
-//   <out>/ws/b/<n>.bin        the meshes of the pack
+//   <out>/ws/b/<n>.txt        the meshes of the pack, as base64 text (artifacts
+//                             serve text and no arbitrary binary files)
 //   <out>/publish.json        the arguments of the publish call: file_path,
 //                             files, capabilities, title, description, icon
 //   <out>-report.txt          what went in, for a person to read
@@ -97,8 +98,8 @@ for (const f of tracked) {
   if (/\.(glb|stl)$/.test(f.path)) {
     let info;
     try { info = checkMesh(f.path, new Uint8Array(bytes)); } catch (e) { fail(`${f.path}: ${e.message} — a mesh must be geometry only (scripts/clean-mesh.mjs strips a GLB)`); }
-    entry.bin = `ws/b/${bins++}.bin`;
-    writeFileSync(join(OUT, entry.bin), bytes);
+    entry.bin = `ws/b/${bins++}.txt`;
+    writeFileSync(join(OUT, entry.bin), bytes.toString('base64'));
     const mm = info.bounds[1].map((h, k) => Math.round((h - info.bounds[0][k]) * 1000));
     report.push(`mesh  ${f.path}  ${info.triangles} triangles, ${mm.join(' x ')} mm${info.text.length ? '  text: ' + JSON.stringify(info.text) : ''}`);
   } else if (PACK_TEXT.test(f.path)) {
@@ -135,7 +136,7 @@ const walk = d => { for (const e of readdirSync(d, { withFileTypes: true })) e.i
 walk(OUT);
 const supporting = all.filter(f => f !== join(OUT, 'index.html')).sort();
 const TEXT = /\.(js|html|json|css|md|txt)$/;
-const MAY_CARRY = /^(index\.html|viewer\/[\w.-]+\.js|ws\/files\.json|ws\/b\/\d+\.bin)$/;
+const MAY_CARRY = /^(index\.html|viewer\/[\w.-]+\.js|ws\/files\.json|ws\/b\/\d+\.txt)$/;
 let total = 0;
 for (const f of all) {
   const size = statSync(f).size, rel = relative(OUT, f);
@@ -169,8 +170,7 @@ for (const f of modules) {
 const rel = f => relative(ROOT, f).split('\\').join('/');
 const publish = {
   file_path: rel(join(OUT, 'index.html')),
-  files: Object.fromEntries(supporting.map(f => [relative(OUT, f).split('\\').join('/'),
-    f.endsWith('.bin') ? { from: rel(f), contentType: 'application/octet-stream' } : rel(f)])),
+  files: Object.fromEntries(supporting.map(f => [relative(OUT, f).split('\\').join('/'), rel(f)])),
   capabilities: { desktop: {} },
   title: TITLE,
   description: DESCRIPTION,
