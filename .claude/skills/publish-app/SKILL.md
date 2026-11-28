@@ -75,9 +75,9 @@ In a few lines:
 - how to install: open the link **in the Claude desktop app** → the
   artifact's menu → **Install as app**. An installed app picks a new
   version up by itself; it asks for access again once per new version;
-- the first run asks for the **workspace folder** (a checkout of this
-  repository, with `npm install` done) and needs `python3`, `node` and the
-  `claude` CLI on that computer;
+- the first run asks where the **workspace folder** should be and makes it
+  (**Create new**); that computer needs `python3`, `node` and the `claude`
+  CLI, and no access to the repository;
 - anything that failed or was skipped.
 
 Sharing the artifact with other people, or making it public, is not part of

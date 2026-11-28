@@ -77,7 +77,8 @@ const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
 // ---- the workspace pack ----
 let starter = [];
 try { starter = JSON.parse(readFileSync(join(ROOT, 'artifact.json'), 'utf8')).starter ?? []; } catch { /* none */ }
-const LEFT_OUT = [/^\.claude\//, /^docs\//, /^artifact\.json$/, /^README\.md$/];
+// (LICENSE names its holder, a person: it stays in the repository)
+const LEFT_OUT = [/^\.claude\//, /^docs\//, /^artifact\.json$/, /^README\.md$/, /^LICENSE$/];
 const PACK_TEXT = /(\.(js|mjs|ts|py|json|md|sh|html|txt)|^LICENSE|^\.gitignore)$/;
 const tracked = execFileSync('git', ['ls-files', '-s'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n')
   .map(l => { const [mode, , , ...path] = l.split(/\s+/); return { mode, path: path.join(' ') }; })
