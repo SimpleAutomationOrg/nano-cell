@@ -59,7 +59,8 @@ as free bodies. Without it the scene renders but steps are disabled.
   pose is in the table frame, so an application can be moved to another
   robot; the viewer shows it on the robot it names (`?app=<name>` picks
   the application, `?robot=<name>` tries it on another robot).
-  **Export** saves an application as one `.microfactory` file to share;
+  **Export** saves an application as one `<name>-<version>.microfactory`
+  file to share (the version is a hash of its contents);
   **Import** opens one.
   - `steps/<name>.ts` — one file per step: its name, its tool and an
     async function against the typed

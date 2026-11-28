@@ -168,8 +168,13 @@ buf = io.BytesIO(); appfiles.export_application(src, buf)
 names = zipfile.ZipFile(io.BytesIO(buf.getvalue())).namelist()
 imp = lambda name, mode, data=None: appfiles.import_application(apps, io.BytesIO(data or buf.getvalue()), name, mode, backup_root=backups)
 res = {'first': names[0], 'ds': '.DS_Store' in names}
-res['new'] = imp('Shared Demo', 'ask'); res['same_tree'] = tree(os.path.join(apps, 'shared-demo')) == tree(src)
+v = appfiles.version_of(src); buf2 = io.BytesIO()
+res['version'] = [v, appfiles.export_application(src, buf2), appfiles.version_of_archive(zipfile.ZipFile(io.BytesIO(buf.getvalue())))]
+res['file'] = appfiles.export_name('demo', v)
+res['ids'] = [appfiles.id_from_file_name(n, v) for n in ('demo-' + v + '.microfactory', 'demo-' + v + ' (2).microfactory', 'Demo.microfactory', 'cafe-deadbeef.microfactory')]
+res['new'] = imp('Shared Demo-' + v + '.microfactory', 'ask'); res['same_tree'] = tree(os.path.join(apps, 'shared-demo')) == tree(src)
 res['ask'] = imp('demo', 'ask')
+open(os.path.join(src, 'steps', 'go.ts'), 'a').write('// edited'); res['changed'] = [appfiles.version_of(src) != v, imp('demo', 'ask')['identical']]
 uid = appfiles.read_manifest(src)['uid']
 res['copy'] = imp('demo', 'copy'); res['copy_uid_new'] = appfiles.read_manifest(os.path.join(apps, 'demo-2'))['uid'] != uid
 open(os.path.join(src, 'mine.txt'), 'w').write('local work')
@@ -193,12 +198,18 @@ res['left'] = sorted(os.listdir(apps))
 print(json.dumps(res))`, new URL(`applications/${APP}`, ROOT).pathname, tmp], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' }));
     assert.equal(out.first, 'application.json', 'the manifest is the first file of the archive');
     assert.ok(!out.ds, 'desktop clutter is not exported');
-    assert.deepEqual(out.new, { id: 'shared-demo' }, 'the application is named after the file');
+    const v = out.version[0];
+    assert.match(v, /^[0-9a-f]{8}$/);
+    assert.deepEqual(out.version, [v, v, v], 'the version is a hash of the contents: the same for the folder, a second export, and the archive itself');
+    assert.equal(out.file, `demo-${v}.microfactory`, 'the exported file carries the version in its name');
+    assert.deepEqual(out.ids, ['demo', 'demo', 'demo', 'cafe-deadbeef'], 'import drops the version (and a browser\'s " (2)") from the name, but only when it is this file\'s own hash');
+    assert.deepEqual(out.new, { id: 'shared-demo', version: v }, 'the application is named after the file, without the version');
+    assert.deepEqual(out.changed, [true, false], 'any edit gives another version, and the file is then no longer "what is here already"');
     assert.ok(out.same_tree, 'the imported folder differs from the exported one');
-    assert.deepEqual(out.ask, { exists: true, id: 'demo', name: 'Demo', same: true }, 'an existing application is reported, not touched');
-    assert.deepEqual(out.copy, { id: 'demo-2' });
+    assert.deepEqual(out.ask, { exists: true, id: 'demo', name: 'Demo', version: v, same: true, identical: true }, 'an existing application is reported, not touched');
+    assert.deepEqual(out.copy, { id: 'demo-2', version: v });
     assert.ok(out.copy_uid_new, 'a copy kept beside the original is another application: it needs its own uid');
-    assert.deepEqual(out.replace, { id: 'demo' });
+    assert.deepEqual(out.replace, { id: 'demo', version: v });
     assert.ok(out.replaced_gone && out.kept, 'replacing must move the application that was here to the backups, with its files');
     assert.match(out.escape, /unsafe path: \.\.\/escaped\.txt/);
     assert.match(out.absolute, /unsafe path/);

@@ -429,12 +429,15 @@ function buildAppUI(apps, current) {
     const r = await fetch(`/__applications/export?app=${encodeURIComponent(current)}`, { headers: HEAD });
     if (!r.ok) { const e = (await r.json().catch(() => ({}))).error ?? r.status; status('export failed: ' + e); alert('Export failed: ' + e); return; }
     const blob = await r.blob();
+    // the server names the file: <application>-<version>.microfactory, the
+    // version being a hash of the contents
+    const fileName = r.headers.get('X-Microfactory-File') ?? `${current}.microfactory`;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${current}.microfactory`;
+    a.download = fileName;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    status(`exported ${current}.microfactory (${(blob.size / 1e6).toFixed(1)} MB)`);
+    status(`exported ${fileName} (${(blob.size / 1e6).toFixed(1)} MB)`);
   };
   const pick = document.getElementById('appPick');
   document.getElementById('appImport').onclick = () => pick.click();
@@ -444,6 +447,11 @@ function buildAppUI(apps, current) {
   async function importFile(file) {
     status(`importing ${file.name}…`);
     let r = await send(file, 'ask');
+    if (r.exists && r.identical) {
+      status(`${file.name} is exactly what is here already (version ${r.version})`);
+      if (r.id !== current) open(r.id);
+      return;
+    }
     if (r.exists) {
       // never overwrite silently: replace (the one here is kept as a backup) or keep both
       const what = r.same ? `"${r.name}" is already here (an earlier or later version of this same application).`

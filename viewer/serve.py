@@ -243,7 +243,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._json({"error": "no such application"}, 404)
         with tempfile.TemporaryFile() as tmp:
             try:
-                appfiles.export_application(d, tmp)
+                version = appfiles.export_application(d, tmp)
             except OSError as e:
                 return self._json({"error": str(e)}, 500)
             size = tmp.tell()
@@ -251,7 +251,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/zip")
             self.send_header("Content-Length", str(size))
-            self.send_header("Content-Disposition", f'attachment; filename="{app}{appfiles.EXTENSION}"')
+            # the file's name carries the version: a hash of its contents
+            self.send_header("Content-Disposition", f'attachment; filename="{appfiles.export_name(app, version)}"')
+            self.send_header("X-Microfactory-File", appfiles.export_name(app, version))
             self.end_headers()
             while True:
                 chunk = tmp.read(1 << 20)
@@ -274,8 +276,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if n > MAX_IMPORT:
             return self._json({"error": f"file too large (limit {MAX_IMPORT // 1_000_000} MB)"}, 413)
         name = os.path.basename(q.get("name", [""])[0].replace("\\", "/"))
-        if name.lower().endswith(appfiles.EXTENSION):
-            name = name[:-len(appfiles.EXTENSION)]
         with tempfile.TemporaryFile() as tmp:
             left = n
             while left > 0:

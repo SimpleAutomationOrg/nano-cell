@@ -120,19 +120,76 @@ def slug(name):
     return re.sub(r"[^a-z0-9]+", "-", str(name).lower()).strip("-")[:60]
 
 
+def _files(app_dir):
+    """The files an export takes, as (path in the archive, path on disk), sorted."""
+    out = []
+    for dirpath, dirnames, filenames in os.walk(app_dir):
+        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
+        for fn in filenames:
+            full = os.path.join(dirpath, fn)
+            if fn in SKIP_NAMES or os.path.islink(full):
+                continue
+            out.append((os.path.relpath(full, app_dir).replace(os.sep, "/"), full))
+    return sorted(out)
+
+
+def _version(entries):
+    """The version of an application: a short hash of WHAT IS IN IT — every
+    file's path and contents, in path order. The same contents always give
+    the same version, whenever and wherever they are exported; any change
+    gives another. `entries` yields (path, bytes-reader)."""
+    import hashlib
+    h = hashlib.sha256()
+    for rel, read in sorted(entries, key=lambda e: e[0]):
+        data = read()
+        h.update(rel.encode("utf-8") + b"\0" + str(len(data)).encode() + b"\0")
+        h.update(data)
+    return h.hexdigest()[:8]
+
+
+def version_of(app_dir):
+    """The version hash of the application folder as it is now."""
+    def reader(full):
+        def read():
+            with open(full, "rb") as f:
+                return f.read()
+        return read
+    return _version((rel, reader(full)) for rel, full in _files(app_dir))
+
+
+def version_of_archive(z):
+    """The version hash of an opened archive — equal to version_of() of the
+    folder it was exported from."""
+    return _version((i.filename, (lambda i=i: z.read(i))) for i in z.infolist() if not i.is_dir())
+
+
+def export_name(app_id, version):
+    return f"{app_id}-{version}{EXTENSION}"
+
+
 def export_application(app_dir, out):
-    """Write the application in `app_dir` to the binary file `out` as one archive."""
+    """Write the application in `app_dir` to the binary file `out` as one
+    archive. Returns its version hash (which goes into the file's name)."""
     import zipfile
+    files = _files(app_dir)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         z.write(os.path.join(app_dir, "application.json"), "application.json")
-        for dirpath, dirnames, filenames in os.walk(app_dir):
-            dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-            for fn in sorted(filenames):
-                full = os.path.join(dirpath, fn)
-                rel = os.path.relpath(full, app_dir).replace(os.sep, "/")
-                if fn in SKIP_NAMES or rel == "application.json" or os.path.islink(full):
-                    continue
+        for rel, full in files:
+            if rel != "application.json":
                 z.write(full, rel)
+    return version_of(app_dir)
+
+
+def id_from_file_name(name, version):
+    """The application id a file's name gives: without the extension, without
+    the " (1)" a browser adds to a second download, and without the version
+    hash export put there — but only when it IS this file's hash, so a name
+    that merely ends in hex is left alone."""
+    stem = name[:-len(EXTENSION)] if name.lower().endswith(EXTENSION) else name
+    stem = re.sub(r"\s*\(\d+\)\s*$", "", stem)
+    if stem.lower().endswith("-" + version):
+        stem = stem[:-len(version) - 1]
+    return slug(stem)
 
 
 def inspect_archive(z):
@@ -168,7 +225,8 @@ def import_application(apps_root, src, name_hint, existing="ask", backup_root=No
                           same application (same uid) or another by that name
       existing="replace"  the one here is moved to `backup_root` first, never deleted
       existing="copy"     imported beside it under a free id, with a uid of its own
-    Returns {"id": ...} or {"exists": True, "id": ..., "same": bool, "name": ...}.
+    Returns {"id", "version"} or {"exists": True, "id", "name", "version",
+    "same": same uid, "identical": same contents}.
     """
     import shutil
     import time
@@ -179,7 +237,8 @@ def import_application(apps_root, src, name_hint, existing="ask", backup_root=No
         raise ImportError_(f"not a {EXTENSION} file")
     with z:
         manifest = inspect_archive(z)
-        app_id = slug(name_hint) or slug(manifest.get("name", "")) or "application"
+        version = version_of_archive(z)
+        app_id = id_from_file_name(name_hint, version) or slug(manifest.get("name", "")) or "application"
         target = os.path.join(apps_root, app_id)
         fork = False
         if os.path.exists(target):
@@ -188,8 +247,10 @@ def import_application(apps_root, src, name_hint, existing="ask", backup_root=No
                     here = read_manifest(target)
                 except (OSError, ValueError):
                     here = {}
-                return {"exists": True, "id": app_id, "name": here.get("name", app_id),
-                        "same": bool(manifest.get("uid")) and here.get("uid") == manifest.get("uid")}
+                return {"exists": True, "id": app_id, "name": here.get("name", app_id), "version": version,
+                        "same": bool(manifest.get("uid")) and here.get("uid") == manifest.get("uid"),
+                        # the file holds exactly what is here already: nothing to import
+                        "identical": version_of(target) == version}
             if existing == "replace":
                 if not backup_root:
                     raise ImportError_("no place to keep the application being replaced")
@@ -216,4 +277,4 @@ def import_application(apps_root, src, name_hint, existing="ask", backup_root=No
         except BaseException:
             shutil.rmtree(staging, ignore_errors=True)
             raise
-    return {"id": app_id}
+    return {"id": app_id, "version": version}
