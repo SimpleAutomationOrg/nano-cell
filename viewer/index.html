@@ -106,8 +106,25 @@
   .agent.sel .lbl { color: #e8eef4; }
   .agent i { display: none; position: absolute; top: 5px; right: 11px; width: 9px; height: 9px; border-radius: 50%;
     background: #4da3ff; border: 2px solid #0a0d10; animation: chatpulse 1s infinite alternate; }
-  .agent.busy i { display: block; }
   #chatMain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  /* an agent at work: a turning ring on its profile, moving dots under its conversation */
+  .agent.busy .face { opacity: 1; box-shadow: 0 0 0 2px #0a0d10; }
+  .agent.busy .face::after {
+    content: ''; position: absolute; top: 3px; left: 50%; width: 40px; height: 40px; margin-left: -20px; box-sizing: border-box;
+    border-radius: 50%; border: 2px solid transparent; border-top-color: var(--c); border-right-color: var(--c);
+    animation: agentspin 0.9s linear infinite;
+  }
+  @keyframes agentspin { to { transform: rotate(360deg); } }
+  #chatWork { display: flex; align-items: center; gap: 8px; padding: 6px 12px; color: #9fb0c0; font-size: 11.5px;
+    border-top: 1px solid #1c232c; background: #0f141a; white-space: nowrap; overflow: hidden; }
+  #chatWork[hidden] { display: none; }
+  #chatWorkText { overflow: hidden; text-overflow: ellipsis; }
+  #chatWork .dots { display: inline-flex; gap: 3px; flex: none; }
+  #chatWork .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--c, #4da3ff); animation: workdot 1.1s infinite ease-in-out; }
+  #chatWork .dots i:nth-child(2) { animation-delay: .18s; }
+  #chatWork .dots i:nth-child(3) { animation-delay: .36s; }
+  @keyframes workdot { 0%, 70%, 100% { opacity: .25; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
+  #chat.working textarea { border-color: #35557a; }
   #chat.closed #chatMain { display: none; }
   #chat header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; user-select: none; }
   #chat header .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }

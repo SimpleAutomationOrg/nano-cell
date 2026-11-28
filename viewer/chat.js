@@ -22,6 +22,7 @@ box.innerHTML = `
       <button id="chatNew" title="forget this conversation and start a new one">New</button></header>
     <div id="chatBody">
       <div id="chatLog"></div>
+      <div id="chatWork" hidden><span class="dots"><i></i><i></i><i></i></span><span id="chatWorkText"></span></div>
       <form>
         <div id="chatFiles"></div>
         <div class="line">
@@ -92,10 +93,25 @@ function hint(text) {
   el.textContent = text;
   log.appendChild(el);
 }
-let running = false;
+// While the agent shown is working: a line under the conversation with
+// moving dots, saying who is working, on what (its latest action) and for
+// how long. The profile in the bar gets a turning ring as well.
+let running = false, since = 0, doing = '';
+const work = box.querySelector('#chatWork'), workText = box.querySelector('#chatWorkText');
+function drawWork() {
+  work.hidden = !running;
+  box.classList.toggle('working', running);
+  if (!running) return;
+  const s = Math.round((Date.now() - since) / 1000);
+  workText.textContent = `${current?.name ?? 'The agent'} is working${doing ? ` — ${doing}` : ''} · ${s} s`;
+}
+setInterval(drawWork, 1000);
 function setRunning(on) {
+  if (on && !running) since = Date.now();
+  if (!on) doing = '';
   running = on;
   sendBtn.textContent = on ? 'Stop' : 'Send';
+  drawWork();
 }
 // the dot on a profile: that agent is working, whichever one is shown
 function setBusy(ids) {
@@ -254,6 +270,8 @@ async function follow(agent, signal) {
           : 'The `claude` command was not found. Install Claude Code and sign in, then restart viewer/serve.py.');
       else if (r.events.length && log.querySelector('.hint')) log.innerHTML = '';
       r.events.forEach(draw);
+      // what it is doing right now: its latest action since the last message
+      for (const ev of r.events) doing = ev.type === 'tool' ? ev.text : '';
       next = r.next;
       setRunning(r.running);
       setBusy(r.busy ?? []);
