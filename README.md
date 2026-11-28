@@ -9,9 +9,27 @@ keeps the files. No build step.
 
 ![viewer](docs/viewer.jpg)
 
-## Quickstart
+## Install
+
+Give Claude Code (or another coding agent) one line:
+
+```
+install https://github.com/SimpleAutomationOrg/nano-cell
+```
+
+It clones the repository, installs what it needs, checks it, starts the
+viewer in your browser and — in Claude — makes the desktop app for you
+("Install as app"). Needs Python 3.8+, Node 18+ and git.
+
+**If you are the agent reading this page**: clone the repository, open
+[AGENTS.md](AGENTS.md) in the clone and follow its section **Install**
+from the first step to the last. Do not improvise the setup from this
+README.
+
+By hand, in a clone:
 
 ```sh
+npm install
 python3 viewer/serve.py
 # opens http://127.0.0.1:8742/viewer/ with live reload
 ```
@@ -19,10 +37,9 @@ python3 viewer/serve.py
 Pick a step in the dock under the 3D view and press its **▶**. Edit any file —
 viewer code, a step, robot or application data — and the page reloads itself.
 
-**Agent install**: paste this repository's URL into your coding agent
-with the word `install`. The agent-facing guide is [AGENTS.md](AGENTS.md)
-(Claude Code also reads [CLAUDE.md](CLAUDE.md) automatically); it covers
-setup, verification, and how to add or edit steps.
+The agent-facing guide is [AGENTS.md](AGENTS.md) (Claude Code also reads
+[CLAUDE.md](CLAUDE.md) automatically); it covers setup, verification, and
+how to add or edit steps.
 
 Prerequisites: Python 3.8+, Node 18+ (for `npm install` and the checks),
 a modern browser.

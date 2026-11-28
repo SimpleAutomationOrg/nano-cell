@@ -46,7 +46,8 @@ The installable form is a Claude artifact with the `desktop` capability
 step, the project skill **`/publish-app`**
 (`.claude/skills/publish-app/SKILL.md`): check, `node
 scripts/build-artifact.mjs`, publish — a new version of the artifact named
-in `artifact.json`. To make installing easy, besides the page the app carries a
+in `artifact.json` (on a computer that installed from the repository:
+its own artifact, named in the untracked `artifact.local.json`). To make installing easy, besides the page the app carries a
 PACK of the files a workspace is made of (the local programs, the guides,
 the robot, the starter application named in `artifact.json`), and makes
 the workspace folder from it on first start, so installing takes no

@@ -14,8 +14,12 @@ applications/*/materials/
 
 # conversations with the agents: kept with the application on this machine
 applications/*/chats/
-# the agents' CLI sessions: local to this machine
+# the agents' CLI sessions, and which model each option is here: local to this machine
 .chat-sessions.json
+.chat-models.json
+
+# this computer's own published app, when it is not the project author's (publish-app skill)
+artifact.local.json
 
 # scratch output of the artifact build test
 dist-test-*

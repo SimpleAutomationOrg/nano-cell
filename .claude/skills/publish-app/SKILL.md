@@ -50,17 +50,37 @@ Read `dist/artifact/publish.json` and call the **Artifact** tool with
 - `file_path` and `files` exactly as given;
 - `title` and `description` as given.
 
-Then, depending on whether `artifact.json` exists in the repository root:
+Then find WHICH artifact this checkout publishes to. Two files in the
+repository root can name one: `artifact.local.json` (not tracked: this
+computer's own artifact) and `artifact.json` (tracked: the artifact of the
+project's author, and the `starter` list — which everyone uses).
 
-- **It exists** (the app was published before): pass its `"url"` as `url`,
-  so this becomes a new version of the same artifact — the installed apps
-  update from it. Before that publish, read the artifact once
+1. **`artifact.local.json` exists**: its `"url"` is the artifact. Publish
+   a new version of it (below).
+2. **Otherwise, `artifact.json` has a `"url"`**: read that artifact once
+   (`action: "read"`, that `url`). If the result says this person owns it
+   or can edit it ("writer"), it is the artifact: publish a new version of
+   it. If the read is refused, or shows an artifact they can only view,
+   this checkout was installed by someone other than the author: make
+   their own (the first publish, below). Never try to publish to an
+   artifact the person cannot edit, and never ask its owner for access —
+   an app with full access only works for the organization that published
+   it, so a copy of their own is the right result, not a fallback.
+3. **Neither names one**: the first publish.
+
+- **A new version**: pass the `url`, so the installed apps update from
+  it. The artifact must have been read once in this conversation
   (`action: "read"`, the same `url`), as the tool requires. Do not pass
   `icon`. Pass `capabilities` as given (`{"desktop": {}}`).
-- **It does not exist** (first publish): omit `url`, pass `capabilities`
-  and `icon` as given. Write the returned artifact URL to `artifact.json`
-  as `{"url": "<the url>"}` and commit that file, so the next run updates
-  this artifact instead of creating another.
+- **The first publish**: omit `url`, pass `capabilities` and `icon` as
+  given. Then record the returned URL so the next run updates this
+  artifact instead of creating another:
+  - when `artifact.json` had no `"url"` (the project's own first
+    publish): add `"url": "<the url>"` to `artifact.json`, keeping its
+    other fields, and commit that file;
+  - when it had one that is not this person's (case 2): write
+    `artifact.local.json` as `{"url": "<the url>"}`. Leave
+    `artifact.json` as it is and commit nothing.
 
 If the publish is refused for a conflict (someone published in between),
 read the artifact again and publish again; never pass `force`.
@@ -69,7 +89,9 @@ read the artifact again and publish again; never pass `force`.
 
 In a few lines:
 
-- the artifact's link, and that this was a first publish or a new version
+- the artifact's link, and that this was a first publish (and, in case 2
+  above, that it is the person's own copy of the app, private to them) or
+  a new version
   (with the commit from `publish.json` → `build.commit`);
 - how to install: open the link **in the Claude desktop app** → the
   artifact's menu → **Install as app**. An installed app picks a new

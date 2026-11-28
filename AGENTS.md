@@ -11,20 +11,46 @@ it holds the same working rules in condensed form.
 
 ## Install (what to do when the user says "install")
 
-1. Clone the repository and enter it.
-2. Check prerequisites: `python3 --version` (3.8+) and Node 18+.
+The user's whole request may be one line — `install <this repository's
+URL>`. That is enough: do every step below without asking, and stop only
+where a step says to.
+
+1. Clone the repository and enter it. Where: the folder the user named;
+   otherwise `microfactory` in the current folder if that is a place for
+   projects, else `~/microfactory`. If the folder already holds a clone,
+   `git pull` it instead of cloning again. Run every later step from
+   inside the clone.
+2. Check prerequisites: `python3 --version` (3.8+) and Node 18+. If one
+   is missing, say which and how to get it, and stop — do not install
+   system software yourself.
 3. `npm install` — REQUIRED: MuJoCo (WebAssembly) is the geometry and
    physics engine; without it steps are disabled (the scene still
    renders, and the panel says so).
 4. Start the viewer: `python3 viewer/serve.py` (background). It serves
    the repo root on port 8742 (pass another port as the first argument
    if taken), opens the browser, and live-reloads on any file change.
-5. Verify: run `./scripts/check.sh` (should end `check: OK`), then in
-   the viewer select the `pick-place-case` step in the steps dock under the 3D view and press its ▶ —
-   it must end with **step done** in the status line: the arm picks a
-   case from the 45° stack and inserts it into the holder pocket.
-6. Report to the user: the viewer URL, check results, and that editing
-   any file hot-reloads the page.
+5. Verify: run `./scripts/check.sh` (should end `check: OK`). If you can
+   drive a browser, also press ▶ on the first step of the loop in the
+   steps dock under the 3D view — it must end with **step done** in the
+   status line: the arm picks a case from the 45° stack and inserts it
+   into the holder pocket. If you cannot, ask the user to press it.
+6. Make the desktop app, if you are Claude and have the **Artifact** tool
+   (skip this step otherwise, and say that the browser is the way to use
+   it): read `.claude/skills/publish-app/SKILL.md` in the clone and follow
+   it. On a computer that did not publish the app before, this makes a
+   NEW private artifact in the user's own account — the one named in
+   `artifact.json` belongs to the project's author and cannot be written
+   to, which the skill handles. Nothing is shared with anyone. The app
+   asks for full access to the computer (it runs the local server, the
+   agent and the geometry tools); the user allows that themselves, in the
+   app's own dialog, when it first starts.
+7. Report to the user, briefly: where the clone is; the viewer's URL and
+   that editing any file hot-reloads the page; the check result; and, if
+   step 6 ran, the artifact's link with how to install it (open it in the
+   Claude desktop app → the artifact's menu → **Install as app**; on first
+   start choose the clone as the workspace folder, or **Create new**).
+   Also what the chat assistant needs: the `claude` CLI installed and
+   signed in on this computer.
 
 There is no build step. Do not add bundlers, package installs, or
 frameworks during installation.
@@ -38,7 +64,11 @@ defined once, as the project skill **`/publish-app`**
 (`.claude/skills/publish-app/SKILL.md`): check, build
 (`node scripts/build-artifact.mjs` → `dist/artifact/`), publish with the
 Artifact tool — the first time as a new artifact, afterwards as a new
-version of the one named in `artifact.json`.
+version of it. Which artifact that is: the one named in `artifact.json`
+for the project's author; for anyone else who installed from the
+repository, their own, named in `artifact.local.json` (not tracked) — an
+app with full access can only be used by the organization that published
+it, so every installation publishes its own.
 
 How the installed app works:
 
