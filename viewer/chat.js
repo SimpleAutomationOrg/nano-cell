@@ -10,6 +10,7 @@
 // you type — so when an agent saves a file and the page reloads itself,
 // the chat comes back exactly as it was.
 import { pollFetch } from './poll.js';
+import { splitQuestions, answerText, allAnswered } from './ask.js';
 
 const HEAD = { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/json' };
 
@@ -75,7 +76,14 @@ function draw(ev) {
   if (ev.type === 'done') return;
   const el = document.createElement('div');
   el.className = `msg ${ev.type}`;
-  if (ev.type === 'text') el.innerHTML = rich(ev.text.trim());
+  // the user has answered (in whatever way): questions asked before are settled
+  if (ev.type === 'user') for (const a of log.querySelectorAll('.ask:not(.settled)')) settle(a);
+  if (ev.type === 'text') {
+    // an agent's questions come as a block at the end of its message: shown as buttons
+    const { text, questions } = splitQuestions(ev.text.trim());
+    el.innerHTML = rich(text);
+    if (questions.length) el.appendChild(askBox(questions));
+  }
   else el.textContent = ev.type === 'tool' ? `· ${ev.text}` : ev.text;
   // what the user attached: images shown, other files named; both open the saved file
   for (const path of ev.files ?? []) {
@@ -90,6 +98,76 @@ function draw(ev) {
   }
   log.appendChild(el);
 }
+// ---- questions with options ----
+// Each question is a card: its options as buttons (the recommended one
+// first and marked), and a field for an answer in the user's own words.
+// "Send answers" sends them as one message. Once the user has sent
+// anything, the cards are settled: shown, but no longer clickable.
+function settle(box) {
+  box.classList.add('settled');
+  for (const c of box.querySelectorAll('button, input')) c.disabled = true;
+}
+function askBox(questions) {
+  const box = document.createElement('div');
+  box.className = 'ask';
+  const picks = questions.map(() => ({ labels: [], other: '' }));
+  const sendBtn = document.createElement('button');
+  const refresh = () => {
+    sendBtn.disabled = !answerText(questions, picks);
+    sendBtn.textContent = allAnswered(questions, picks) || questions.length === 1 ? 'Send answers'
+      : `Send answers (${questions.filter((q, i) => picks[i].labels.length || picks[i].other.trim()).length} of ${questions.length})`;
+  };
+  questions.forEach((q, i) => {
+    const card = document.createElement('div');
+    card.className = 'ask-q';
+    const title = document.createElement('div');
+    title.className = 'ask-title';
+    title.textContent = (questions.length > 1 ? `${i + 1}. ` : '') + q.question + (q.multi ? '  (pick any)' : '');
+    card.appendChild(title);
+    const opts = document.createElement('div');
+    opts.className = 'ask-opts';
+    for (const o of q.options) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ask-opt' + (o.recommended ? ' rec' : '');
+      b.innerHTML = '<span class="l"></span><span class="d"></span>';
+      b.querySelector('.l').textContent = o.label + (o.recommended ? '  · recommended' : '');
+      b.querySelector('.d').textContent = o.description;
+      b.addEventListener('click', () => {
+        const on = !picks[i].labels.includes(o.label);
+        if (q.multi) picks[i].labels = on ? [...picks[i].labels, o.label] : picks[i].labels.filter(l => l !== o.label);
+        else picks[i].labels = on ? [o.label] : [];
+        for (const x of opts.children) x.classList.toggle('on', picks[i].labels.includes(x.dataset.label));
+        refresh();
+      });
+      b.dataset.label = o.label;
+      opts.appendChild(b);
+    }
+    card.appendChild(opts);
+    const other = document.createElement('input');
+    other.type = 'text';
+    other.className = 'ask-other';
+    other.placeholder = 'or answer in your own words…';
+    other.addEventListener('input', () => { picks[i].other = other.value; refresh(); });
+    other.addEventListener('keydown', ev => { if (ev.key === 'Enter' && !sendBtn.disabled) { ev.preventDefault(); sendBtn.click(); } });
+    card.appendChild(other);
+    box.appendChild(card);
+  });
+  sendBtn.type = 'button';
+  sendBtn.className = 'ask-send';
+  sendBtn.addEventListener('click', async () => {
+    const text = answerText(questions, picks);
+    if (!text || running || sending) return;
+    // anything typed in the message box goes along as a note
+    const note = input.value.trim();
+    input.value = text + (note ? `\n\n${note}` : '');
+    await send();
+  });
+  box.appendChild(sendBtn);
+  refresh();
+  return box;
+}
+
 function hint(text) {
   log.innerHTML = '';
   const el = document.createElement('div');

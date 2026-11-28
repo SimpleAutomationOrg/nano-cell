@@ -262,6 +262,16 @@ cannot see or drive the viewer, and cannot message each other — the
 Lead engineer writes a task so that the user can paste it to the right one.
 The endpoints answer only to the page's own origin.
 
+**Questions with options**: when an agent needs a decision and can name
+the likely answers, it ends its message with a ```` ```questions ````
+block (JSON: questions, each with 2–4 options, optionally a
+description, `"recommended": true` on the one it would choose, and
+`"multi": true` where several may be picked). The chat shows each
+question as a card with its options as buttons, the recommended one
+first and marked, plus a field for an answer in the user's own words;
+**Send answers** sends them as one message. The format is given to
+every agent in `chat.py`'s brief; `viewer/ask.js` reads it.
+
 **Attachments**: the user can attach files to a message — the `+`
 button, pasting (a screenshot) or dropping them on the conversation.
 They are saved when the message is sent, in

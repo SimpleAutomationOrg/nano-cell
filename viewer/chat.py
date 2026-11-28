@@ -48,6 +48,26 @@ applications/<application>/materials/ \
 and listed at the end of the message: open them (Read shows images). Keep \
 replies short and plain; no headings. Do not commit or push.
 
+When you need the user to decide something and can name the likely answers, \
+do not write the questions as prose: end your message with a questions block, \
+which the chat shows as buttons. It must be the LAST thing in the message:
+
+```questions
+[{"question": "Which package?", "options": [
+   {"label": "DIP-16", "description": "16 pins, 19.3 x 6.4 mm body", "recommended": true},
+   {"label": "DIP-8", "description": "8 pins, 9.3 x 6.4 mm body"}]},
+ {"question": "How do the parts arrive?", "options": [
+   {"label": "Antistatic tube"}, {"label": "Loose on a tray"}, {"label": "Design a tray"}]}]
+```
+
+Rules for it: valid JSON; at most 4 questions; 2 to 4 options each; labels of a \
+few words; an optional one-line description; mark the option you would choose \
+with "recommended": true (one per question, and only when you have a reason); \
+add "multi": true to a question where several options may be picked. Do not \
+add an "other" option — the user can always type their own answer. Say before \
+the block, in a sentence or two, why you are asking. Ask only what you cannot \
+find out or sensibly decide yourself.
+
 Your role:
 
 %(role)s"""

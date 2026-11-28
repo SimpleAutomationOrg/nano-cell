@@ -157,6 +157,27 @@
   #chatAttach { flex: none; }
   #chatSend { flex: none; background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
   #chatSend:hover { background: #2a62a8; }
+  /* an agent's questions: a card per question, its options as buttons */
+  .ask { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; white-space: normal; }
+  .ask-q { border: 1px solid #2a3340; border-radius: 9px; padding: 8px; background: #10161d; }
+  .ask-title { color: #e8eef4; font-weight: 600; margin-bottom: 6px; }
+  .ask-opts { display: flex; flex-direction: column; gap: 5px; }
+  .ask-opt { text-align: left; padding: 6px 9px; border-radius: 7px; display: flex; flex-direction: column; gap: 1px; }
+  .ask-opt .l { color: #e8eef4; }
+  .ask-opt .d { color: #7d8a99; font-size: 11px; }
+  .ask-opt .d:empty { display: none; }
+  .ask-opt.rec { border-color: #35557a; }
+  .ask-opt.rec .l { color: #9cc8ff; }
+  .ask-opt.on { background: #1f4f8a; border-color: #4da3ff; }
+  .ask-opt.on .l, .ask-opt.on .d { color: #fff; }
+  .ask-other { width: 100%; box-sizing: border-box; margin-top: 6px; background: #0c0f13; color: #e8eef4;
+    border: 1px solid #2f3b4a; border-radius: 6px; padding: 5px 8px; font: inherit; }
+  .ask-other:focus { outline: 1px solid #4da3ff; }
+  .ask-send { align-self: flex-end; background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
+  .ask-send:disabled { opacity: .45; cursor: default; }
+  .ask.settled { opacity: .6; }
+  .ask.settled .ask-send, .ask.settled .ask-other { display: none; }
+  .ask.settled button { cursor: default; }
   /* files waiting to be sent, and files in a sent message */
   #chatFiles { display: flex; flex-wrap: wrap; gap: 6px; }
   #chatFiles:not(:empty) { margin-bottom: 8px; }
