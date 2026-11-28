@@ -57,6 +57,9 @@ if (/<script/.test(body)) fail('viewer/index.html: a script in <body> that the b
 
 let commit = 'unknown';
 try { commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { /* not a checkout */ }
+// where a new workspace is downloaded from (artifact.json, "source")
+let source = '';
+try { source = JSON.parse(readFileSync(join(ROOT, 'artifact.json'), 'utf8')).source ?? ''; } catch { /* none */ }
 const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
 
 // The Artifact tool wraps this in its own <!doctype html>…<body>: no html,
@@ -68,7 +71,7 @@ const page = `<title>${TITLE}</title>
 ${style.trim()}
 </style>
 <script type="application/json" id="claude-artifacts-manifest">{"permissions": ["full-access"]}</script>
-<script>window.NANO_BUILD = ${JSON.stringify({ commit, built })};</script>
+<script>window.NANO_BUILD = ${JSON.stringify({ commit, built, source })};</script>
 <script type="importmap">${importmap.trim()}</script>
 ${body.trim()}
 <script type="module" src="./viewer/desktop.js"></script>

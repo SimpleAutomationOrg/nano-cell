@@ -125,3 +125,29 @@ export function engineFetch(engine, real, { pageUrl }) {
     return new Response(noBody ? null : data, { status: answer.status, headers: answer.headers ?? {} });
   };
 }
+
+// ---- making a workspace where there is none ----
+
+// a path as the person types it -> an absolute one ("~" and relative paths start at the home folder)
+export function absolutePath(path, home) {
+  let p = String(path).trim();
+  const h = home.replace(/[\\/]+$/, '');
+  if (p === '~') p = h;
+  else if (/^~[\\/]/.test(p)) p = h + '/' + p.slice(2);
+  else if (!/^([\\/]|[A-Za-z]:)/.test(p)) p = h + '/' + p;
+  return p.length > 1 ? p.replace(/[\\/]+$/, '') : p;
+}
+
+export const shellQuote = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
+
+// What it takes to put a workspace into `dir` (absolute; missing or empty):
+// download the project from `source` (a git address), then install the
+// tools it runs. Each step is one shell command, run in a login shell so
+// that git, node and npm are found as they are in the person's terminal.
+export function setupSteps(source, dir) {
+  const login = cmd => `/bin/zsh -lc ${shellQuote(cmd)}`;
+  return [
+    { say: 'Downloading Nano Cell …', command: login(`GIT_TERMINAL_PROMPT=0 git clone --depth 1 ${shellQuote(source)} ${shellQuote(dir)}`) },
+    { say: 'Installing its tools — a minute or two …', command: login(`cd ${shellQuote(dir)} && npm install --no-audit --no-fund`) },
+  ];
+}

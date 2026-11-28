@@ -48,7 +48,10 @@ How the installed app works:
   never in it; the build refuses anything else.
 - **Everything else is the workspace**: a folder on the person's
   computer with a checkout of this repository. The first run asks where
-  it is.
+  it is, or makes one: **Create new** downloads the repository named in
+  `artifact.json` (`source`) into the folder the person types and runs
+  `npm install` there (`setupSteps` in `viewer/desktop-bridge.js`; needs
+  git, node and access to the repository).
 - **The page cannot open a network connection to the computer**, so
   `viewer/desktop.js` (the installed app's entry, in place of `app.js`
   and `chat.js`) starts the engine there as a child process —

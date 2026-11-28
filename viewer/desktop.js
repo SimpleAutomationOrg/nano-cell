@@ -8,9 +8,10 @@
 // app.js and chat.js, does three things before handing over to them:
 //
 //  1. finds the WORKSPACE: the folder on disk that holds the engine and
-//     the applications (a checkout of this repository). Nothing of the
-//     project is inside the artifact but the page's own code — the cell,
-//     the applications, the CAD and the conversations stay on disk;
+//     the applications (a checkout of this repository) — or makes one, by
+//     downloading the repository into a folder the person names. Nothing
+//     of the project is inside the artifact but the page's own code — the
+//     cell, the applications, the CAD and the conversations stay on disk;
 //  2. starts the engine there (`python3 viewer/serve.py --stdio`) and
 //     turns every request the page makes into a message through its pipes
 //     — so the viewer and the chat run exactly as they do in a browser;
@@ -18,7 +19,7 @@
 //
 // In a browser, served by serve.py, this file is not loaded at all.
 
-import { startEngine, engineFetch } from './desktop-bridge.js';
+import { startEngine, engineFetch, absolutePath, setupSteps } from './desktop-bridge.js';
 
 const WS_KEY = 'nano.workspace';
 const ui = document.createElement('div');
@@ -132,7 +133,7 @@ async function main() {
     if (access === 'granted') break;
     if (access === 'prompt') {
       await screen('Nano Cell needs this computer', [
-        'It reads and writes the applications in its workspace folder, and runs programs there: the engine, the agents and the CAD tools.',
+        'This window is only the screen. The work is done by programs on this computer, in one folder: saving your applications, running the assistant, converting CAD files. Nano Cell needs access to read and write that folder and to run those programs.',
       ], { buttons: ['Continue'] });
       await desktop.permissions.request(['full-access']).catch(() => {});
     } else if (access === 'denied') {
@@ -144,10 +145,12 @@ async function main() {
   }
 
   const platform = await desktop.os.platform().catch(() => 'darwin');
-  const isWorkspace = async dir => !!dir && await desktop.fs.exists(`${dir.replace(/[\\/]+$/, '')}/viewer/serve.py`).catch(() => false);
+  const home = await desktop.os.homedir().catch(() => '~');
+  const source = window.NANO_BUILD?.source ?? '';
+  const isWorkspace = async dir => !!dir && await desktop.fs.exists(`${dir}/viewer/serve.py`).catch(() => false);
 
   // ---- the workspace, then the engine in it ----
-  // look under the home folder for checkouts of the repository (a folder with viewer/serve.py and the viewer's code)
+  // look under the home folder for workspaces (a folder with viewer/serve.py and the viewer's code)
   const findWorkspaces = async () => {
     if (platform === 'win32') return [];
     const r = await desktop.childProcess.exec(
@@ -158,47 +161,74 @@ async function main() {
     for (const d of dirs) if (await desktop.fs.exists(`${d}/viewer/cell-data.js`).catch(() => false)) ours.push(d);
     return ours;
   };
+  // put a new workspace into `dir`; resolves with '' or with what went wrong
+  const createWorkspace = async dir => {
+    if (platform === 'win32') return { problem: 'Making a workspace is not supported on Windows yet.' };
+    if (!source) return { problem: 'This build does not know where to download Nano Cell from.' };
+    if (await desktop.fs.exists(dir).catch(() => false)) {
+      const entries = await desktop.fs.readdir(dir).catch(() => null);
+      if (!entries) return { problem: `“${dir}” is not a folder.` };
+      if (entries.some(e => (e.name ?? e) !== '.DS_Store')) return { problem: `“${dir}” already has other things in it. Choose a new or empty folder for the workspace.` };
+    }
+    for (const step of setupSteps(source, dir)) {
+      busy('Making the workspace', `${step.say}  (${dir})`);
+      const r = await desktop.childProcess.exec(step.command, { timeout: 900000 }).catch(e => ({ code: 1, stderr: String(e?.message ?? e), stdout: '' }));
+      if (r.code !== 0) {
+        const out = `${r.stderr}\n${r.stdout}`.trim().split('\n').slice(-12).join('\n');
+        const hint = /command not found/.test(out) ? 'A program it needs is missing on this computer: git, and node (with npm), must be installed.'
+          : /Authentication|could not read Username|Repository not found|403|denied/i.test(out) ? 'This computer has no access to the Nano Cell repository: sign in to GitHub in git with an account that was given access, then try again.'
+          : 'The detail below says what went wrong.';
+        return { problem: `The workspace could not be made in “${dir}”. ${hint}`, detail: out };
+      }
+    }
+    return {};
+  };
   let workspace = localStorage.getItem(WS_KEY) ?? '';
   let problem = '', detail = '', found = null, checked = false;
   for (;;) {
     if (workspace && !checked) {
       checked = true;
       if (await isWorkspace(workspace)) {
-        busy('Nano Cell', `Starting the engine in ${workspace} …`);
+        busy('Nano Cell', `Starting in ${workspace} …`);
         const engine = startEngine(desktop.childProcess.spawn, workspace, platform);
         try {
-          await Promise.race([engine.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('the engine did not answer within 30 s')), 30000))]);
+          await Promise.race([engine.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('no answer within 30 s')), 30000))]);
           localStorage.setItem(WS_KEY, workspace);
           // from here on, every request the page makes for the cell goes to the engine
           window.fetch = engineFetch(engine, window.fetch.bind(window), { pageUrl: document.baseURI });
           break;
         } catch (e) {
-          problem = `The engine did not start in ${workspace}.`;
-          detail = `${e.message}\n${engine.errors()}`.trim() + '\n\nIt needs python3 and node, an up-to-date checkout, and `npm install` run once in the folder.';
+          problem = `Nano Cell's local programs did not start in ${workspace}.`;
+          detail = `${e.message}\n${engine.errors()}`.trim() + '\n\nThey need python3 and node on this computer, and `npm install` run once in the folder.';
         }
       } else {
         const there = await desktop.fs.exists(workspace).catch(() => false);
         problem = there
-          ? `“${workspace}” is a folder, but not a workspace: it has no viewer/serve.py. The workspace is the folder of the nano-cell repository itself.`
-          : `There is no folder “${workspace}”.`;
+          ? `“${workspace}” exists, but it is not a Nano Cell workspace. Press Create new to make one there (if the folder is empty), or type another folder.`
+          : `There is no folder “${workspace}” yet. Press Create new to make a workspace there.`;
       }
     }
-    const r = await screen('Where is the workspace?', [
-      'Nano Cell works on a folder on this computer that holds the engine and your applications: your checkout of the nano-cell repository (the folder with viewer/ and applications/ in it).',
-      'Type its path and press Open, or press Find it to look for it under your home folder.',
-      ...(found ? [found.length ? 'Found — pick one:' : 'No workspace was found under your home folder. Get the repository onto this computer first (git clone), run `npm install` in it, then come back.'] : []),
-    ], { field: { value: workspace, placeholder: '~/nano-cell' }, buttons: ['Find it', 'Open'], warn: problem, detail, choices: found });
+    const r = await screen('Where should Nano Cell work?', [
+      'Nano Cell keeps everything in one folder on this computer, its workspace: your applications, and the programs this window runs for you (saving files, the assistant, the CAD tools).',
+      'First time here? Type where the folder should be and press Create new — Nano Cell is downloaded into it.',
+      'Already have one? Type its path and press Open, or press Find it.',
+      ...(found ? [found.length ? 'Found — pick one:' : 'No workspace was found under your home folder. Press Create new to make one.'] : []),
+    ], { field: { value: workspace || '~/nano-cell', placeholder: '~/nano-cell' }, buttons: ['Find it', 'Create new', 'Open'], warn: problem, detail, choices: found });
     problem = ''; detail = '';
     if (r.button === 'Find it') {
-      busy('Nano Cell', 'Looking for the workspace under your home folder …');
+      busy('Nano Cell', 'Looking for a workspace under your home folder …');
       found = await findWorkspaces();
       if (found.length === 1) { workspace = found[0]; found = null; checked = false; }
       continue;
     }
-    workspace = r.value.replace(/[\\/]+$/, '');
     found = null;
+    if (!r.value) { problem = 'Type the path of the folder first.'; workspace = ''; continue; }
+    workspace = absolutePath(r.value, home);
     checked = false;
-    if (!workspace) problem = 'Type the path of the folder first, or press Find it.';
+    if (r.button === 'Create new' && !(await isWorkspace(workspace))) {
+      const made = await createWorkspace(workspace);
+      if (made.problem) { problem = made.problem; detail = made.detail ?? ''; checked = true; }
+    }
   }
 
   // ---- what the viewer needs to know, then the viewer itself ----

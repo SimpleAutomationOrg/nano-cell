@@ -11,7 +11,7 @@ import { readFileSync, existsSync, mkdtempSync, rmSync, readdirSync, statSync } 
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startEngine, engineFetch, repoPath, toBase64, fromBase64 } from '../viewer/desktop-bridge.js';
+import { startEngine, engineFetch, repoPath, toBase64, fromBase64, absolutePath, setupSteps } from '../viewer/desktop-bridge.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -156,4 +156,23 @@ test('the viewer opens no browser dialogs: they do nothing in the installed app'
     const code = readFileSync(join(ROOT, 'viewer', f), 'utf8').split('\n').filter(l => !/^\s*(\/\/|\*)/.test(l)).join('\n');
     assert.ok(!/(^|[^\w.])(prompt|confirm|alert)\(/.test(code), `viewer/${f} calls prompt(), confirm() or alert(): use viewer/dialogs.js`);
   }
+});
+
+test('a workspace is made where there is none: the typed path becomes absolute, and the download puts the engine there', () => {
+  assert.equal(absolutePath('~/microfactory', '/Users/x'), '/Users/x/microfactory');
+  assert.equal(absolutePath('~', '/Users/x/'), '/Users/x');
+  assert.equal(absolutePath('work/cell/', '/Users/x'), '/Users/x/work/cell');
+  assert.equal(absolutePath('/opt/cell//', '/Users/x'), '/opt/cell');
+
+  // the real first step, from this checkout standing in for the remote, into a folder with a space and a quote in its name
+  const tmp = mkdtempSync(join(tmpdir(), 'nano-ws-'));
+  try {
+    const dir = join(tmp, "my cell's place");
+    const steps = setupSteps('file://' + ROOT.replace(/\/$/, ''), dir);
+    assert.equal(steps.length, 2);
+    execFileSync('/bin/sh', ['-c', steps[0].command], { stdio: 'pipe' });
+    for (const f of ['viewer/serve.py', 'viewer/cell-data.js', 'cell_fr3/robot.json', 'guides/agent.md', 'package.json'])
+      assert.ok(existsSync(join(dir, f)), f);
+    assert.match(steps[1].command, /npm install/);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
