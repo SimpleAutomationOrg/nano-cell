@@ -46,8 +46,10 @@ node scripts/run-step.mjs <application> --loop              # the whole loop
   `--keep` carries on from how the last run left the parts (use it to see
   what a SECOND run of the same step does — e.g. the second part landing
   on the first).
-- `--shot` saves a picture of the scene after the run, from the user's
-  current viewpoint, and prints its path: open it with Read.
+- `--shot` saves two pictures of the scene after the run and prints their
+  paths: the whole cell from the front, and a close-up framed on the tool
+  and the parts that moved. Open them with Read — the close-up is where a
+  part sitting crooked, floating or sunk into another one shows.
 - Exit 0 and `DONE` means every step ran to its end. That is not yet
   "correct": read "parts no longer where the layout put them" and check
   each part is where the step meant to put it (x, y, and z — a part at

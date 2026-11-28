@@ -5,7 +5,8 @@
 //   node scripts/run-step.mjs <application> --loop               the application's loop
 //
 //   --keep        do not reset the scene first (carry on from how the last run left it)
-//   --shot        also save a picture of the scene after the run (its path is printed; open it)
+//   --shot        also save pictures of the scene after the run: the whole cell, and a close-up
+//                 of the tool and the parts that moved (their paths are printed; open them)
 //   --slow        at the speed the viewer is set to (default: as fast as it plays)
 //   --timeout N   give up waiting after N seconds (default 300)
 //   --json        print the raw result
@@ -57,5 +58,5 @@ if (res.parts_moved?.length) {
   console.log('\nparts no longer where the layout put them (table frame, mm):');
   for (const p of res.parts_moved) console.log(`  ${p.id}: moved ${p.moved_mm} mm, now at x ${mm(p.to_m[0])} y ${mm(p.to_m[1])} z ${mm(p.to_m[2])} (was x ${mm(p.from_m[0])} y ${mm(p.from_m[1])} z ${mm(p.from_m[2])})`);
 } else console.log('\nno part moved');
-if (res.picture) console.log(`\npicture of the scene: ${res.picture}`);
+if (res.picture) console.log(`\npictures (open them): the whole cell: ${res.picture}` + (res.picture_close ? `\n                      close-up of the tool and the parts that moved: ${res.picture_close}` : ''));
 process.exit(res.ok ? 0 : 1);

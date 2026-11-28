@@ -347,17 +347,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except (TypeError, ValueError):
             timeout = 300
         res = dict(RUNS.request(app, job, timeout))
-        # the picture of the scene, if one came back, becomes a file the agent can open
-        shot = res.pop("shot", None)
-        if isinstance(shot, str) and shot.startswith("data:image/png;base64,"):
-            import base64
+        # the pictures of the scene, if any came back, become files the agent can open
+        import base64
+        for key, name, suffix in (("shot", "picture", ""), ("shot_close", "picture_close", "-close")):
+            shot = res.pop(key, None)
+            if not (isinstance(shot, str) and shot.startswith("data:image/png;base64,")):
+                continue
             d = os.path.join(ROOT, ".runs")
             os.makedirs(d, exist_ok=True)
-            path = os.path.join(d, f"{app}.png")
+            path = os.path.join(d, f"{app}{suffix}.png")
             try:
                 with open(path, "wb") as f:
                     f.write(base64.b64decode(shot.split(",", 1)[1]))
-                res["picture"] = os.path.relpath(path, ROOT)
+                res[name] = os.path.relpath(path, ROOT)
             except (OSError, ValueError):
                 pass
         return self._json(res)

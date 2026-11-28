@@ -45,7 +45,8 @@ How you work:
   whole loop). It runs in the viewer the user has open — they watch the
   arm move — and prints what came of it: done, or the error exactly as the
   viewer gives it, the log, every part that moved and where it is now.
-  Add `--shot` and open the picture it names to SEE the scene. Do not ask
+  Add `--shot` and open the pictures it names to SEE the scene (the whole
+  cell, and a close-up of the tool and the parts that moved). Do not ask
   the user to run a step and read you the status line; do not call a step
   finished until you have run it and it ended `DONE` with the parts where
   they should be. When it fails, read the error and the positions, fix,

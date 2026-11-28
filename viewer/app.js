@@ -1001,10 +1001,40 @@ async function main() {
       }
       const parts = (cell.parts ?? []).map(it => { const to = agentHooks.partNow(it.id); return to && partReport(it.id, it.pose_table.xyz_m, to); })
         .filter(p => p && p.moved_mm >= 0.5);
-      let shot;
-      if (job.shot) { renderer.render(scene, camera); shot = renderer.domElement.toDataURL('image/png'); }
+      // pictures for the agent, from cameras of their own (the user's view is not touched):
+      // the whole cell, and a close-up of what the run was about — the parts that moved and the tool
+      let shot, shot_close;
+      if (job.shot) {
+        const look = (box, dirTable) => {
+          const cam = camera.clone();
+          const c = box.getCenter(new THREE.Vector3());
+          const r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 0.04);
+          const half = Math.min(THREE.MathUtils.degToRad(cam.fov / 2), Math.atan(Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect));
+          const dist = r / Math.sin(half) * 1.1;
+          const d = new THREE.Vector3(...dirTable).normalize().transformDirection(world.matrixWorld);
+          cam.position.copy(c).addScaledVector(d, dist);
+          cam.up.copy(new THREE.Vector3(0, 0, 1).transformDirection(world.matrixWorld));
+          cam.lookAt(c);
+          cam.near = dist / 200; cam.far = dist * 4 + 5;
+          cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+          renderer.render(scene, cam);
+          return renderer.domElement.toDataURL('image/png');
+        };
+        world.updateMatrixWorld(true);
+        const t = cell.table;
+        const corner = (x, y, z) => world.localToWorld(new THREE.Vector3(x, y, z));
+        const whole = new THREE.Box3().setFromPoints(t?.min_table_m
+          ? [corner(t.min_table_m[0], t.min_table_m[1], 0), corner(t.max_table_m[0], t.max_table_m[1], 0.35)]
+          : [corner(0, 0, 0), corner(1.2, 0.6, 0.35)]);
+        shot = look(whole, [0.35, -1, 0.8]);                 // from the front, a little to the right, above
+        const near = new THREE.Box3();
+        for (const p of parts) { const n = partNodes.get(p.id); if (n) near.expandByObject(n); }
+        if (flangeGroup) near.expandByObject(flangeGroup);
+        if (!near.isEmpty()) shot_close = look(near, [0.35, -1, 0.7]);
+        renderer.render(scene, camera);                      // the user's own view back at once
+      }
       return { ...out, ran: list.map(s => s.id), seconds: Math.round((performance.now() - t0) / 100) / 10, log: log.slice(-200),
-        parts_moved: parts, ...agentHooks.state(), stale: reloadWaiting, shot };
+        parts_moved: parts, ...agentHooks.state(), stale: reloadWaiting, shot, shot_close };
     },
   });
 

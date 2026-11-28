@@ -384,7 +384,9 @@ simulation with `node scripts/run-step.mjs <application> <step> […]`
 run happens in the viewer that is open on that application, so the user
 watches it; the command prints the outcome, the log, the parts that moved
 and where they are, what is held, the IO, the joints, and with `--shot`
-the path of a picture of the scene (`.runs/<application>.png`).
+the paths of two pictures (`.runs/<application>.png`, the whole cell, and
+`.runs/<application>-close.png`, framed on the tool and the parts that
+moved — taken with cameras of their own, not the user's view).
 
 How it travels: the script reads the server's port from `.server.json`
 (written by `serve.py` at start) and posts to `/__run/request`;
