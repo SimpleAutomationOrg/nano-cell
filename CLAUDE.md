@@ -4,7 +4,7 @@ A simulated robot cell that runs on the user's computer: a ROBOT (arm,
 mount, table, guard, IO) with an APPLICATION set up on it (grippers, tool
 rack, fixtures, parts, steps), both as data; a three.js viewer in the
 browser that executes steps with IK and collision checking; and a local
-server behind it for the agents, files and tools. No build step.
+server behind it for the agent, files and tools. No build step.
 
 ## Goal
 
@@ -12,7 +12,7 @@ This project is delivered as an APPLICATION INSTALLED ON THE USER'S
 COMPUTER, not as a hosted page. Installed, it can do what a page alone
 cannot, and it is meant to:
 
-- **run local tools through the terminal** — the agents' CLI, the node
+- **run local tools through the terminal** — the agent's CLI, the node
   scripts of the geometry pipeline (STEP to mesh, modelling), git;
 - **make requests** — to the network (looking up components, saving and
   sharing applications) and to its own local server.
@@ -63,7 +63,7 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   description (`gripper.json` / `item.json`) with its meshes beside it;
   `robots/<robot>.json` what was taught on one robot; `print/` the STEP
   sources (and, for parts designed here, the `<part>.model.mjs` that
-  `scripts/model-step.mjs` builds the STEP from); `notes/` the agents' notes; `materials/` chat attachments.
+  `scripts/model-step.mjs` builds the STEP from); `notes/` the agent's notes; `materials/` chat attachments.
   An item is described ONCE in `items/` and placed as often as needed in
   the layout — never repeat a mesh, mass or `mesh_source` in a placement.
   It names the robot it is set up on and can be moved to another: keep
@@ -81,10 +81,12 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
 - `applications/<name>/steps/<step>.ts` — a step is ONE file: it exports
   `name`, `tool`, `entry` and the default async function, and imports the
   cell API as `from 'nano-cell'` (never by a relative path).
-- `agents/<id>.md` — the chat's agents (Lead engineer, CAD designer, Programmer,
-  Component buyer, Accountant): a short header plus the role description
-  that becomes the agent's instructions. `viewer/chat.py` runs them, one
-  conversation each.
+- `guides/` — the chat has ONE agent (`guides/agent.md`: who it is, how it
+  works) and a guide for each kind of work it does (`planning.md`,
+  `geometry.md`, `steps.md`, `buying.md`, `costing.md`), which it reads
+  before starting work of that kind. `viewer/chat.py` runs it, one
+  conversation per application. To change how a kind of work is done, edit
+  its guide.
 - `recipes/` — step-by-step guides for writing steps (suction pick &
   place, holder insertion). Follow the matching recipe before writing a
   new step; when a new motion pattern stabilizes, add a recipe for it.

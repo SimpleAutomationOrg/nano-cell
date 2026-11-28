@@ -7,8 +7,8 @@
 <style>
   :root { color-scheme: dark; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #101418; font-family: ui-sans-serif, system-ui, sans-serif; }
-  :root { --dock: 250px; --rail: 64px; --chat: 430px; --side: 290px; }
-  body.chat-closed { --chat: var(--rail); }
+  :root { --dock: 250px; --chat: 380px; --side: 290px; }
+  body.chat-closed { --chat: 0px; }
   /* three columns: the chat, full height; in the middle the simulation with
      the steps dock below it; the cell panel, full height */
   #app { position: fixed; top: 0; left: var(--chat); right: var(--side); bottom: var(--dock); }
@@ -91,62 +91,32 @@
     display: none; z-index: 10; max-width: 320px;
   }
   #status { position: fixed; right: calc(var(--side) + 14px); bottom: calc(var(--dock) + 10px); color: #64748b; font-size: 11.5px; }
-  /* chat with the agents (chat.js): a narrow bar of profiles, then the conversation */
+  /* the chat (chat.js): a full-height column beside the simulation */
   #chat {
     position: fixed; top: 0; left: 0; bottom: 0; width: var(--chat); box-sizing: border-box;
     display: flex; background: #0d1115; border-right: 1px solid #2a3340;
     color: #cdd6e0; font-size: 12.5px;
   }
-  #chatRail {
-    flex: none; width: var(--rail); box-sizing: border-box; padding: 10px 0; overflow-y: auto;
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    background: #0a0d10; border-right: 1px solid #1c232c;
-  }
-  .agent {
-    position: relative; width: calc(var(--rail) - 8px); padding: 6px 0 4px; border: 0; border-radius: 8px;
-    background: none; display: flex; flex-direction: column; align-items: center; gap: 3px;
-  }
-  .agent:hover { background: #151b22; }
-  .agent.sel { background: #18212b; }
-  .agent.sel::before { content: ''; position: absolute; left: -4px; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--c); }
-  .agent .face {
-    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center;
-    font-weight: 700; font-size: 13px; color: #0d1115; background: var(--c); opacity: .55;
-  }
-  .agent.sel .face, .agent:hover .face { opacity: 1; }
-  .agent .lbl { font-size: 9.5px; line-height: 1.15; color: #7d8a99; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
-  .agent.sel .lbl { color: #e8eef4; }
-  /* an answer the user has not looked at yet */
-  .agent .badge { display: none; position: absolute; top: 1px; right: 7px; min-width: 15px; height: 15px;
-    padding: 0 3px; border-radius: 9px; background: #ff5f57; color: #fff; font-size: 9.5px; font-weight: 700; line-height: 15px;
-    text-align: center; box-shadow: 0 0 0 2px #0a0d10; box-sizing: border-box; }
-  .agent.unread .badge { display: block; }
-  .agent.unread .lbl { color: #e8eef4; font-weight: 600; }
+  /* closed: only the header is left, as a tab in the corner */
+  #chat.closed { width: auto; bottom: auto; top: 12px; left: 12px; border: 1px solid #2a3340; border-radius: 10px; z-index: 5; }
   #chatMain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  /* an agent at work: a turning ring on its profile, moving dots under its conversation */
-  .agent.busy .face { opacity: 1; box-shadow: 0 0 0 2px #0a0d10; }
-  .agent.busy .face::after {
-    content: ''; position: absolute; top: 3px; left: 50%; width: 40px; height: 40px; margin-left: -20px; box-sizing: border-box;
-    border-radius: 50%; border: 2px solid transparent; border-top-color: var(--c); border-right-color: var(--c);
-    animation: agentspin 0.9s linear infinite;
-  }
-  @keyframes agentspin { to { transform: rotate(360deg); } }
+  #chat.closed #chatBody { display: none; }
+  /* the agent at work: moving dots under the conversation */
   #chatWork { display: flex; align-items: center; gap: 8px; padding: 6px 12px; color: #9fb0c0; font-size: 11.5px;
     border-top: 1px solid #1c232c; background: #0f141a; white-space: nowrap; overflow: hidden; }
   #chatWork[hidden] { display: none; }
   #chatWorkText { overflow: hidden; text-overflow: ellipsis; }
   #chatWork .dots { display: inline-flex; gap: 3px; flex: none; }
-  #chatWork .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--c, #4da3ff); animation: workdot 1.1s infinite ease-in-out; }
+  #chatWork .dots i { width: 6px; height: 6px; border-radius: 50%; background: #4da3ff; animation: workdot 1.1s infinite ease-in-out; }
   #chatWork .dots i:nth-child(2) { animation-delay: .18s; }
   #chatWork .dots i:nth-child(3) { animation-delay: .36s; }
   @keyframes workdot { 0%, 70%, 100% { opacity: .25; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
   #chat.working #chatBox { border-color: #35557a; }
-  #chat.closed #chatMain { display: none; }
   #chat header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; user-select: none; }
   #chat header .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   #chat header b { color: #fff; font-weight: 600; font-size: 13px; }
-  #chat header b::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c, #3b4756); margin-right: 6px; vertical-align: middle; }
-  #chatRole { color: #7d8a99; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chat header b::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3b4756; margin-right: 6px; vertical-align: middle; }
+  #chat.working header b::before { background: #4da3ff; animation: chatpulse 1s infinite alternate; }
   @keyframes chatpulse { from { opacity: .35; } to { opacity: 1; } }
   #chatBody { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid #263040; }
   #chatLog { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
@@ -167,17 +137,7 @@
   #chatAttach { flex: none; }
   #chatSend { flex: none; background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
   #chatSend:hover { background: #2a62a8; }
-  /* work handed to a colleague, and tasks that came from one */
-  .handoff { margin-top: 8px; border: 1px solid #2a3340; border-left: 3px solid var(--c, #4da3ff); border-radius: 7px;
-    padding: 6px 9px; background: #10161d; cursor: pointer; white-space: normal; }
-  .handoff:hover { background: #151d26; }
-  .handoff .to { color: #e8eef4; font-weight: 600; }
-  .handoff .task { color: #9fb0c0; font-size: 11.5px; margin-top: 2px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
   #chatLog .note { color: #8fb4dd; font-size: 11.5px; }
-  #chatLog .note.link { cursor: pointer; }
-  #chatLog .note.link:hover { text-decoration: underline; }
-  #chatLog .user.handed { background: #2a2440; }
-  #chatLog .user .from { color: #b9a6ff; font-size: 10.5px; font-weight: 600; margin-bottom: 3px; text-transform: uppercase; letter-spacing: .04em; }
   /* an agent's questions: a card per question, its options as buttons */
   .ask { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; white-space: normal; }
   .ask-q { border: 1px solid #2a3340; border-radius: 9px; padding: 8px; background: #10161d; }

@@ -2,9 +2,9 @@
 
 A simulated robot work cell that runs on your computer: a 6-axis arm
 inside a guarded enclosure, collision-checked motion planning with real
-physics, steps written as small TypeScript files, and a chat with agents
-that design, program and cost the work. The viewer is a page in the
-browser; a small local server behind it runs the agents and tools and
+physics, steps written as small TypeScript files, and a chat with an agent
+that designs, programs and costs the work. The viewer is a page in the
+browser; a small local server behind it runs the agent and tools and
 keeps the files. No build step.
 
 ![viewer](docs/viewer.jpg)

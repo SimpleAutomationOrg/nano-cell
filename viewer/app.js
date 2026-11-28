@@ -1002,9 +1002,9 @@ renderer.setAnimationLoop(() => {
       if (!r.ok) return;
       const g = parseInt(await r.text(), 10);
       if (gen !== -1 && g > gen) {
-        // In the installed app a reload ends its helper process and every agent
-        // run under it: wait until no agent is working.
-        while (desktopApp && document.querySelector('#chatRail .agent.busy')) await new Promise(res => setTimeout(res, 1000));
+        // In the installed app a reload ends its helper process and the agent
+        // run under it: wait until the agent is not working.
+        while (desktopApp && document.querySelector('#chat.working')) await new Promise(res => setTimeout(res, 1000));
         location.reload();
       }
       gen = g;

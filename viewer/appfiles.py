@@ -64,7 +64,7 @@ ABOUT = ("An application: one job and its environment, in one folder that can be
          "shared. This file says what it is; layout.json what stands where; grippers/ and items/ hold "
          "one folder per gripper and per kind of thing (its description and meshes); steps/ the steps; "
          "robots/ what was taught on a particular robot; print/ the CAD the items are made from; notes/ "
-         "the agents' notes; materials/ what was attached in the chat. Every pose is in the table frame, "
+         "the agent's notes; materials/ what was attached in the chat. Every pose is in the table frame, "
          "so the application does not depend on which robot runs it; 'robot' names the one it is set up "
          "on now.")
 LAYOUT_ABOUT = ("What stands where: each fixture and part is a placement of an item (items/<item>/item.json "

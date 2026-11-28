@@ -40,7 +40,7 @@ test('which requests go to the engine: the viewer\'s addresses become repository
     assert.equal(repoPath('../applications/x/items/y/y.glb', page), '/applications/x/items/y/y.glb');
     // the same addresses once a loader has made them absolute against the real page
     assert.equal(repoPath({ url: new URL('../cell_fr3/robot.json', page).href }, page), '/cell_fr3/robot.json', page);
-    assert.equal(repoPath(new URL('/__chat/agents', page).href, page), '/__chat/agents');
+    assert.equal(repoPath(new URL('/__chat/agent', page).href, page), '/__chat/agent');
     // the page's own files, the CDN and in-memory addresses stay on the network
     assert.equal(repoPath(dir + 'viewer/app.js', page), null);
     // MuJoCo's compiled physics is read from the workspace, like any file of it
@@ -78,9 +78,9 @@ test('the page talks to the real engine through its pipes: files, the API, binar
     assert.deepEqual(Buffer.from(got), readFileSync(join(ROOT, rel)), 'the mesh changed on the way');
 
     // the chat's endpoints need its header, as in a browser
-    assert.equal((await fetch2('/__chat/agents')).status, 403);
-    const agents = await (await fetch2('/__chat/agents', { headers: { 'X-Nano-Cell': 'chat' } })).json();
-    assert.ok(agents.length >= 1 && agents[0].name);
+    assert.equal((await fetch2('/__chat/agent')).status, 403);
+    const agent = await (await fetch2('/__chat/agent', { headers: { 'X-Nano-Cell': 'chat' } })).json();
+    assert.ok(agent.name && agent.hint);
     const bad = await fetch2('/__loop/save', { method: 'POST', headers: { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/json' }, body: JSON.stringify({ app: 'no-such-app', steps: [] }) });
     assert.equal(bad.status, 400, 'a POST with a body reaches the engine');
     assert.equal((await fetch2('/no/such/file.json')).status, 404);

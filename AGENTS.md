@@ -2,7 +2,7 @@
 
 You are a coding agent working in (or asked to install) **nano-cell**, a
 simulated robot cell installed on the user's computer: a viewer in the
-browser with a local server behind it for the agents, files and tools. This file is your contract: how to
+browser with a local server behind it for the agent, files and tools. This file is your contract: how to
 install it, how to verify it, and how to add or edit steps without
 re-learning this project's hard-won rules.
 
@@ -106,9 +106,9 @@ applications/<name>/
   steps/<name>.ts      one file per step
   robots/<robot>.json  what was taught on one robot (joint values)
   print/               the CAD (STEP) the items are made from
-  notes/               the agents' notes: plan.md, design.md, purchasing.md, budget.md
+  notes/               the agent's notes: plan.md, design.md, purchasing.md, budget.md
   materials/           what the user attached in the chat (git-ignored)
-  chats/<agent>.json   the conversations with the agents (git-ignored)
+  chats/assistant.json the conversation with the agent (git-ignored)
 ```
 
 - **`application.json` is small on purpose**: it answers "what is this"
@@ -277,60 +277,49 @@ assume it starts from its own `entry`.
 - When you fix a motion bug, add an assertion to
   `test/motion.test.mjs` in the same change.
 
-## The chat and its agents
+## The chat, its agent and the guides
 
-The left column of the viewer is a chat with the project's **agents**: a
-narrow bar of profiles, and beside it the conversation with the one
-picked. Each agent is a Markdown file in `agents/`:
+The left column of the viewer is one chat with one agent, about the
+application that is open. There are no separate roles to pick: the
+agent does the whole job, and **how each kind of work is done is
+written down in `guides/`**:
 
-| file | agent | what it does | keeps |
-| --- | --- | --- | --- |
-| `lead-engineer.md` | Lead engineer | turns a goal into tasks and says who does each | `notes/plan.md` |
-| `cad-designer.md` | CAD designer | print files, meshes, fixtures, parts, placement | `notes/design.md`, `layout.json`, `items/`, `grippers/` |
-| `programmer.md` | Programmer | steps, the loop, the viewer's code | `steps/`, the loop |
-| `component-buyer.md` | Component buyer | finds components to buy (web search) | `notes/purchasing.md` |
-| `accountant.md` | Accountant | what the application costs | `notes/budget.md` |
+| file | what it is |
+| --- | --- |
+| `guides/agent.md` | the agent itself: who it is and how it works in general |
+| `guides/planning.md` | turning a goal into a plan (`notes/plan.md`) |
+| `guides/geometry.md` | designing parts, CAD to meshes, placing things (`notes/design.md`) |
+| `guides/steps.md` | writing and changing steps and the loop (with `recipes/`) |
+| `guides/buying.md` | finding components to buy (`notes/purchasing.md`) |
+| `guides/costing.md` | the budget (`notes/budget.md`) |
 
-(the "keeps" files live in the application's folder). A file starts with
-a header — `name`, `role` (one line under the name), `initials`, `color`,
-`order`, `hint` (shown in an empty conversation) and optionally `tools`
-and `hands_off`
-— and the text below it is the agent's description, used as its
-instructions. To add an agent, add a file; to change how one behaves,
-edit its description (it is re-read with every message).
+`agent.md` starts with a header — `name`, `hint` (shown in an empty
+conversation) and `tools` — and its text becomes the agent's standing
+instructions. Each guide's header says its `title`, `when` it applies
+and its `order`; the agent is given that list and told to **read the
+guide that fits before starting work of that kind**, so a guide's text
+is read when needed, not carried in every message. To change how a kind
+of work is done, edit its guide; to add a kind of work, add a guide
+with a header. Both take effect with the next message.
 
 How it runs (`viewer/chat.js`, `viewer/chat.py`, served by `serve.py`
 under `/__chat/*`): every message runs the Claude Code CLI (`claude`,
-installed and signed in) headless in the repository root, continuing
-that agent's own conversation. There is one conversation per agent
-**per application**, and it is kept on disk in
-`applications/<application>/chats/<agent>.json` — so it survives page
-reloads and server restarts, belongs to the application it is about,
-and goes along in an export. What lets the agent *remember* it (its
-CLI session) is local to this machine, in `.chat-sessions.json` at the
-repository root. When an agent has a saved conversation but no session
+installed and signed in) headless in the repository root, continuing the
+conversation. There is one conversation **per application**, kept on
+disk in `applications/<application>/chats/assistant.json` — so it
+survives page reloads and server restarts, belongs to the application it
+is about, and goes along in an export. What lets the agent *remember* it
+(its CLI session) is local to this machine, in `.chat-sessions.json` at
+the repository root. When there is a saved conversation but no session
 for it — the application was imported on another machine, or the
-session has expired — the saved conversation is handed to it as
-background with the next message, so it carries on from where it ends. **New** forgets the one shown, on disk too. Both
-are git-ignored. Every agent
-may read, search and edit files and run `./scripts/check.sh`; `tools:`
-in its header can add only what `EXTRA_TOOLS` in `chat.py` lists (web
-search for the buyer; `Bash(node:*)`, the whole geometry pipeline, for
-the CAD designer only). Agents
-cannot see or drive the viewer.
-The endpoints answer only to the page's own origin.
-
-**Handing work over**: an agent whose header says `hands_off: true`
-(the Lead engineer) gives tasks to colleagues itself, by ending its
-message with a ```` ```handoff ```` block: `[{"to": "<agent id>",
-"task": "..."}]`. The server then sends each task to that agent's own
-chat as a new message — the colleague gets only the task text, nothing
-of the sender's conversation — one after another in the order listed,
-each starting when the one before has finished; a failure stops the
-rest. The sender's chat shows who was handed what and when they
-finished (click to open that chat), the colleague's chat shows the task
-as "from the Lead engineer", and the replies are given to the sender
-with the user's next message. Other agents' handoff blocks do nothing.
+session has expired — the saved conversation is handed to the agent as
+background with the next message, so it carries on from where it ends.
+**New** forgets the conversation, on disk too. Both files are
+git-ignored. The agent may read, search and edit files and run
+`./scripts/check.sh`; `tools:` in `agent.md` can add only what
+`EXTRA_TOOLS` in `chat.py` lists (web search, and `Bash(node:*)`, the
+geometry pipeline). It cannot see or drive the viewer. The endpoints
+answer only to the page's own origin.
 
 **Questions with options**: when an agent needs a decision and can name
 the likely answers, it ends its message with a ```` ```questions ````
@@ -340,7 +329,7 @@ description, `"recommended": true` on the one it would choose, and
 question as a card with its options as buttons, the recommended one
 first and marked, plus a field for an answer in the user's own words;
 **Send answers** sends them as one message. The format is given to
-every agent in `chat.py`'s brief; `viewer/ask.js` reads it.
+the agent in `chat.py`'s brief; `viewer/ask.js` reads it.
 
 **Attachments**: the user can attach files to a message — the `+`
 button, pasting (a screenshot) or dropping them on the conversation.

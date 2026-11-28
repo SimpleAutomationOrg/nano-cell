@@ -1,25 +1,22 @@
-"""The viewer's chat: talk to the project's agents, each with its own role.
+"""The viewer's chat: one conversation with one agent, about the open application.
 
-An agent is a Markdown file in agents/ — a few header lines (name, role,
-initials, colour, order, an opening hint, extra tools) and below them the
-description of the role, which becomes that agent's instructions. Every
-agent has its own conversation.
+The agent is described in guides/agent.md — a few header lines (name, an
+opening hint, extra tools) and below them how it works, which becomes its
+instructions. The other files in guides/ describe how each KIND of work is
+done (planning, geometry, steps, buying, costing): the agent is given their
+list and reads the one that fits before it starts on work of that kind.
 
 Each message runs the Claude Code CLI (`claude`, must be installed and
-signed in) headless in the repository root, continuing that agent's
-conversation. The agent reads the project's own instructions (CLAUDE.md),
-edits files, and the page hot-reloads on its changes.
+signed in) headless in the repository root, continuing the conversation.
+The agent reads the project's own instructions (CLAUDE.md), edits files,
+and the page hot-reloads on its changes.
 
-The conversations live HERE, in the server, as lists of events; the page
-long-polls the one it shows. That is what lets the chat survive the page
-reloading itself every time an agent saves a file.
-
-What an agent may do without asking: read and search the repository, edit
+What the agent may do without asking: read and search the repository, edit
 and create files in it, and run ./scripts/check.sh — plus the extra tools
-its file asks for, but only those named in EXTRA_TOOLS below, and whatever
-your own Claude Code settings already allow (read-only shell commands such
-as ls and cat, for instance). Anything else is refused: there is nobody to
-ask in a headless run.
+guides/agent.md asks for, but only those named in EXTRA_TOOLS below, and
+whatever your own Claude Code settings already allow (read-only shell
+commands such as ls and cat, for instance). Anything else is refused: there
+is nobody to ask in a headless run.
 """
 import json
 import os
@@ -30,16 +27,18 @@ import threading
 
 ALLOWED_TOOLS = ["Read", "Glob", "Grep", "Edit", "Write",
                  "Bash(./scripts/check.sh)", "Bash(./scripts/check.sh:*)"]
-# what an agent's file may add with its `tools:` line — nothing else.
+# what guides/agent.md may add with its `tools:` line — nothing else.
 # Bash(node:*) is the whole geometry pipeline: the repo's own scripts in
 # scripts/ (model, inspect, look, mesh) and the per-application generators
 # in applications/*/print/. It is running programs on this machine — the
-# installed application is meant to (CLAUDE.md, Goal) — so give it only to
-# the agent whose job needs it: the CAD designer.
+# installed application is meant to (CLAUDE.md, Goal).
 EXTRA_TOOLS = {"WebSearch", "WebFetch", "Bash(node:*)"}
 
-BRIEF = """You are answering from the chat inside the nano-cell viewer, as \
-one of the project's agents: %(name)s. The user is looking at the 3D cell in \
+# the one agent's conversation is kept under this name (chats/<AGENT>.json)
+AGENT = "assistant"
+
+BRIEF = """You are answering from the chat inside the nano-cell viewer: the \
+one assistant of this project. The user is looking at the 3D cell in \
 their browser while they talk to you; the page reloads by itself whenever \
 you save a file. Follow the rules in CLAUDE.md and AGENTS.md. You cannot see \
 or drive the viewer. Each message starts with a [viewer: ...] line giving \
@@ -47,8 +46,8 @@ the application open in the viewer, the step selected and its last status \
 line; "the application" means that one unless the user names another. \
 An application is a folder: application.json (the manifest, with the loop), \
 layout.json (what stands where), grippers/<id>/ and items/<id>/ (a description \
-and its meshes each), steps/, robots/, print/, notes/ (where the agents keep \
-their notes) and materials/. Files the user attaches are saved in \
+and its meshes each), steps/, robots/, print/, notes/ (where you keep \
+your notes) and materials/. Files the user attaches are saved in \
 applications/<application>/materials/ \
 and listed at the end of the message: open them (Read shows images). Keep \
 replies short and plain; no headings. Do not commit or push.
@@ -73,162 +72,129 @@ add an "other" option — the user can always type their own answer. Say before 
 the block, in a sentence or two, why you are asking. Ask only what you cannot \
 find out or sensibly decide yourself.
 
-Your role:
+How you work:
 
-%(role)s"""
+%(role)s
 
-
-HANDOFF = """
-
-Handing work to a colleague. You can give a task to another agent yourself: \
-end your message with a handoff block and the chat runs it — do NOT ask the \
-user to copy a task to another agent. The colleagues you can hand to:
-%(roster)s
-
-```handoff
-[{"to": "cad-designer", "task": "In the application dippackage: ... (everything they need)"},
- {"to": "programmer", "task": "..."}]
-```
-
-How it works, so write the tasks accordingly: each task is sent to that \
-agent's own chat as a new message. The colleague sees NOTHING of this \
-conversation — only your task text — so name the application, the files, the \
-numbers and decisions they need, and what "done" means. Tasks run one after \
-another in the order you list them, each starting when the one before has \
-finished (so put geometry before the steps that use it); if one fails the \
-rest are not started. You are not woken when they finish: their results are \
-given to you with the user's next message, and the user sees each colleague's \
-reply in that colleague's chat. Hand off only work that is ready to start — \
-if you still need an answer from the user, ask first (a questions block) and \
-hand off after. At most 5 tasks in a block; valid JSON; the block goes last \
-in the message (after it, nothing). Say in a sentence before it what you are \
-handing to whom."""
-
-_HANDOFF_BLOCK = re.compile(r"```handoff\s*\n(.*?)```", re.S)
+The guides — read the one that fits BEFORE starting work of that kind:
+%(guides)s"""
 
 
-def parse_handoffs(text, allowed):
-    """The tasks an agent's message hands to colleagues: [{to, task}], only
-    for agent ids in `allowed`. A block that cannot be read gives none."""
-    m = _HANDOFF_BLOCK.search(text or "")
-    if not m:
-        return []
-    try:
-        raw = json.loads(m.group(1))
-    except ValueError:
-        return []
+def _front(text):
+    """A Markdown file's header lines (key: value between --- lines) and its body."""
+    meta, body = {}, text
+    m = re.match(r"---\n(.*?)\n---\n?(.*)", text, re.S)
+    if m:
+        body = m.group(2)
+        for line in m.group(1).splitlines():
+            key, sep, val = line.partition(":")
+            if sep:
+                meta[key.strip()] = val.strip().strip('"')
+    return meta, body
+
+
+def load_guides(root):
+    """The task guides in guides/ (every .md but agent.md): [{file, title, when}], in their order."""
     out = []
-    for h in raw if isinstance(raw, list) else [raw]:
-        if (isinstance(h, dict) and h.get("to") in allowed and isinstance(h.get("task"), str)
-                and h["task"].strip()):
-            out.append({"to": h["to"], "task": h["task"].strip()})
-    return out[:5]
-
-
-def load_agents(root):
-    """The agents in agents/*.md, in their order: [{id, name, role, initials, color, hint, tools, brief}]."""
-    out = []
-    adir = os.path.join(root, "agents")
-    for fn in sorted(os.listdir(adir)) if os.path.isdir(adir) else []:
-        if not fn.endswith(".md"):
+    gdir = os.path.join(root, "guides")
+    for fn in sorted(os.listdir(gdir)) if os.path.isdir(gdir) else []:
+        if not fn.endswith(".md") or fn == "agent.md":
             continue
         try:
-            with open(os.path.join(adir, fn), encoding="utf-8") as f:
-                text = f.read()
+            with open(os.path.join(gdir, fn), encoding="utf-8") as f:
+                meta, _ = _front(f.read())
         except OSError:
             continue
-        meta, body = {}, text
-        m = re.match(r"---\n(.*?)\n---\n?(.*)", text, re.S)
-        if m:
-            body = m.group(2)
-            for line in m.group(1).splitlines():
-                key, sep, val = line.partition(":")
-                if sep:
-                    meta[key.strip()] = val.strip().strip('"')
-        agent_id = fn[:-3]
-        name = meta.get("name", agent_id)
-        asked = [t.strip() for t in meta.get("tools", "").split(",") if t.strip()]
         try:
             order = float(meta.get("order", 99))
         except ValueError:
             order = 99.0
-        out.append({
-            "id": agent_id, "name": name, "role": meta.get("role", ""),
-            "initials": (meta.get("initials") or name[:1]).upper()[:2],
-            "color": meta.get("color", "#4da3ff") if re.fullmatch(r"#[0-9a-fA-F]{3,8}", meta.get("color", "#4da3ff")) else "#4da3ff",
-            "hint": meta.get("hint", ""), "order": order,
-            "tools": [t for t in asked if t in EXTRA_TOOLS],
-            "hands_off": meta.get("hands_off", "").lower() == "true",
-            "brief": BRIEF % {"name": name, "role": body.strip()},
-        })
-    out.sort(key=lambda a: (a["order"], a["id"]))
-    # an agent that may hand work on is told how, and to whom
-    for a in out:
-        if a["hands_off"]:
-            roster = "\n".join(f'- "{o["id"]}" — {o["name"]}: {o["role"]}' for o in out if o["id"] != a["id"])
-            a["brief"] += HANDOFF % {"roster": roster}
-    return out
+        out.append({"file": f"guides/{fn}", "title": meta.get("title", fn[:-3]), "when": meta.get("when", ""), "order": order})
+    out.sort(key=lambda g: (g["order"], g["file"]))
+    return [{k: g[k] for k in ("file", "title", "when")} for g in out]
+
+
+def load_agent(root):
+    """The agent, from guides/agent.md and the list of guides: {name, hint, tools, brief}.
+    Re-read on use, so editing a guide takes effect with the next message."""
+    try:
+        with open(os.path.join(root, "guides", "agent.md"), encoding="utf-8") as f:
+            meta, body = _front(f.read())
+    except OSError:
+        meta, body = {}, ""
+    asked = [t.strip() for t in meta.get("tools", "").split(",") if t.strip()]
+    guides = load_guides(root)
+    listing = "\n".join(f"- {g['file']} — {g['title']}: {g['when']}" for g in guides) or "- (none)"
+    return {
+        "name": meta.get("name", "Assistant"),
+        "hint": meta.get("hint", ""),
+        "tools": [t for t in asked if t in EXTRA_TOOLS],
+        "guides": guides,
+        "brief": BRIEF % {"role": body.strip(), "guides": listing},
+    }
 
 
 class Chats:
-    """One conversation per agent PER APPLICATION, kept on disk.
+    """One conversation PER APPLICATION, kept on disk.
 
     A conversation is what was said and done, as a list of events, in
-    applications/<application>/chats/<agent>.json — so it survives the
+    applications/<application>/chats/assistant.json — so it survives the
     server restarting, belongs to the application it is about, and goes
     along when the application is exported. The CLI session that lets the
     agent REMEMBER the conversation is local to this machine and is kept
-    apart, in .chat-sessions.json at the repository root.
-
-    Agents are re-read from agents/ on use, so editing a description takes
-    effect with the next message."""
+    apart, in .chat-sessions.json at the repository root."""
 
     def __init__(self, root):
         self.root = root
         self.chats = {}
         self.lock = threading.Lock()
-        # one condition for all conversations: a page following one agent
-        # still hears at once that another has answered
-        self.cond = threading.Condition()
         self.sessions_path = os.path.join(root, ".chat-sessions.json")
 
-    def agents(self):
-        """What the page needs to draw the profiles (no instructions)."""
-        return [{k: a[k] for k in ("id", "name", "role", "initials", "color", "hint")} for a in load_agents(self.root)]
+    def agent(self):
+        """What the page needs to draw the chat (no instructions)."""
+        a = load_agent(self.root)
+        return {"name": a["name"], "hint": a["hint"], "guides": a["guides"]}
 
-    def get(self, app, agent_id):
-        """The conversation of `agent_id` about the application `app` (its
-        folder name), or None if there is no such agent or application."""
-        agent = next((a for a in load_agents(self.root) if a["id"] == agent_id), None)
+    def get(self, app):
+        """The conversation about the application `app` (its folder name), or None if there is none such."""
         app_dir = os.path.join(self.root, "applications", app or "")
-        if (agent is None or not app or app != os.path.basename(app) or app in (".", "..")
+        if (not app or app != os.path.basename(app) or app in (".", "..")
                 or not os.path.isfile(os.path.join(app_dir, "application.json"))):
             return None
         with self.lock:
-            key = (app, agent_id)
-            if key not in self.chats:
-                self.chats[key] = Chat(self.root, self.cond,
-                                       store=os.path.join(app_dir, "chats", agent_id + ".json"),
-                                       sessions=(self.sessions_path, f"{app}/{agent_id}"),
-                                       colleagues=lambda other, app=app: self.get(app, other))
-            chat = self.chats[key]
-        chat.agent = agent
+            if app not in self.chats:
+                store = os.path.join(app_dir, "chats", AGENT + ".json")
+                _adopt(app_dir, store, self.sessions_path, app)
+                self.chats[app] = Chat(self.root, store=store, sessions=(self.sessions_path, f"{app}/{AGENT}"))
+            chat = self.chats[app]
+        chat.agent = load_agent(self.root)
         return chat
-
-    def _of(self, app):
-        # every agent's conversation about this application, loaded if it is on disk
-        return {a["id"]: c for a in load_agents(self.root) for c in [self.get(app, a["id"])] if c}
-
-    def answers(self, app):
-        """How many answers each conversation holds — the page marks an agent
-        whose count has grown since the user last looked at it."""
-        return {i: sum(1 for e in c.events if e.get("type") in ("text", "error")) for i, c in self._of(app).items()}
-
-    def busy(self, app):
-        return [i for i, c in self._of(app).items() if c.running()]
 
     def available(self):
         return shutil.which("claude") is not None
+
+
+def _adopt(app_dir, store, sessions_path, app):
+    """An application made when the chat had several agents kept one
+    conversation each. The single conversation continues the main one (the
+    Lead engineer's): its file and its session take the new name, once. The
+    other agents' files stay where they are, as a record."""
+    old = os.path.join(app_dir, "chats", "lead-engineer.json")
+    if os.path.exists(store) or not os.path.exists(old):
+        return
+    try:
+        os.rename(old, store)
+        with _files:
+            try:
+                with open(sessions_path, encoding="utf-8") as f:
+                    table = json.load(f)
+            except (OSError, ValueError):
+                return
+            if f"{app}/lead-engineer" in table:
+                table[f"{app}/{AGENT}"] = table.pop(f"{app}/lead-engineer")
+                _write_json(sessions_path, table)
+    except OSError:
+        pass
 
 
 _files = threading.Lock()           # one writer at a time for the small state files
@@ -244,9 +210,9 @@ def _write_json(path, obj):
 
 
 class Chat:
-    def __init__(self, root, cond=None, store=None, sessions=None, colleagues=None):
+    def __init__(self, root, cond=None, store=None, sessions=None):
         self.root = root
-        self.agent = None           # set by Chats.get: this conversation's agent
+        self.agent = None           # set by Chats.get: the agent as its guides describe it now
         self.events = []            # everything the page shows, in order
         self.session = None         # CLI session id, to continue the talk
         self.proc = None
@@ -254,9 +220,6 @@ class Chat:
         self.cond = cond or threading.Condition()
         self.store = store          # the file the events are kept in
         self.sessions = sessions    # (file, key) of this conversation's CLI session id
-        self.colleagues = colleagues  # agent id -> that agent's conversation about the same application
-        self.inbox = []             # what colleagues reported back, for this agent's next turn
-        self.context = ""           # the viewer line of the last message, passed on with a handoff
         self._load()
 
     # ---- on disk ----
@@ -287,7 +250,7 @@ class Chat:
         try:
             with _files:
                 if self.events:
-                    _write_json(self.store, {"agent": self.agent["id"] if self.agent else None, "events": self.events})
+                    _write_json(self.store, {"events": self.events})
                 elif os.path.exists(self.store):
                     os.remove(self.store)
         except OSError:
@@ -379,9 +342,7 @@ class Chat:
                 "record." + (" Only the latest part is shown." if cut else "") + "\n\n" + body +
                 "\n\nEnd of the earlier conversation. The user's new message follows.]\n\n")
 
-    def send(self, text, context="", files=(), sender=None):
-        """A message for this agent: from the user, or — with `sender`, an
-        agent's name — a task handed over by a colleague."""
+    def send(self, text, context="", files=()):
         text = (text or "").strip()
         files = list(files)
         if not text and not files:
@@ -397,19 +358,10 @@ class Chat:
             except OSError as e:
                 return f"could not start the agent: {e}"
             proc, resumed = self.proc, bool(self.session)
-            self.events.append({"type": "user", "text": text, "files": files, **({"from": sender} if sender else {})})
+            self.events.append({"type": "user", "text": text, "files": files})
             self._save()
             self.cond.notify_all()
-            reports, self.inbox = self.inbox, []
-        self.context = context
         prompt = f"[viewer: {context}]\n{text}" if context else text
-        if sender:
-            prompt = (f"[This task was handed to you by the {sender}, not typed by the user. Do it as you would a "
-                      f"request from the user; the user reads your reply in this chat.]\n" + prompt)
-        if reports:
-            # what the colleagues it handed work to have answered since its last turn
-            prompt = ("[Since your last message, the colleagues you handed work to have reported:\n\n"
-                      + "\n\n".join(reports) + "]\n\n" + prompt)
         if files:
             # the agent opens them itself (Read shows images)
             prompt += "\n\n[attached by the user, saved in the repository — read them:\n" + \
@@ -423,59 +375,6 @@ class Chat:
         proc = self.proc
         if proc is not None:
             proc.terminate()
-
-    # ---- handing work to colleagues ----
-    def _last_turn(self):
-        """The events of the latest turn: from its user message on."""
-        i = max((k for k, e in enumerate(self.events) if e.get("type") == "user"), default=0)
-        return self.events[i:]
-
-    def _hand_off(self, epoch):
-        """After a clean turn: if this agent may hand work on and its message
-        ends with a handoff block, run those tasks in its colleagues' chats."""
-        if not (self.agent and self.agent.get("hands_off") and self.colleagues):
-            return
-        texts = [e["text"] for e in self._last_turn() if e.get("type") == "text"]
-        allowed = {a["id"] for a in load_agents(self.root)} - {self.agent["id"]}
-        tasks = parse_handoffs(texts[-1] if texts else "", allowed)
-        if tasks:
-            threading.Thread(target=self._relay, args=(tasks, epoch, self.agent["name"], self.context), daemon=True).start()
-
-    def _relay(self, tasks, epoch, me, context, patience=1800):
-        """Give the tasks to the colleagues one after another, each in its own
-        chat with only the task as its prompt; note in this chat what happened
-        and keep each reply for this agent's next turn. Stops at a failure."""
-        import time
-        for n, t in enumerate(tasks):
-            if epoch != self.epoch:
-                return                              # this conversation was cleared
-            other = self.colleagues(t["to"])
-            if other is None:
-                self._add(type="note", text=f"could not hand over to {t['to']}: no such agent")
-                break
-            name = other.agent["name"]
-            waited = 0
-            while other.running() and waited < patience:      # it is busy with something else
-                time.sleep(0.25)
-                waited += 0.25
-            err = other.send(t["task"], context, sender=me)
-            if err:
-                self._add(type="note", text=f"could not hand over to the {name}: {err}", to=t["to"])
-                break
-            self._add(type="note", text=f"handed to the {name}", to=t["to"])
-            while other.running():
-                time.sleep(0.25)
-            turn = other._last_turn()
-            reply = next((e["text"] for e in reversed(turn) if e.get("type") == "text"), "")
-            failed = next((e["text"] for e in turn if e.get("type") == "error"), None)
-            if failed is not None:
-                self.inbox.append(f"{name} — FAILED on the task “{t['task'][:200]}”: {failed}")
-                left = len(tasks) - n - 1
-                self._add(type="note", text=f"the {name} did not finish ({failed[:120]})"
-                          + (f"; {left} later task{'s' if left > 1 else ''} not started" if left else ""), to=t["to"])
-                break
-            self.inbox.append(f"{name} — done with the task “{t['task'][:200]}”. Its reply:\n{reply[:4000]}")
-            self._add(type="note", text=f"the {name} has finished", to=t["to"])
 
     def new(self):
         self.stop()
@@ -504,8 +403,6 @@ class Chat:
                 said, finished, code, tail = self._turn(proc, background + prompt, epoch)
             if epoch == self.epoch and not finished:
                 self._add(type="error", text="stopped" if code in (-15, 143) else f"the agent exited ({code}) {tail}".strip())
-            elif epoch == self.epoch:
-                self._hand_off(epoch)
         except Exception as e:              # never leave the chat stuck "running"
             if epoch == self.epoch:
                 self._add(type="error", text=f"chat failed: {e}")

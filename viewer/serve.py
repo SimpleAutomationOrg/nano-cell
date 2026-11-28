@@ -91,21 +91,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._applications()
         if self.path.startswith("/__steps"):
             return self._steps()
-        if self.path.startswith("/__chat/agents"):
+        if self.path.startswith("/__chat/agent"):
             if not self._same_origin():
                 return self._json({"error": "forbidden"}, 403)
-            return self._json(CHATS.agents())
+            return self._json(CHATS.agent())
         if self.path.startswith("/__chat/events"):
             if not self._same_origin():
                 return self._json({"error": "forbidden"}, 403)
             q = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
             try:
-                app = q.get("app", "")
-                chat = CHATS.get(app, q.get("agent", ""))
+                chat = CHATS.get(q.get("app", ""))
                 if chat is None:
-                    return self._json({"error": "no such agent or application"}, 404)
+                    return self._json({"error": "no such application"}, 404)
                 r = chat.poll(int(q.get("epoch", -1)), int(q.get("since", 0)))
-                return self._json({**r, "busy": CHATS.busy(app), "answers": CHATS.answers(app), "available": CHATS.available()})
+                return self._json({**r, "available": CHATS.available()})
             except ValueError:
                 return self._json({"error": "bad request"}, 400)
         super().do_GET()
@@ -152,9 +151,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith("/__loop/save"):
             return self._save_loop(data)
         action = self.path[len("/__chat/"):]
-        chat = CHATS.get(str(data.get("app", "")), str(data.get("agent", "")))
+        chat = CHATS.get(str(data.get("app", "")))
         if chat is None:
-            return self._json({"error": "no such agent or application"}, 404)
+            return self._json({"error": "no such application"}, 404)
         if action == "send":
             # attachments: only files that really are in an application's materials/
             files = []

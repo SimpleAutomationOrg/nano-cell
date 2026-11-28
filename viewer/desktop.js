@@ -33,6 +33,11 @@ ui.innerHTML = `
     #setup input { width: 100%; box-sizing: border-box; margin: 10px 0 4px; background: #0c0f13; color: #e8eef4; border: 1px solid #2f3b4a; border-radius: 7px; padding: 8px 10px; font: 12.5px ui-monospace, monospace; }
     #setup .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
     #setup button.primary { background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; padding: 6px 14px; }
+    #setup p.warn { color: #ffb86b; animation: warnflash .6s; }
+    @keyframes warnflash { from { background: #5a3a12; } to { background: transparent; } }
+    #setup .picks { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+    #setup .picks:empty { display: none; }
+    #setup .picks button { text-align: left; font: 12px ui-monospace, monospace; padding: 7px 10px; overflow-wrap: anywhere; }
     #setup pre { margin: 10px 0 0; padding: 9px; background: #0c0f13; border-radius: 7px; color: #ff9f9f; font-size: 11px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 180px; overflow: auto; }
   </style>
   <div class="card"><h2></h2><div class="body"></div><div class="row"></div></div>`;
@@ -40,12 +45,16 @@ document.body.appendChild(ui);
 
 // one screen at a time: a title, what to say, an optional field, buttons;
 // resolves with { button, value } when a button is pressed
-function screen(title, lines, { field = null, buttons = [], detail = '' } = {}) {
+function screen(title, lines, { field = null, buttons = [], detail = '', warn = '', choices = null } = {}) {
   ui.hidden = false;
   ui.querySelector('h2').textContent = title;
   const body = ui.querySelector('.body'), row = ui.querySelector('.row');
   body.innerHTML = ''; row.innerHTML = '';
   for (const l of lines) { const p = document.createElement('p'); p.textContent = l; body.appendChild(p); }
+  if (warn) { const p = document.createElement('p'); p.className = 'warn'; p.textContent = warn; body.appendChild(p); }
+  const picks = document.createElement('div');
+  picks.className = 'picks';
+  body.appendChild(picks);
   let input = null;
   if (field) {
     input = document.createElement('input');
@@ -55,6 +64,12 @@ function screen(title, lines, { field = null, buttons = [], detail = '' } = {}) 
   }
   if (detail) { const pre = document.createElement('pre'); pre.textContent = detail; body.appendChild(pre); }
   return new Promise(resolve => {
+    for (const c of choices ?? []) {
+      const el = document.createElement('button');
+      el.type = 'button'; el.textContent = c;
+      el.onclick = () => resolve({ choice: c, value: c });
+      picks.appendChild(el);
+    }
     buttons.forEach((b, i) => {
       const el = document.createElement('button');
       el.type = 'button'; el.textContent = b;
@@ -132,29 +147,58 @@ async function main() {
   const isWorkspace = async dir => !!dir && await desktop.fs.exists(`${dir.replace(/[\\/]+$/, '')}/viewer/serve.py`).catch(() => false);
 
   // ---- the workspace, then the engine in it ----
+  // look under the home folder for checkouts of the repository (a folder with viewer/serve.py and the viewer's code)
+  const findWorkspaces = async () => {
+    if (platform === 'win32') return [];
+    const r = await desktop.childProcess.exec(
+      `find "$HOME" -maxdepth 7 -type f -path '*/viewer/serve.py' -not -path '*/node_modules/*' -not -path '*/Library/*' -not -path '*/.Trash/*' -not -path '*/dist/*' 2>/dev/null | head -20`,
+      { timeout: 40000 }).catch(() => ({ stdout: '' }));
+    const dirs = r.stdout.split('\n').map(l => l.trim()).filter(Boolean).map(l => l.replace(/\/viewer\/serve\.py$/, ''));
+    const ours = [];
+    for (const d of dirs) if (await desktop.fs.exists(`${d}/viewer/cell-data.js`).catch(() => false)) ours.push(d);
+    return ours;
+  };
   let workspace = localStorage.getItem(WS_KEY) ?? '';
-  let problem = '', detail = '';
+  let problem = '', detail = '', found = null, checked = false;
   for (;;) {
-    if (!problem && await isWorkspace(workspace)) {
-      busy('Nano Cell', `Starting the engine in ${workspace} …`);
-      const engine = startEngine(desktop.childProcess.spawn, workspace, platform);
-      try {
-        await Promise.race([engine.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('the engine did not answer within 30 s')), 30000))]);
-        localStorage.setItem(WS_KEY, workspace);
-        // from here on, every request the page makes for the cell goes to the engine
-        window.fetch = engineFetch(engine, window.fetch.bind(window), { pageUrl: document.baseURI });
-        break;
-      } catch (e) {
-        problem = 'The engine did not start in that folder.';
-        detail = `${e.message}\n${engine.errors()}`.trim() + '\n\nIt needs python3 and node, and `npm install` run once in the folder.';
+    if (workspace && !checked) {
+      checked = true;
+      if (await isWorkspace(workspace)) {
+        busy('Nano Cell', `Starting the engine in ${workspace} …`);
+        const engine = startEngine(desktop.childProcess.spawn, workspace, platform);
+        try {
+          await Promise.race([engine.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('the engine did not answer within 30 s')), 30000))]);
+          localStorage.setItem(WS_KEY, workspace);
+          // from here on, every request the page makes for the cell goes to the engine
+          window.fetch = engineFetch(engine, window.fetch.bind(window), { pageUrl: document.baseURI });
+          break;
+        } catch (e) {
+          problem = `The engine did not start in ${workspace}.`;
+          detail = `${e.message}\n${engine.errors()}`.trim() + '\n\nIt needs python3 and node, an up-to-date checkout, and `npm install` run once in the folder.';
+        }
+      } else {
+        const there = await desktop.fs.exists(workspace).catch(() => false);
+        problem = there
+          ? `“${workspace}” is a folder, but not a workspace: it has no viewer/serve.py. The workspace is the folder of the nano-cell repository itself.`
+          : `There is no folder “${workspace}”.`;
       }
-    } else if (workspace && !problem) problem = 'That folder is not a nano-cell workspace (there is no viewer/serve.py in it).';
+    }
     const r = await screen('Where is the workspace?', [
-      'Nano Cell keeps the engine and your applications in a folder on this computer: your checkout of the nano-cell repository.',
-      ...(problem ? [problem] : []),
-    ], { field: { value: workspace, placeholder: '~/nano-cell' }, buttons: ['Open'], detail });
-    workspace = r.value.replace(/[\\/]+$/, '');
+      'Nano Cell works on a folder on this computer that holds the engine and your applications: your checkout of the nano-cell repository (the folder with viewer/ and applications/ in it).',
+      'Type its path and press Open, or press Find it to look for it under your home folder.',
+      ...(found ? [found.length ? 'Found — pick one:' : 'No workspace was found under your home folder. Get the repository onto this computer first (git clone), run `npm install` in it, then come back.'] : []),
+    ], { field: { value: workspace, placeholder: '~/nano-cell' }, buttons: ['Find it', 'Open'], warn: problem, detail, choices: found });
     problem = ''; detail = '';
+    if (r.button === 'Find it') {
+      busy('Nano Cell', 'Looking for the workspace under your home folder …');
+      found = await findWorkspaces();
+      if (found.length === 1) { workspace = found[0]; found = null; checked = false; }
+      continue;
+    }
+    workspace = r.value.replace(/[\\/]+$/, '');
+    found = null;
+    checked = false;
+    if (!workspace) problem = 'Type the path of the folder first, or press Find it.';
   }
 
   // ---- what the viewer needs to know, then the viewer itself ----
