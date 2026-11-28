@@ -252,6 +252,48 @@ class Chat:
                     "next": len(self.events), "running": self.running()}
 
     # ---- actions ----
+    def _spawn(self, resume):
+        """Start the CLI for one turn; `resume` continues its own session."""
+        cmd = [shutil.which("claude"), "-p", "--output-format", "stream-json", "--verbose",
+               "--permission-mode", "acceptEdits",
+               "--append-system-prompt", self.agent["brief"],
+               "--allowedTools", *ALLOWED_TOOLS, *self.agent["tools"]]
+        if resume:
+            cmd += ["--resume", resume]
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT")}
+        return subprocess.Popen(cmd, cwd=self.root, env=env, text=True,
+                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    def _history(self, events, limit=24_000):
+        """The saved conversation as background for an agent that has no
+        session of its own for it — after an import on another machine, or
+        once its session is gone. The latest part, if it is long."""
+        lines = []
+        for e in events:
+            kind, text = e.get("type"), str(e.get("text", "")).strip()
+            if kind == "user":
+                files = "".join(f"\n  [attached: {p}]" for p in e.get("files") or [])
+                lines.append(f"USER: {text}{files}")
+            elif kind == "text":
+                lines.append(f"YOU: {text}")
+            elif kind == "tool":
+                lines.append(f"  (you: {text})")
+            elif kind == "error":
+                lines.append(f"  (the turn ended with an error: {text})")
+        body = "\n".join(lines)
+        if not body:
+            return ""
+        cut = len(body) > limit
+        if cut:
+            body = body[-limit:]
+            body = body[body.find("\n") + 1:]          # start at a whole line
+        return ("[Background — your earlier conversation with the user about this application, as saved "
+                "with it. You have no memory of it yourself, so read it and carry on from where it ends. "
+                "Files you changed then are on disk as you left them; check them rather than trusting this "
+                "record." + (" Only the latest part is shown." if cut else "") + "\n\n" + body +
+                "\n\nEnd of the earlier conversation. The user's new message follows.]\n\n")
+
     def send(self, text, context="", files=()):
         text = (text or "").strip()
         files = list(files)
@@ -260,24 +302,14 @@ class Chat:
         with self.cond:
             if self.proc is not None:
                 return "the agent is still working"
-            cli = shutil.which("claude")
-            if not cli:
+            if not shutil.which("claude"):
                 return "the `claude` command was not found — install Claude Code and sign in"
-            cmd = [cli, "-p", "--output-format", "stream-json", "--verbose",
-                   "--permission-mode", "acceptEdits",
-                   "--append-system-prompt", self.agent["brief"],
-                   "--allowedTools", *ALLOWED_TOOLS, *self.agent["tools"]]
-            if self.session:
-                cmd += ["--resume", self.session]
-            env = {k: v for k, v in os.environ.items()
-                   if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT")}
+            earlier = list(self.events)             # the conversation before this message
             try:
-                self.proc = subprocess.Popen(
-                    cmd, cwd=self.root, env=env, text=True,
-                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                self.proc = self._spawn(self.session)
             except OSError as e:
                 return f"could not start the agent: {e}"
-            proc = self.proc
+            proc, resumed = self.proc, bool(self.session)
             self.events.append({"type": "user", "text": text, "files": files})
             self._save()
             self.cond.notify_all()
@@ -286,7 +318,9 @@ class Chat:
             # the agent opens them itself (Read shows images)
             prompt += "\n\n[attached by the user, saved in the repository — read them:\n" + \
                 "\n".join(f"  {p}" for p in files) + "]"
-        threading.Thread(target=self._run, args=(proc, prompt), daemon=True).start()
+        # with a session the agent remembers; without one it gets the saved conversation to read
+        background = self._history(earlier)
+        threading.Thread(target=self._run, args=(proc, prompt, resumed, background), daemon=True).start()
         return None
 
     def stop(self):
@@ -305,38 +339,21 @@ class Chat:
             self.cond.notify_all()
 
     # ---- one turn of the agent ----
-    def _run(self, proc, prompt):
+    def _run(self, proc, prompt, resumed=False, background=""):
         epoch = self.epoch
-        err = []
-        threading.Thread(target=lambda: err.extend(proc.stderr), daemon=True).start()
-        finished = False
         try:
-            proc.stdin.write(prompt)
-            proc.stdin.close()
-            for line in proc.stdout:
-                try:
-                    msg = json.loads(line)
-                except ValueError:
-                    continue
-                if epoch != self.epoch:
-                    continue                      # chat was cleared: drop the rest
-                if msg.get("session_id") and msg["session_id"] != self.session:
-                    self.session = msg["session_id"]
-                    self._save_session()
-                kind = msg.get("type")
-                if kind == "assistant":
-                    for block in msg.get("message", {}).get("content", []):
-                        if block.get("type") == "text" and block.get("text", "").strip():
-                            self._add(type="text", text=block["text"])
-                        elif block.get("type") == "tool_use":
-                            self._add(type="tool", text=self._describe(block))
-                elif kind == "result":
-                    finished = True
-                    if msg.get("is_error"):
-                        self._add(type="error", text=str(msg.get("result") or msg.get("subtype") or "the agent stopped with an error"))
-            code = proc.wait()
+            said, finished, code, tail = self._turn(proc, prompt if resumed else background + prompt, epoch)
+            if resumed and not said and epoch == self.epoch and (code != 0 or not finished):
+                # its session could not be continued (it expires; another machine never had it):
+                # forget it and start a new one, with the saved conversation as background
+                self.session = None
+                self._save_session()
+                with self.cond:
+                    if epoch != self.epoch:
+                        return
+                    proc = self.proc = self._spawn(None)
+                said, finished, code, tail = self._turn(proc, background + prompt, epoch)
             if epoch == self.epoch and not finished:
-                tail = "".join(err).strip()[-600:]
                 self._add(type="error", text="stopped" if code in (-15, 143) else f"the agent exited ({code}) {tail}".strip())
         except Exception as e:              # never leave the chat stuck "running"
             if epoch == self.epoch:
@@ -349,6 +366,49 @@ class Chat:
                     self.events.append({"type": "done"})
                     self._save()
                 self.cond.notify_all()
+
+    def _turn(self, proc, prompt, epoch):
+        """Feed one prompt to a started CLI and relay what it says and does.
+        Returns (it said or did something, it finished cleanly, exit code, end of stderr).
+        A turn that fails WITHOUT having said anything shows nothing: the caller may try again."""
+        err = []
+        threading.Thread(target=lambda: err.extend(proc.stderr), daemon=True).start()
+        said = finished = False
+        failure = None
+        proc.stdin.write(prompt)
+        proc.stdin.close()
+        for line in proc.stdout:
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                continue
+            if epoch != self.epoch:
+                continue                      # chat was cleared: drop the rest
+            if msg.get("session_id") and msg["session_id"] != self.session and msg.get("type") != "result":
+                self.session = msg["session_id"]
+                self._save_session()
+            kind = msg.get("type")
+            if kind == "assistant":
+                for block in msg.get("message", {}).get("content", []):
+                    if block.get("type") == "text" and block.get("text", "").strip():
+                        said = True
+                        self._add(type="text", text=block["text"])
+                    elif block.get("type") == "tool_use":
+                        said = True
+                        self._add(type="tool", text=self._describe(block))
+            elif kind == "result":
+                if msg.get("is_error"):
+                    failure = str(msg.get("result") or msg.get("subtype") or "the agent stopped with an error")
+                else:
+                    finished = True
+        code = proc.wait()
+        if failure is not None and epoch == self.epoch:
+            if said:
+                self._add(type="error", text=failure)
+                finished = True                 # it has been reported
+            else:
+                err.append(failure)
+        return said, finished, code, "".join(err).strip()[-600:]
 
     def _describe(self, block):
         """One line saying what the agent is doing, for the transcript."""

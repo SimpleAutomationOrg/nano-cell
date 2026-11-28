@@ -250,8 +250,10 @@ that agent's own conversation. There is one conversation per agent
 reloads and server restarts, belongs to the application it is about,
 and goes along in an export. What lets the agent *remember* it (its
 CLI session) is local to this machine, in `.chat-sessions.json` at the
-repository root: on another machine the conversation is shown, but the
-agent starts fresh. **New** forgets the one shown, on disk too. Both
+repository root. When an agent has a saved conversation but no session
+for it — the application was imported on another machine, or the
+session has expired — the saved conversation is handed to it as
+background with the next message, so it carries on from where it ends. **New** forgets the one shown, on disk too. Both
 are git-ignored. Every agent
 may read, search and edit files and run `./scripts/check.sh`; `tools:`
 in its header can add only what `EXTRA_TOOLS` in `chat.py` lists (web

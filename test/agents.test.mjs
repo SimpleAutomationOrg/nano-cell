@@ -79,3 +79,56 @@ test('an agent gets only the extra tools the server allows, and every one it ask
     assert.deepEqual(a.tools, asked);
   }
 });
+
+test('an agent without a session of its own gets the saved conversation as background — after an import, or when its session is gone', () => {
+  // the real chat code, driven against a stand-in for the CLI that answers with the prompt it was given
+  const out = JSON.parse(execFileSync('python3', ['-c', `
+import json, os, shutil, stat, sys, tempfile, time
+tmp = tempfile.mkdtemp()
+fake = os.path.join(tmp, 'bin', 'claude'); os.makedirs(os.path.dirname(fake))
+open(fake, 'w').write('''#!/usr/bin/env python3
+import json, sys
+a = sys.argv
+if "--resume" in a and a[a.index("--resume") + 1] != "live":
+    sys.stderr.write("No conversation found with session ID\\\\n"); sys.exit(1)
+p = sys.stdin.read()
+print(json.dumps({"type": "system", "session_id": "live"}))
+print(json.dumps({"type": "assistant", "session_id": "live", "message": {"content": [{"type": "text", "text": ("RESUMED " if "--resume" in a else "FRESH ") + p}]}}))
+print(json.dumps({"type": "result", "is_error": False, "session_id": "live"}))
+''')
+os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
+os.environ['PATH'] = os.path.dirname(fake) + os.pathsep + os.environ['PATH']
+import chat
+shutil.copytree('../agents', os.path.join(tmp, 'agents'))
+app = os.path.join(tmp, 'applications', 'demo'); os.makedirs(os.path.join(app, 'chats'))
+open(os.path.join(app, 'application.json'), 'w').write('{}')
+aid = chat.load_agents(tmp)[0]['id']
+# a conversation that came with the application (an import): events on disk, no session here
+json.dump({'events': [{'type': 'user', 'text': 'put the tray at the front left', 'files': []},
+                      {'type': 'tool', 'text': 'edits layout.json'}, {'type': 'text', 'text': 'Tray placed at x 0.4.'}, {'type': 'done'}]},
+          open(os.path.join(app, 'chats', aid + '.json'), 'w'))
+def say(c, text):
+    assert c.send(text, 'application: demo') is None
+    for _ in range(200):
+        if not c.running(): break
+        time.sleep(0.05)
+    return [e for e in c.events if e['type'] in ('text', 'error')][-1]
+chats = chat.Chats(tmp)
+c = chats.get('demo', aid)
+first = say(c, 'now move it 5 cm right')            # no session: must carry the background
+second = say(c, 'and back')                         # its own session now: no background needed
+stale = chat.Chats(tmp).get('demo', aid)            # a new server, and the session has since expired
+stale.session = 'gone'; stale._save_session()
+third = say(stale, 'where is the tray?')
+shutil.rmtree(tmp)
+print(json.dumps({'first': first, 'second': second, 'third': third, 'session': stale.session,
+                  'errors': [e['text'] for e in stale.events if e['type'] == 'error']}))`],
+    { cwd: new URL('viewer/', ROOT), encoding: 'utf8' }));
+  assert.match(out.first.text, /^FRESH \[Background/, 'with no session, the saved conversation must come first');
+  assert.match(out.first.text, /USER: put the tray at the front left[\s\S]*\(you: edits layout\.json\)[\s\S]*YOU: Tray placed at x 0\.4\./, 'what was said and done earlier is in the background');
+  assert.match(out.first.text, /now move it 5 cm right$/, 'and the new message follows it');
+  assert.match(out.second.text, /^RESUMED \[viewer: application: demo\]\nand back$/, 'with its own session the agent remembers: the conversation is not sent again');
+  assert.match(out.third.text, /^FRESH \[Background[\s\S]*YOU: RESUMED[\s\S]*where is the tray\?$/, 'a session that is gone: start a new one, with the whole saved conversation');
+  assert.equal(out.session, 'live', 'the new session is kept for the next message');
+  assert.deepEqual(out.errors, [], 'the failed attempt to continue the old session must not show as an error');
+});
