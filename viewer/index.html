@@ -104,8 +104,12 @@
   .agent.sel .face, .agent:hover .face { opacity: 1; }
   .agent .lbl { font-size: 9.5px; line-height: 1.15; color: #7d8a99; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
   .agent.sel .lbl { color: #e8eef4; }
-  .agent i { display: none; position: absolute; top: 5px; right: 11px; width: 9px; height: 9px; border-radius: 50%;
-    background: #4da3ff; border: 2px solid #0a0d10; animation: chatpulse 1s infinite alternate; }
+  /* an answer the user has not looked at yet */
+  .agent .badge { display: none; position: absolute; top: 1px; right: 7px; min-width: 15px; height: 15px;
+    padding: 0 3px; border-radius: 9px; background: #ff5f57; color: #fff; font-size: 9.5px; font-weight: 700; line-height: 15px;
+    text-align: center; box-shadow: 0 0 0 2px #0a0d10; box-sizing: border-box; }
+  .agent.unread .badge { display: block; }
+  .agent.unread .lbl { color: #e8eef4; font-weight: 600; }
   #chatMain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   /* an agent at work: a turning ring on its profile, moving dots under its conversation */
   .agent.busy .face { opacity: 1; box-shadow: 0 0 0 2px #0a0d10; }
@@ -124,7 +128,7 @@
   #chatWork .dots i:nth-child(2) { animation-delay: .18s; }
   #chatWork .dots i:nth-child(3) { animation-delay: .36s; }
   @keyframes workdot { 0%, 70%, 100% { opacity: .25; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
-  #chat.working textarea { border-color: #35557a; }
+  #chat.working #chatBox { border-color: #35557a; }
   #chat.closed #chatMain { display: none; }
   #chat header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; user-select: none; }
   #chat header .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -142,9 +146,15 @@
   #chatLog code { font-family: ui-monospace, monospace; font-size: 11.5px; background: #0c0f13; border-radius: 4px; padding: 1px 4px; }
   #chatLog pre { margin: 4px 0; padding: 7px 9px; background: #0c0f13; border-radius: 6px; overflow-x: auto; white-space: pre; }
   #chatLog pre code { padding: 0; background: none; }
-  #chat form { padding: 8px 10px 10px; border-top: 1px solid #263040; }
-  #chat form .line { display: flex; gap: 6px; align-items: flex-end; }
-  #chatAttach { padding: 2px 8px; font-size: 16px; line-height: 20px; }
+  #chat form { padding: 10px; border-top: 1px solid #263040; }
+  /* the message box: attached files, the text, then Attach and Send — one frame */
+  #chatBox { background: #0c0f13; border: 1px solid #2f3b4a; border-radius: 10px; padding: 8px; }
+  #chatBox:focus-within { border-color: #4da3ff; }
+  #chat form .line { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  #chat form .tip { flex: 1; min-width: 0; color: #55606d; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chatAttach { flex: none; }
+  #chatSend { flex: none; background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
+  #chatSend:hover { background: #2a62a8; }
   /* files waiting to be sent, and files in a sent message */
   #chatFiles { display: flex; flex-wrap: wrap; gap: 6px; }
   #chatFiles:not(:empty) { margin-bottom: 8px; }
@@ -158,10 +168,9 @@
   #chatLog .sent-file img { display: block; max-width: 100%; max-height: 180px; border-radius: 6px; }
   #chatMain.dropping { outline: 2px dashed #4da3ff; outline-offset: -6px; background: #0f1721; }
   #chat textarea {
-    flex: 1; resize: none; height: 54px; background: #0c0f13; color: #e8eef4; border: 1px solid #2f3b4a;
-    border-radius: 6px; padding: 6px 8px; font: inherit;
+    display: block; width: 100%; box-sizing: border-box; resize: none; height: 62px; background: none; color: #e8eef4;
+    border: 0; padding: 2px 2px; font: inherit; outline: none;
   }
-  #chat textarea:focus { outline: 1px solid #4da3ff; }
 </style>
 <script type="importmap">
 { "imports": {

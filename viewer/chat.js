@@ -24,12 +24,15 @@ box.innerHTML = `
       <div id="chatLog"></div>
       <div id="chatWork" hidden><span class="dots"><i></i><i></i><i></i></span><span id="chatWorkText"></span></div>
       <form>
-        <div id="chatFiles"></div>
-        <div class="line">
-          <button type="button" id="chatAttach" title="attach files — or paste a screenshot, or drop files here">＋</button>
-          <input type="file" id="chatPick" multiple hidden>
-          <textarea id="chatIn" placeholder="Message…  (Enter to send, Shift+Enter for a new line)"></textarea>
-          <button id="chatSend">Send</button>
+        <div id="chatBox">
+          <div id="chatFiles"></div>
+          <textarea id="chatIn" placeholder="Message…"></textarea>
+          <div class="line">
+            <button type="button" id="chatAttach" title="choose files to attach">📎 Attach files</button>
+            <span class="tip">or paste a screenshot, or drop files here</span>
+            <input type="file" id="chatPick" multiple hidden>
+            <button id="chatSend">Send</button>
+          </div>
         </div>
       </form>
     </div>
@@ -46,6 +49,7 @@ const setClosed = on => {
   box.classList.toggle('closed', on);
   document.body.classList.toggle('chat-closed', on);
   localStorage.setItem('chat.closed', on ? '1' : '0');
+  if (typeof drawUnread === 'function' && rail.children.length) drawUnread();   // opening it is reading it
 };
 setClosed(localStorage.getItem('chat.closed') === '1');
 box.querySelector('header').addEventListener('click', ev => {
@@ -113,10 +117,33 @@ function setRunning(on) {
   sendBtn.textContent = on ? 'Stop' : 'Send';
   drawWork();
 }
-// the dot on a profile: that agent is working, whichever one is shown
+// the ring on a profile: that agent is working, whichever one is shown
 function setBusy(ids) {
   for (const b of rail.children) b.classList.toggle('busy', ids.includes(b.dataset.id));
 }
+
+// ---- unread answers ----
+// The server says how many answers each conversation holds; the page
+// remembers how many the user has seen. An agent with more than that gets
+// a badge on its profile. "Seen" means its conversation is on screen: the
+// agent is the one picked, the conversation is open and the tab is shown.
+let answers = {};
+const seen = JSON.parse(localStorage.getItem('chat.seen') || '{}');
+const watching = id => current?.id === id && !box.classList.contains('closed') && !document.hidden;
+function drawUnread() {
+  let changed = false;
+  for (const b of rail.children) {
+    const id = b.dataset.id, n = answers[id] ?? 0;
+    // a conversation that was cleared (or a restarted server) starts counting again
+    if ((seen[id] ?? 0) > n || (watching(id) && seen[id] !== n)) { seen[id] = n; changed = true; }
+    const unread = n - (seen[id] ?? 0);
+    b.classList.toggle('unread', unread > 0);
+    b.querySelector('.badge').textContent = unread > 9 ? '9+' : unread || '';
+    b.title = b.title.replace(/ · \d+ unread$/, '') + (unread > 0 ? ` · ${unread} unread` : '');
+  }
+  if (changed) localStorage.setItem('chat.seen', JSON.stringify(seen));
+}
+document.addEventListener('visibilitychange', drawUnread);
 
 function drawRail() {
   rail.innerHTML = '';
@@ -126,7 +153,7 @@ function drawRail() {
     b.dataset.id = a.id;
     b.title = `${a.name} — ${a.role}`;
     b.style.setProperty('--c', a.color);
-    b.innerHTML = '<span class="face"></span><span class="lbl"></span><i></i>';
+    b.innerHTML = '<span class="face"></span><span class="lbl"></span><span class="badge"></span>';
     b.querySelector('.face').textContent = a.initials;
     b.querySelector('.lbl').textContent = a.name;
     b.addEventListener('click', () => { pick(a.id); setClosed(false); });
@@ -244,10 +271,11 @@ function pick(id) {
   box.querySelector('#chatName').textContent = a.name;
   box.querySelector('#chatRole').textContent = a.role;
   box.style.setProperty('--c', a.color);
-  input.placeholder = `Message the ${a.name}…  (Enter to send, Shift+Enter for a new line)`;
+  input.placeholder = `Message the ${a.name}…`;
   input.value = sessionStorage.getItem(draftKey()) ?? '';
   log.innerHTML = '';
   setRunning(false);
+  drawUnread();
   poll?.abort();
   poll = new AbortController();
   follow(a, poll.signal);
@@ -275,6 +303,8 @@ async function follow(agent, signal) {
       next = r.next;
       setRunning(r.running);
       setBusy(r.busy ?? []);
+      answers = r.answers ?? {};
+      drawUnread();
       if (atEnd) log.scrollTop = log.scrollHeight;
     } catch { await new Promise(res => setTimeout(res, 2000)); }
   }

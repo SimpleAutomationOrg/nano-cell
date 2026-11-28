@@ -96,6 +96,9 @@ class Chats:
         self.root = root
         self.chats = {}
         self.lock = threading.Lock()
+        # one condition for all conversations: a page following one agent
+        # still hears at once that another has answered
+        self.cond = threading.Condition()
 
     def agents(self):
         """What the page needs to draw the profiles (no instructions)."""
@@ -106,9 +109,15 @@ class Chats:
         if agent is None:
             return None
         with self.lock:
-            chat = self.chats.setdefault(agent_id, Chat(self.root))
+            chat = self.chats.setdefault(agent_id, Chat(self.root, self.cond))
         chat.agent = agent
         return chat
+
+    def answers(self):
+        """How many answers each conversation holds — the page marks an agent
+        whose count has grown since the user last looked at it."""
+        return {i: sum(1 for e in c.events if e.get("type") in ("text", "error"))
+                for i, c in list(self.chats.items())}
 
     def busy(self):
         return [i for i, c in list(self.chats.items()) if c.running()]
@@ -118,14 +127,14 @@ class Chats:
 
 
 class Chat:
-    def __init__(self, root):
+    def __init__(self, root, cond=None):
         self.root = root
         self.agent = None           # set by Chats.get: this conversation's agent
         self.events = []            # everything the page shows, in order
         self.session = None         # CLI session id, to continue the talk
         self.proc = None
         self.epoch = 0              # bumped by "new chat": tells pages to start over
-        self.cond = threading.Condition()
+        self.cond = cond or threading.Condition()
 
     # ---- state the page polls ----
     def _add(self, **ev):

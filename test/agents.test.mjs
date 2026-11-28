@@ -9,7 +9,11 @@ import { readdirSync, readFileSync } from 'node:fs';
 const ROOT = new URL('..', import.meta.url);
 const loaded = JSON.parse(execFileSync('python3', ['-c', `
 import json, chat
-print(json.dumps({'agents': chat.load_agents('..'), 'extra': sorted(chat.EXTRA_TOOLS)}))`],
+chats = chat.Chats('..')
+ids = [a['id'] for a in chats.agents()]
+polled = [chats.get(i).poll(-1, 0, timeout=0)['events'] for i in ids]
+print(json.dumps({'agents': chat.load_agents('..'), 'extra': sorted(chat.EXTRA_TOOLS),
+  'polled': polled, 'answers': chats.answers(), 'busy': chats.busy(), 'unknown': chats.get('no-such-agent') is None}))`],
   { cwd: new URL('viewer/', ROOT), encoding: 'utf8' }));
 
 test('every agent file is a complete profile', () => {
@@ -22,6 +26,15 @@ test('every agent file is a complete profile', () => {
     assert.ok(a.brief.includes(a.name) && a.brief.length > 800, `agents/${a.id}.md: the description is missing or very short`);
   }
   assert.equal(new Set(loaded.agents.map(a => a.name)).size, loaded.agents.length, 'two agents share a name');
+});
+
+test('every agent has a conversation the page can follow (the server side of the chat starts)', () => {
+  assert.equal(loaded.polled.length, loaded.agents.length);
+  assert.ok(loaded.polled.every(ev => Array.isArray(ev) && ev.length === 0), 'a fresh conversation is empty');
+  assert.deepEqual(Object.keys(loaded.answers).sort(), loaded.agents.map(a => a.id).sort());
+  assert.ok(Object.values(loaded.answers).every(n => n === 0), 'no answers yet, so nothing unread');
+  assert.deepEqual(loaded.busy, []);
+  assert.ok(loaded.unknown, 'an unknown agent has no conversation');
 });
 
 test('an agent gets only the extra tools the server allows, and every one it asks for is one of those', () => {

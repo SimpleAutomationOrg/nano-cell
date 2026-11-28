@@ -121,7 +121,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if chat is None:
                     return self._json({"error": "no such agent"}, 404)
                 r = chat.poll(int(q.get("epoch", -1)), int(q.get("since", 0)))
-                return self._json({**r, "busy": CHATS.busy(), "available": CHATS.available()})
+                return self._json({**r, "busy": CHATS.busy(), "answers": CHATS.answers(), "available": CHATS.available()})
             except ValueError:
                 return self._json({"error": "bad request"}, 400)
         super().do_GET()
