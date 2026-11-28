@@ -43,8 +43,8 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   order when steps are dragged; each row runs its step alone, **Run loop**
   runs them back to back (later steps start where the previous one ended,
   not at their own `entry`). **Export** / **Import** pack and unpack the
-  whole folder as one `<name>-<version>.microfactory` file — the version a
-  hash of the contents (`viewer/appfiles.py`).
+  whole folder as one `<name>-<date>-<time>.microfactory` file, named by
+  when it was saved (`viewer/appfiles.py`).
   Format details: AGENTS.md, "The application folder".
 - `applications/<name>/steps/<step>.ts` — a step is ONE file: it exports
   `name`, `tool`, `entry` and the default async function, and imports the

@@ -98,15 +98,15 @@ applications/<name>/
   its folder lives.
 
 **One file to share**: **Export** in the right panel packs the open
-application's whole folder into `<name>-<version>.microfactory` (an
-ordinary zip under its own extension, `application.json` first) — to
-keep or to send to someone. The version is a short hash of the
-contents (every file's path and bytes): the same contents always give
-the same version, any change gives another. **Import** takes such a file, checks it (safe paths only, a
+application's whole folder into `<name>-<date>-<time>.microfactory`
+(an ordinary zip under its own extension, `application.json` first) —
+to keep or to send to someone. The name says when it was saved, to the
+second, in local time (`case-assembly-20261128-143005.microfactory`),
+so files sort by name in the order they were saved. **Import** takes such a file, checks it (safe paths only, a
 manifest in a format this viewer reads), unpacks it into
-`applications/` under the file's name (without the version) and opens
-it. A file that holds exactly what is already here is recognised and
-not imported again. If that
+`applications/` under the file's name (without the date and time) and
+opens it. A file that holds exactly what is already here is recognised
+(by a hash of the contents) and not imported again. If that
 application is already here it asks: replace (the one here is moved to
 `.backups/applications/`, never deleted) or import as a separate copy
 (which gets a `uid` of its own). `viewer/appfiles.py` does both.

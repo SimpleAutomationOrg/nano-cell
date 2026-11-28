@@ -134,10 +134,10 @@ def _files(app_dir):
 
 
 def _version(entries):
-    """The version of an application: a short hash of WHAT IS IN IT — every
-    file's path and contents, in path order. The same contents always give
-    the same version, whenever and wherever they are exported; any change
-    gives another. `entries` yields (path, bytes-reader)."""
+    """A short hash of WHAT IS IN an application — every file's path and
+    contents, in path order. The same contents always give the same hash;
+    any change gives another. Used to tell that a file being imported holds
+    exactly what is already here. `entries` yields (path, bytes-reader)."""
     import hashlib
     h = hashlib.sha256()
     for rel, read in sorted(entries, key=lambda e: e[0]):
@@ -163,13 +163,19 @@ def version_of_archive(z):
     return _version((i.filename, (lambda i=i: z.read(i))) for i in z.infolist() if not i.is_dir())
 
 
-def export_name(app_id, version):
-    return f"{app_id}-{version}{EXTENSION}"
+STAMP = "%Y%m%d-%H%M%S"
+
+
+def export_name(app_id, when=None):
+    """<application>-<date>-<time>.microfactory: when it was saved, to the
+    second, local time — files sort by name in the order they were saved."""
+    import time
+    return f"{app_id}-{time.strftime(STAMP, time.localtime(when))}{EXTENSION}"
 
 
 def export_application(app_dir, out):
     """Write the application in `app_dir` to the binary file `out` as one
-    archive. Returns its version hash (which goes into the file's name)."""
+    archive. Returns the hash of its contents."""
     import zipfile
     files = _files(app_dir)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
@@ -180,15 +186,13 @@ def export_application(app_dir, out):
     return version_of(app_dir)
 
 
-def id_from_file_name(name, version):
+def id_from_file_name(name):
     """The application id a file's name gives: without the extension, without
-    the " (1)" a browser adds to a second download, and without the version
-    hash export put there — but only when it IS this file's hash, so a name
-    that merely ends in hex is left alone."""
+    the " (1)" a browser adds to a second download, and without the date and
+    time export put at its end."""
     stem = name[:-len(EXTENSION)] if name.lower().endswith(EXTENSION) else name
     stem = re.sub(r"\s*\(\d+\)\s*$", "", stem)
-    if stem.lower().endswith("-" + version):
-        stem = stem[:-len(version) - 1]
+    stem = re.sub(r"-\d{8}-\d{6}$", "", stem)
     return slug(stem)
 
 
@@ -238,7 +242,7 @@ def import_application(apps_root, src, name_hint, existing="ask", backup_root=No
     with z:
         manifest = inspect_archive(z)
         version = version_of_archive(z)
-        app_id = id_from_file_name(name_hint, version) or slug(manifest.get("name", "")) or "application"
+        app_id = id_from_file_name(name_hint) or slug(manifest.get("name", "")) or "application"
         target = os.path.join(apps_root, app_id)
         fork = False
         if os.path.exists(target):

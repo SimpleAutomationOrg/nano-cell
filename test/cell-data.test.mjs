@@ -170,9 +170,10 @@ imp = lambda name, mode, data=None: appfiles.import_application(apps, io.BytesIO
 res = {'first': names[0], 'ds': '.DS_Store' in names}
 v = appfiles.version_of(src); buf2 = io.BytesIO()
 res['version'] = [v, appfiles.export_application(src, buf2), appfiles.version_of_archive(zipfile.ZipFile(io.BytesIO(buf.getvalue())))]
-res['file'] = appfiles.export_name('demo', v)
-res['ids'] = [appfiles.id_from_file_name(n, v) for n in ('demo-' + v + '.microfactory', 'demo-' + v + ' (2).microfactory', 'Demo.microfactory', 'cafe-deadbeef.microfactory')]
-res['new'] = imp('Shared Demo-' + v + '.microfactory', 'ask'); res['same_tree'] = tree(os.path.join(apps, 'shared-demo')) == tree(src)
+import time; t = time.mktime((2026, 11, 28, 14, 30, 5, 0, 0, -1))
+res['file'] = [appfiles.export_name('demo', t), appfiles.export_name('demo', t + 1)]
+res['ids'] = [appfiles.id_from_file_name(n) for n in (res['file'][0], 'demo-20261128-143005 (2).microfactory', 'Demo.microfactory', 'line-2.microfactory', 'batch-20261128.microfactory')]
+res['new'] = imp('Shared Demo-20261128-143005.microfactory', 'ask'); res['same_tree'] = tree(os.path.join(apps, 'shared-demo')) == tree(src)
 res['ask'] = imp('demo', 'ask')
 open(os.path.join(src, 'steps', 'go.ts'), 'a').write('// edited'); res['changed'] = [appfiles.version_of(src) != v, imp('demo', 'ask')['identical']]
 uid = appfiles.read_manifest(src)['uid']
@@ -200,11 +201,11 @@ print(json.dumps(res))`, new URL(`applications/${APP}`, ROOT).pathname, tmp], { 
     assert.ok(!out.ds, 'desktop clutter is not exported');
     const v = out.version[0];
     assert.match(v, /^[0-9a-f]{8}$/);
-    assert.deepEqual(out.version, [v, v, v], 'the version is a hash of the contents: the same for the folder, a second export, and the archive itself');
-    assert.equal(out.file, `demo-${v}.microfactory`, 'the exported file carries the version in its name');
-    assert.deepEqual(out.ids, ['demo', 'demo', 'demo', 'cafe-deadbeef'], 'import drops the version (and a browser\'s " (2)") from the name, but only when it is this file\'s own hash');
-    assert.deepEqual(out.new, { id: 'shared-demo', version: v }, 'the application is named after the file, without the version');
-    assert.deepEqual(out.changed, [true, false], 'any edit gives another version, and the file is then no longer "what is here already"');
+    assert.deepEqual(out.version, [v, v, v], 'the contents hash is the same for the folder, a second export, and the archive itself');
+    assert.deepEqual(out.file, ['demo-20261128-143005.microfactory', 'demo-20261128-143006.microfactory'], 'the exported file is named by when it was saved, to the second — so names sort in time order');
+    assert.deepEqual(out.ids, ['demo', 'demo', 'demo', 'line-2', 'batch-20261128'], 'import drops the date and time (and a browser\'s " (2)") from the name, and nothing else');
+    assert.deepEqual(out.new, { id: 'shared-demo', version: v }, 'the application is named after the file, without the date');
+    assert.deepEqual(out.changed, [true, false], 'any edit changes the contents hash, and the file is then no longer "what is here already"');
     assert.ok(out.same_tree, 'the imported folder differs from the exported one');
     assert.deepEqual(out.ask, { exists: true, id: 'demo', name: 'Demo', version: v, same: true, identical: true }, 'an existing application is reported, not touched');
     assert.deepEqual(out.copy, { id: 'demo-2', version: v });

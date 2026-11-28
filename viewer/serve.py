@@ -243,7 +243,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._json({"error": "no such application"}, 404)
         with tempfile.TemporaryFile() as tmp:
             try:
-                version = appfiles.export_application(d, tmp)
+                appfiles.export_application(d, tmp)
             except OSError as e:
                 return self._json({"error": str(e)}, 500)
             size = tmp.tell()
@@ -251,9 +251,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/zip")
             self.send_header("Content-Length", str(size))
-            # the file's name carries the version: a hash of its contents
-            self.send_header("Content-Disposition", f'attachment; filename="{appfiles.export_name(app, version)}"')
-            self.send_header("X-Microfactory-File", appfiles.export_name(app, version))
+            # the file's name says when it was saved, to the second
+            name = appfiles.export_name(app)
+            self.send_header("Content-Disposition", f'attachment; filename="{name}"')
+            self.send_header("X-Microfactory-File", name)
             self.end_headers()
             while True:
                 chunk = tmp.read(1 << 20)

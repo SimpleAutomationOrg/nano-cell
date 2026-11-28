@@ -429,8 +429,8 @@ function buildAppUI(apps, current) {
     const r = await fetch(`/__applications/export?app=${encodeURIComponent(current)}`, { headers: HEAD });
     if (!r.ok) { const e = (await r.json().catch(() => ({}))).error ?? r.status; status('export failed: ' + e); alert('Export failed: ' + e); return; }
     const blob = await r.blob();
-    // the server names the file: <application>-<version>.microfactory, the
-    // version being a hash of the contents
+    // the server names the file: <application>-<date>-<time>.microfactory,
+    // when it was saved, to the second
     const fileName = r.headers.get('X-Microfactory-File') ?? `${current}.microfactory`;
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -448,7 +448,7 @@ function buildAppUI(apps, current) {
     status(`importing ${file.name}…`);
     let r = await send(file, 'ask');
     if (r.exists && r.identical) {
-      status(`${file.name} is exactly what is here already (version ${r.version})`);
+      status(`${file.name} is exactly what is here already — nothing to import`);
       if (r.id !== current) open(r.id);
       return;
     }
