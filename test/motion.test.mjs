@@ -210,10 +210,10 @@ test('exact transit: when the short way round runs J6 into its limit, it goes th
   assert.ok(travel < 200, `J6 travelled ${travel.toFixed(0)}° for a 151° change`);
 });
 
-test('tool rack: the tool of every stand rests in it except the one on the arm; far to near is medium cup, small cup, screwdriver', () => {
+test('tool rack: the tool of every stand rests in it except the one on the arm; far to near is big cup, medium cup, small cup, screwdriver', () => {
   const farToNear = id => dockedTools(cell, id).sort((a, b) => b.pose_table.xyz_m[1] - a.pose_table.xyz_m[1]).map(t => t.id);
-  assert.deepEqual(farToNear(null), ['rcup16_p0', 'rcup6_p0', 'screwdriver_p0']);
-  assert.deepEqual(farToNear('rcup16_p0'), ['rcup6_p0', 'screwdriver_p0'], 'the mounted tool is on the arm, not in its stand');
+  assert.deepEqual(farToNear(null), ['bigcup_p0', 'rcup16_p0', 'rcup6_p0', 'screwdriver_p0']);
+  assert.deepEqual(farToNear('rcup16_p0'), ['bigcup_p0', 'rcup6_p0', 'screwdriver_p0'], 'the mounted tool is on the arm, not in its stand');
   // a docked tool hangs where the arm leaves it: its pose is the flange pose of the stand's return joints
   const mount = IK.fromXyzRpy(cell.arm.mount_table.xyz_m, cell.arm.mount_table.rpy);
   for (const s of cell.changer.stands) {
@@ -221,4 +221,26 @@ test('tool rack: the tool of every stand rests in it except the one on the arm; 
     const off = Math.hypot(...f.map((v, k) => v - s.pose_table.xyz_m[k]));
     assert.ok(off < 0.002, `${s.name}: docked pose is ${(off * 1000).toFixed(1)} mm from where the arm docks`);
   }
+});
+
+test('every cup gripper is measured: lip on the nozzle axis, the lip plane where the cup mesh ends', () => {
+  // the three cups share one body, so their nozzle axes agree; each lip
+  // centre lies on that axis, further out the taller the cup
+  const cups = cell.tools.filter(t => t.kind === 'vacuum_cup');
+  assert.deepEqual(cups.map(t => t.id), ['bigcup_p0', 'rcup16_p0', 'rcup6_p0']);
+  const ref = cups.find(t => t.id === 'rcup16_p0').vacuum;
+  const n = ref.lip_normal_flange;
+  for (const t of cups) {
+    const v = t.vacuum;
+    assert.ok(Math.abs(Math.hypot(...v.lip_normal_flange) - 1) < 1e-4, `${t.id}: lip normal is not a unit vector`);
+    const dot = v.lip_normal_flange.reduce((s, x, k) => s + x * n[k], 0);
+    assert.ok(dot > 0.99999, `${t.id}: cup axis is ${r2d(Math.acos(Math.min(1, dot))).toFixed(2)} deg off the nozzle axis`);
+    const d = v.lip_centre_flange_m.map((x, k) => x - ref.lip_centre_flange_m[k]);
+    const along = d.reduce((s, x, k) => s + x * n[k], 0);
+    const off = Math.hypot(...d.map((x, k) => x - along * n[k]));
+    assert.ok(off < 0.0005, `${t.id}: lip centre is ${(off * 1000).toFixed(2)} mm off the nozzle axis`);
+    assert.ok(v.cup_radius_m > v.lip_inner_radius_m && v.lip_inner_radius_m > 0, `${t.id}: lip radii`);
+  }
+  const big = cups[0].vacuum;
+  assert.ok(Math.abs(big.cup_radius_m - 0.020) < 1e-4, 'the big cup is the 40 mm one');
 });

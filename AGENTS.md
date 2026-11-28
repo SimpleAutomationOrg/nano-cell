@@ -87,6 +87,16 @@ file and body (path relative to the application). Never hand-edit or simplify a 
 says a part does not fit, compare the mesh with its STEP before
 believing it.
 
+**A new suction-cup gripper** is built with `scripts/cup-tool.mjs
+<cup.step> <reference tool> <out>`: the cup comes from its print file,
+the body (changer half, arm, nozzle) from an existing cup tool, and the
+cup's mount face is seated on the nozzle's end, on its axis. The script
+prints the tool's lip frame (`vacuum.lip_centre_flange_m`,
+`lip_normal_flange`, radii) for application.json. Give such a tool
+`"collision_detail": "coarse"` — its collision mesh is the full print
+geometry, and boxed exactly it is tens of thousands of boxes. Then put
+its id in a stand of `tool_rack` (`tool_id`).
+
 ## What physics is for
 
 Physics is there for what is meaningful to see: a released part

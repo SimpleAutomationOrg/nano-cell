@@ -76,7 +76,7 @@ export function dockedTools(cellData, mountedId) {
     const t = s.tool_id && s.tool_id !== mountedId && (cellData.tools ?? []).find(x => x.id === s.tool_id);
     if (!t?.mesh) continue;
     out.push({ id: t.id, name: `${t.name} — in ${s.name}`, stand: s.name, mesh: t.mesh,
-      collision_mesh: t.collision_mesh, pose_table: s.pose_table });
+      collision_mesh: t.collision_mesh, collision_detail: t.collision_detail, pose_table: s.pose_table });
   }
   return out;
 }

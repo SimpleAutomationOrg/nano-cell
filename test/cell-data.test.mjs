@@ -119,7 +119,7 @@ test('moved to another robot: the setup is unchanged in the table frame, taught 
 
 test('a robot that cannot run the application says what is missing', () => {
   const noVacuum = { ...robot, io: robot.io.filter(s => s.name !== 'vacuum') };
-  assert.throws(() => composeCell(noVacuum, application), /gripper 'rcup16_p0' needs the output 'vacuum', which the robot does not have/);
+  assert.throws(() => composeCell(noVacuum, application), /gripper '\w+' needs the output 'vacuum', which the robot does not have/);
   const { changer, ...noChanger } = robot;
   assert.throws(() => composeCell(noChanger, application), /tool rack, but the robot has no tool changer/);
   assert.throws(() => composeCell(robot, { ...application, mounted_tool: 'nope' }), /mounted_tool 'nope' is not one of its grippers/);

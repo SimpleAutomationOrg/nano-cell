@@ -22,6 +22,8 @@ What you work with:
 - `scripts/step-to-mesh.mjs` — turns a STEP body into the visual mesh and
   the collision mesh, from the same triangles. Use `--list` first to see
   the bodies and their sizes. Never hand-edit or simplify a mesh.
+- `scripts/cup-tool.mjs` — builds a new suction-cup gripper from a cup's
+  STEP and the body of an existing cup tool, and prints its lip frame.
 - `applications/<application>/application.json` — fixtures, parts,
   grippers and the tool rack, with their poses in the table frame (metres,
   z up) and each item's `mesh_source`.
