@@ -148,6 +148,68 @@ print(json.dumps({'was': was, 'same': same is None, 'rev': appfiles.read_loop(co
   } finally { rmSync(tmp, { recursive: true }); }
 });
 
+test('one file to share: export then import gives the same application; nothing is overwritten unasked; unsafe files are refused', () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'nano-file-'));
+  try {
+    const out = JSON.parse(execFileSync('python3', ['-c', `
+import io, json, os, sys, zipfile, appfiles
+like, tmp = sys.argv[1], sys.argv[2]
+apps, backups = os.path.join(tmp, 'applications'), os.path.join(tmp, 'backups')
+src = os.path.join(apps, 'demo')
+appfiles.new_application(src, 'Demo', like)
+os.makedirs(os.path.join(src, 'items', 'block'))
+open(os.path.join(src, 'items', 'block', 'block.glb'), 'wb').write(bytes(range(256)) * 40)
+open(os.path.join(src, 'steps', 'go.ts'), 'w').write('export const name = "Go";')
+open(os.path.join(src, '.DS_Store'), 'w').write('x')
+def tree(d):
+    return {os.path.relpath(os.path.join(p, f), d): open(os.path.join(p, f), 'rb').read().hex()[:64] + str(os.path.getsize(os.path.join(p, f)))
+            for p, _, fs in os.walk(d) for f in fs if f != '.DS_Store'}
+buf = io.BytesIO(); appfiles.export_application(src, buf)
+names = zipfile.ZipFile(io.BytesIO(buf.getvalue())).namelist()
+imp = lambda name, mode, data=None: appfiles.import_application(apps, io.BytesIO(data or buf.getvalue()), name, mode, backup_root=backups)
+res = {'first': names[0], 'ds': '.DS_Store' in names}
+res['new'] = imp('Shared Demo', 'ask'); res['same_tree'] = tree(os.path.join(apps, 'shared-demo')) == tree(src)
+res['ask'] = imp('demo', 'ask')
+uid = appfiles.read_manifest(src)['uid']
+res['copy'] = imp('demo', 'copy'); res['copy_uid_new'] = appfiles.read_manifest(os.path.join(apps, 'demo-2'))['uid'] != uid
+open(os.path.join(src, 'mine.txt'), 'w').write('local work')
+res['replace'] = imp('demo', 'replace')
+res['replaced_gone'] = not os.path.exists(os.path.join(src, 'mine.txt'))
+kept = os.listdir(backups); res['kept'] = len(kept) == 1 and os.path.exists(os.path.join(backups, kept[0], 'mine.txt'))
+def bad(make):
+    b = io.BytesIO()
+    with zipfile.ZipFile(b, 'w') as z: make(z)
+    try: imp('bad', 'ask', b.getvalue()); return 'accepted'
+    except appfiles.ImportError_ as e: return str(e)
+m = json.dumps(appfiles.read_manifest(src))
+res['escape'] = bad(lambda z: (z.writestr('application.json', m), z.writestr('../escaped.txt', 'x')))
+res['absolute'] = bad(lambda z: (z.writestr('application.json', m), z.writestr('/etc/x', 'x')))
+res['nomanifest'] = bad(lambda z: z.writestr('layout.json', '{}'))
+res['format'] = bad(lambda z: z.writestr('application.json', json.dumps({**json.loads(m), 'format': 7})))
+try: imp('junk', 'ask', b'not a zip at all'); res['junk'] = 'accepted'
+except appfiles.ImportError_ as e: res['junk'] = str(e)
+res['nothing_escaped'] = not os.path.exists(os.path.join(tmp, 'escaped.txt')) and not os.path.exists(os.path.join(apps, 'bad'))
+res['left'] = sorted(os.listdir(apps))
+print(json.dumps(res))`, new URL(`applications/${APP}`, ROOT).pathname, tmp], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' }));
+    assert.equal(out.first, 'application.json', 'the manifest is the first file of the archive');
+    assert.ok(!out.ds, 'desktop clutter is not exported');
+    assert.deepEqual(out.new, { id: 'shared-demo' }, 'the application is named after the file');
+    assert.ok(out.same_tree, 'the imported folder differs from the exported one');
+    assert.deepEqual(out.ask, { exists: true, id: 'demo', name: 'Demo', same: true }, 'an existing application is reported, not touched');
+    assert.deepEqual(out.copy, { id: 'demo-2' });
+    assert.ok(out.copy_uid_new, 'a copy kept beside the original is another application: it needs its own uid');
+    assert.deepEqual(out.replace, { id: 'demo' });
+    assert.ok(out.replaced_gone && out.kept, 'replacing must move the application that was here to the backups, with its files');
+    assert.match(out.escape, /unsafe path: \.\.\/escaped\.txt/);
+    assert.match(out.absolute, /unsafe path/);
+    assert.match(out.nomanifest, /no application\.json/);
+    assert.match(out.format, /format 7; this viewer reads format 1/);
+    assert.match(out.junk, /not a \.microfactory file/);
+    assert.ok(out.nothing_escaped, 'a refused file wrote something');
+    assert.deepEqual(out.left, ['demo', 'demo-2', 'shared-demo'], 'no half-imported folder is left behind');
+  } finally { rmSync(tmp, { recursive: true }); }
+});
+
 test('an application has ONE loop, naming steps that exist, each once', async () => {
   for (const name of dirs('applications/')) {
     const m = await readJson(`applications/${name}/application.json`);

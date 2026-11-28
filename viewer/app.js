@@ -421,6 +421,42 @@ function buildAppUI(apps, current) {
     if (r.error) { status('new application: ' + r.error); alert(r.error); return; }
     open(r.id);
   };
+
+  // One file to keep or to send: <name>.microfactory, the whole folder.
+  const HEAD = { 'X-Nano-Cell': 'chat' };
+  document.getElementById('appExport').onclick = async () => {
+    status(`exporting ${current}…`);
+    const r = await fetch(`/__applications/export?app=${encodeURIComponent(current)}`, { headers: HEAD });
+    if (!r.ok) { const e = (await r.json().catch(() => ({}))).error ?? r.status; status('export failed: ' + e); alert('Export failed: ' + e); return; }
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${current}.microfactory`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    status(`exported ${current}.microfactory (${(blob.size / 1e6).toFixed(1)} MB)`);
+  };
+  const pick = document.getElementById('appPick');
+  document.getElementById('appImport').onclick = () => pick.click();
+  const send = (file, existing) => fetch(
+    `/__applications/import?name=${encodeURIComponent(file.name)}&existing=${existing}`,
+    { method: 'POST', headers: { ...HEAD, 'Content-Type': 'application/octet-stream' }, body: file }).then(r => r.json());
+  async function importFile(file) {
+    status(`importing ${file.name}…`);
+    let r = await send(file, 'ask');
+    if (r.exists) {
+      // never overwrite silently: replace (the one here is kept as a backup) or keep both
+      const what = r.same ? `"${r.name}" is already here (an earlier or later version of this same application).`
+        : `Another application is already here under the name "${r.id}".`;
+      if (confirm(`${what}\n\nOK — replace it (the one here is moved to .backups/, not deleted)\nCancel — keep it and choose again`)) r = await send(file, 'replace');
+      else if (confirm(`Import "${file.name}" as a separate copy beside it?`)) r = await send(file, 'copy');
+      else { status('import cancelled'); return; }
+    }
+    if (r.error) { status('import failed: ' + r.error); alert('Import failed: ' + r.error); return; }
+    open(r.id);
+  }
+  pick.addEventListener('change', () => { const f = pick.files[0]; pick.value = ''; if (f) importFile(f); });
+  window.importApplication = importFile;    // console access, and for tests
 }
 
 async function buildStepUI(cell, mountToolFn) {

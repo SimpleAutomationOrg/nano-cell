@@ -8,3 +8,6 @@ __pycache__/
 
 # what the user attaches in the chat (photos, CAD, datasheets): kept local
 applications/*/materials/
+
+# applications replaced by an import are kept here, not deleted
+.backups/

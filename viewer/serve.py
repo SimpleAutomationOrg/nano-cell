@@ -27,13 +27,14 @@ PORT = int(_args[0]) if _args else 8742
 OPEN_BROWSER = "--no-open" not in sys.argv   # a restart need not open one more tab
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
-SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store"}
+SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups"}
 
 CHATS = Chats(ROOT)
 
 # what the user attaches in the chat lands in applications/<name>/materials/
 MATERIALS = "materials"
 MAX_UPLOAD = 50_000_000
+MAX_IMPORT = 1_000_000_000      # a .microfactory file
 
 # starts at the clock, not at 0: pages left open across a server restart
 # see a newer generation and reload, instead of running their old code
@@ -81,6 +82,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/__reload"):
             return self._reload_poll()
+        if self.path.startswith("/__applications/export"):
+            return self._export()
         if self.path.startswith("/__applications"):
             return self._applications()
         if self.path.startswith("/__steps"):
@@ -125,12 +128,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         import json
-        if not self.path.startswith(("/__chat/", "/__loop/save", "/__applications/new")):
+        if not self.path.startswith(("/__chat/", "/__loop/save", "/__applications/new", "/__applications/import")):
             return self._json({"error": "not found"}, 404)
         if not self._same_origin():
             return self._json({"error": "forbidden"}, 403)
         if self.path.startswith("/__chat/upload"):
             return self._upload()
+        if self.path.startswith("/__applications/import"):
+            return self._import()
         try:
             n = int(self.headers.get("Content-Length") or 0)
             data = json.loads(self.rfile.read(n) or b"{}") if n < 200_000 else None
@@ -225,6 +230,70 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except OSError as e:
             return self._json({"error": str(e)}, 500)
         return self._json({"ok": True, "path": os.path.relpath(path, ROOT), "name": os.path.basename(path)})
+
+    def _export(self):
+        # the open application as one file: /__applications/export?app=<name>
+        import tempfile
+        from urllib.parse import parse_qs, urlparse
+        if not self._same_origin():
+            return self._json({"error": "forbidden"}, 403)
+        app = parse_qs(urlparse(self.path).query).get("app", [""])[0]
+        d = self._app_dir(app)
+        if not d:
+            return self._json({"error": "no such application"}, 404)
+        with tempfile.TemporaryFile() as tmp:
+            try:
+                appfiles.export_application(d, tmp)
+            except OSError as e:
+                return self._json({"error": str(e)}, 500)
+            size = tmp.tell()
+            tmp.seek(0)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/zip")
+            self.send_header("Content-Length", str(size))
+            self.send_header("Content-Disposition", f'attachment; filename="{app}{appfiles.EXTENSION}"')
+            self.end_headers()
+            while True:
+                chunk = tmp.read(1 << 20)
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+
+    def _import(self):
+        # a .microfactory file as the body: /__applications/import?name=<file name>&existing=ask|replace|copy
+        import tempfile
+        from urllib.parse import parse_qs, urlparse
+        q = parse_qs(urlparse(self.path).query)
+        existing = q.get("existing", ["ask"])[0]
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if n <= 0 or existing not in ("ask", "replace", "copy"):
+            return self._json({"error": "bad request"}, 400)
+        if n > MAX_IMPORT:
+            return self._json({"error": f"file too large (limit {MAX_IMPORT // 1_000_000} MB)"}, 413)
+        name = os.path.basename(q.get("name", [""])[0].replace("\\", "/"))
+        if name.lower().endswith(appfiles.EXTENSION):
+            name = name[:-len(appfiles.EXTENSION)]
+        with tempfile.TemporaryFile() as tmp:
+            left = n
+            while left > 0:
+                chunk = self.rfile.read(min(left, 1 << 20))
+                if not chunk:
+                    return self._json({"error": "upload cut short"}, 400)
+                tmp.write(chunk)
+                left -= len(chunk)
+            tmp.seek(0)
+            try:
+                res = appfiles.import_application(
+                    os.path.join(ROOT, "applications"), tmp, name, existing,
+                    backup_root=os.path.join(ROOT, ".backups", "applications"))
+            except appfiles.ImportError_ as e:
+                return self._json({"error": str(e)}, 400)
+            except OSError as e:
+                return self._json({"error": str(e)}, 500)
+        return self._json({"ok": True, **res})
 
     def _new_application(self, data):
         # a new, empty application (viewer/appfiles.py), set up on the same

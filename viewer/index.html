@@ -28,7 +28,9 @@
     padding: 12px 14px; color: #cdd6e0; font-size: 12.5px;
   }
   #panel h1 { font-size: 13px; margin: 0 0 2px; color: #fff; font-weight: 600; }
-  #appRow { display: flex; gap: 6px; margin: 6px 0 8px; }
+  #appRow { display: flex; gap: 6px; margin: 6px 0 6px; }
+  #appFile { display: flex; gap: 6px; margin: 0 0 8px; }
+  #appFile button { flex: 1; }
   #appRow select { flex: 1; min-width: 0; }
   #panel .sub { color: #7d8a99; margin-bottom: 10px; }
   .joint { display: grid; grid-template-columns: 24px 1fr 52px; gap: 8px; align-items: center; margin: 5px 0; }
@@ -186,6 +188,11 @@
   <div id="appRow">
     <select id="appSel" title="the applications in applications/ — pick one to open it"></select>
     <button id="appNew" title="create a new, empty application on this robot and open it">New</button>
+  </div>
+  <div id="appFile">
+    <button id="appExport" title="save this application as one .microfactory file, to keep or to send to someone">Export</button>
+    <button id="appImport" title="open a .microfactory file: it is unpacked into applications/ and opened">Import</button>
+    <input type="file" id="appPick" accept=".microfactory" hidden>
   </div>
   <div class="sub">Fairino FR3 · drag to orbit · WASD to fly · live reload</div>
   <div id="joints"></div>
