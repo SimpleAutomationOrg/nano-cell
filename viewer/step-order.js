@@ -3,7 +3,7 @@
 // DOM), so the rules are tested under node; viewer/steps-panel.js draws it.
 //
 //   steps: [{ id, name, tool }]       every step file of the application
-//   loop:  { name, steps: [id...] }   loop.ts — the ordered step ids
+//   loop:  { name, steps: [id...] }   the manifest's loop — the ordered step ids
 
 /**
  * The two parts of the list, top to bottom: the loop's steps in loop

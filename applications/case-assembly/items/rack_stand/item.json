@@ -1,0 +1,9 @@
+{
+ "id": "rack_stand",
+ "name": "tool rack stand",
+ "kind": "fixture",
+ "mesh": "rack_stand.glb",
+ "collision_mesh": "rack_stand.collision.stl",
+ "collision": "mesh",
+ "collision_detail": "coarse"
+}

@@ -1,0 +1,9 @@
+{
+ "id": "stack45",
+ "name": "45 deg case stack",
+ "kind": "fixture",
+ "mesh": "stack45.glb",
+ "collision_mesh": "stack45.collision.stl",
+ "collision": "mesh",
+ "collision_detail": "coarse"
+}

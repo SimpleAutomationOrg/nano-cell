@@ -1,16 +1,26 @@
 // A cell is a ROBOT with an APPLICATION set up on it.
 //
-//   cell_<arm>/robot.json                 the design of the cell: the arm (and
-//                                         arm/, its meshes), its mount, the table, the
-//                                         guard, the flange stack, cameras, IO
-//   applications/<name>/application.json  the job and its environment: the
-//                                         grippers, the tool rack, fixtures,
-//                                         parts — plus its steps/ and print/
+//   cell_<arm>/robot.json     the design of the cell: the arm (and arm/, its
+//                             meshes), its mount, the table, the guard, the
+//                             flange stack, cameras, IO
+//   applications/<name>/      the job and its environment, one folder that
+//                             can be copied, saved and shared:
+//     application.json          the manifest: format, name, description,
+//                               robot, its grippers and items, the loop
+//     layout.json               what stands where: fixtures, parts, tool rack
+//     grippers/<id>/            gripper.json + its meshes
+//     items/<id>/               item.json + its meshes — WHAT a thing is,
+//                               once; the layout places it as often as needed
+//     robots/<robot>.json       what was taught on one robot (joint values)
+//     steps/ print/ notes/ materials/
 //
 // Everything in an application is in the table frame, so the same
 // application composes onto another robot unchanged. What it needs FROM a
 // robot is checked here, with an error that names the missing thing.
 // Pure (no fetch, no three.js): the page and the tests share it.
+
+// the application format this viewer reads (application.json "format")
+export const FORMAT = 1;
 
 // a robot is a folder in the repository root, named after it (cell_fr3/)
 export const robotDir = name => `${name}/`;
@@ -91,19 +101,85 @@ export function composeCell(robot, application) {
     fixtures,
     parts,
     unplaced_parts: application.unplaced_parts ?? [],
+    loop: application.loop ?? { name: application.name, steps: [] },
     cameras: robot.cameras,
     io: robot.io,
   };
 }
 
 /**
+ * Put an application's files together: the manifest, the layout, and the
+ * gripper and item descriptions it lists. Each placement in the layout
+ * names an item; what the item is (mesh, mass, features) comes from its
+ * item.json, what is particular to the placement (id, name, pose) stays
+ * with the placement. Pure: give it the parsed files.
+ *   files: { manifest, layout, grippers: {id: gripper.json}, items: {id: item.json}, taught: robots/<robot>.json | null }
+ */
+export function assembleApplication(id, { manifest, layout, grippers, items, taught }, robotName) {
+  const fail = msg => { throw new Error(`application '${id}': ${msg}`); };
+  if (manifest.format !== FORMAT) {
+    fail(`application.json says format ${JSON.stringify(manifest.format)}; this viewer reads format ${FORMAT}`);
+  }
+  // meshes are named beside the file that describes them; from here on
+  // they are relative to the application's folder
+  const inFolder = (it, dir) => ({
+    ...it,
+    ...(it.mesh ? { mesh: dir + it.mesh } : {}),
+    ...(it.collision_mesh ? { collision_mesh: dir + it.collision_mesh } : {}),
+  });
+  const place = kind => (layout[kind + 's'] ?? []).map(p => {
+    const item = items[p.item];
+    if (!item) fail(`layout.json places '${p.id}' as the item '${p.item}', which is not in "items"`);
+    if (item.kind !== kind) fail(`'${p.id}' is listed under ${kind}s, but items/${p.item} is a ${item.kind}`);
+    const { id: _type, kind: _kind, ...what } = inFolder(item, `items/${p.item}/`);
+    const { item: _item, ...where } = p;
+    return { ...what, ...where };
+  });
+  return {
+    id,
+    name: manifest.name,
+    description: manifest.description,
+    robot: manifest.robot,
+    conventions: manifest.conventions,
+    tools: (manifest.grippers ?? []).map(g => inFolder(grippers[g], `grippers/${g}/`)),
+    tool_rack: layout.tool_rack ?? { stands: [] },
+    mounted_tool: manifest.mounted_tool,
+    demo_start_tool: manifest.demo_start_tool,
+    fixtures: place('fixture'),
+    parts: place('part'),
+    unplaced_parts: layout.unplaced_parts ?? [],
+    taught_on: taught ? { [robotName]: taught } : {},
+    loop: manifest.loop ?? { name: manifest.name, steps: [] },
+  };
+}
+
+/**
+ * Read an application's files and put them together (see
+ * assembleApplication). `readJson(path)` gets a path relative to the
+ * repository root and throws when the file is not there.
+ */
+export async function loadApplication(readJson, applicationName, robotName = null) {
+  const dir = applicationDir(applicationName);
+  const manifest = await readJson(dir + 'application.json');
+  const rob = robotName ?? manifest.robot;
+  const each = async (ids, path) => Object.fromEntries(await Promise.all(
+    (ids ?? []).map(async i => [i, await readJson(dir + path(i))])));
+  const [layout, grippers, items, taught] = await Promise.all([
+    readJson(dir + 'layout.json'),
+    each(manifest.grippers, g => `grippers/${g}/gripper.json`),
+    each(manifest.items, i => `items/${i}/item.json`),
+    readJson(dir + `robots/${rob}.json`).catch(() => null),     // nothing taught on this robot yet
+  ]);
+  return assembleApplication(applicationName, { manifest, layout, grippers, items, taught }, rob);
+}
+
+/**
  * Read an application and the robot it is set up on (or `robotName`, to
- * try it on another one) and compose them. `readJson(path)` gets a path
- * relative to the repository root.
+ * try it on another one) and compose them.
  */
 export async function loadCell(readJson, applicationName, robotName = null) {
-  const application = await readJson(applicationDir(applicationName) + 'application.json');
+  const application = await loadApplication(readJson, applicationName, robotName);
   const rob = robotName ?? application.robot;
   const robot = await readJson(robotDir(rob) + 'robot.json');
-  return composeCell({ ...robot, id: rob }, { ...application, id: applicationName });
+  return composeCell({ ...robot, id: rob }, application);
 }

@@ -6,7 +6,9 @@
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "allowJs": true
+    "allowJs": true,
+    "baseUrl": ".",
+    "paths": { "nano-cell": ["viewer/cell.d.ts"] }
   },
-  "include": ["applications/*/*.ts", "applications/*/steps/*.ts", "viewer/*.d.ts", "viewer/*.js"]
+  "include": ["applications/*/steps/*.ts", "viewer/*.d.ts", "viewer/*.js"]
 }

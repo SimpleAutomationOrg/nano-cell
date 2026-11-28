@@ -1,0 +1,9 @@
+{
+ "id": "screw_feeder",
+ "name": "screw feeder (simplified envelope)",
+ "kind": "fixture",
+ "mesh": "screw_feeder.glb",
+ "collision_mesh": "screw_feeder.collision.stl",
+ "mesh_source": "print/PLD_619C_approx.step --all (scripts/step-to-mesh.mjs)",
+ "collision": "mesh"
+}

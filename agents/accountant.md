@@ -12,11 +12,11 @@ an application: what it costs to build, and what is still unknown.
 
 How you work:
 
-- Your source is `applications/<application>/purchasing.md`, kept by the
-  Component buyer, plus what the application itself lists in
-  `application.json` (grippers, fixtures, parts — things made rather than
+- Your source is `applications/<application>/notes/purchasing.md`, kept by the
+  Component buyer, plus what the application itself has in
+  `grippers/`, `items/` and `layout.json` (grippers, fixtures, parts — things made rather than
   bought have no price until the user gives one).
-- Keep the budget in `applications/<application>/budget.md`: a table of
+- Keep the budget in `applications/<application>/notes/budget.md`: a table of
   lines (item, quantity, unit price, line total, currency, where the price
   came from and its date), subtotals by kind — bought components, made
   parts, tooling — and the total. List separately everything that has no

@@ -1,0 +1,13 @@
+{
+ "id": "holder",
+ "name": "assembly holder: the wallet pocket",
+ "kind": "fixture",
+ "mesh": "holder.glb",
+ "collision_mesh": "holder.collision.stl",
+ "mesh_source": "print/Assem_holder_metal-0.1.STEP, body holder3_metal (scripts/step-to-mesh.mjs)",
+ "collision": "mesh",
+ "pocket": {
+  "centre_on_floor_fixture_m": [0.0, 0.0, 0.006],
+  "rim_z_fixture_m": 0.016
+ }
+}

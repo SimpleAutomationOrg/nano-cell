@@ -7,7 +7,7 @@ the pick half of `applications/case-assembly/steps/pick-place-case.ts`.
 ## 1. Choose the target at run time
 
 Part poses in `ctx` are **live** (read from the scene, not from
-application.json), because parts move between runs. Never hardcode a part id
+layout.json), because parts move between runs. Never hardcode a part id
 that an earlier run may have moved — select by current geometry:
 
 ```ts

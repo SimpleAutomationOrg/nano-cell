@@ -159,7 +159,7 @@ export interface CellAPI {
 export interface CellItem {
   id: string;
   name: string;
-  /** The pose recorded in application.json (load time — may be stale). */
+  /** The pose recorded in layout.json (load time — may be stale). */
   pose: { xyz_m: Vec3; rpy: Vec3 };
   /**
    * The item's CURRENT table-frame pose, read from the scene — parts move

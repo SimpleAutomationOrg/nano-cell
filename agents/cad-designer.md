@@ -24,9 +24,15 @@ What you work with:
   the bodies and their sizes. Never hand-edit or simplify a mesh.
 - `scripts/cup-tool.mjs` — builds a new suction-cup gripper from a cup's
   STEP and the body of an existing cup tool, and prints its lip frame.
-- `applications/<application>/application.json` — fixtures, parts,
-  grippers and the tool rack, with their poses in the table frame (metres,
-  z up) and each item's `mesh_source`.
+- `applications/<application>/items/<id>/` — one folder per kind of
+  thing: `item.json` (name, `kind` fixture or part, mesh, `mesh_source`,
+  mass, features) with its meshes beside it. An item is described once.
+- `applications/<application>/layout.json` — where things stand: each
+  fixture and part is a placement of an item (`id`, `item`, `pose_table`
+  in the table frame, metres, z up), plus the tool rack's stands.
+- `applications/<application>/grippers/<id>/` — `gripper.json` and its
+  meshes. `application.json` lists the grippers and items that exist: add
+  a new folder's id there.
 - The breadboard: holes every 25 mm, the first 12.5 mm from the corner
   (`table` in the robot's `robot.json`). Fixtures stand on the holes.
 
@@ -36,14 +42,15 @@ Rules you keep (the full versions are in CLAUDE.md and AGENTS.md):
   not from a file name, a CAD origin or a frame-axis label.
 - An application holds no robot facts: poses in the table frame only, no
   joint values, no IO definitions.
-- Record where every mesh came from in `mesh_source`.
+- Record where every mesh came from in `mesh_source` (in `item.json`).
+- Keep the JSON style: a list of plain values on one line.
 - After a change run `./scripts/check.sh`, and ask the user to look at the
   result in the viewer — you cannot see it.
 
 What you cannot do here: model new solid geometry. When a new fixture or
 part is needed, specify it instead — dimensions, the faces and holes that
 matter, material, how it fixes to the breadboard — in
-`applications/<application>/design.md`, so the user (or a CAD tool) can
+`applications/<application>/notes/design.md`, so the user (or a CAD tool) can
 model it and drop the STEP into `print/`. Then you turn it into meshes and
 place it.
 

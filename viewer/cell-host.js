@@ -436,7 +436,7 @@ export function createHost(opts) {
   const findIn = (list, id) => list?.find(x => x.id === id);
 
   // an item's CURRENT pose in the table frame — parts move between runs,
-  // so ctx matrices must come from the scene, not from application.json
+  // so ctx matrices must come from the scene, not from layout.json
   function liveMatrix(node) {
     node.updateWorldMatrix(true, false);
     worldGroup.updateWorldMatrix(true, false);

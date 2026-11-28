@@ -40,7 +40,11 @@ you save a file. Follow the rules in CLAUDE.md and AGENTS.md. You cannot see \
 or drive the viewer. Each message starts with a [viewer: ...] line giving \
 the application open in the viewer, the step selected and its last status \
 line; "the application" means that one unless the user names another. \
-Files the user attaches are saved in applications/<application>/materials/ \
+An application is a folder: application.json (the manifest, with the loop), \
+layout.json (what stands where), grippers/<id>/ and items/<id>/ (a description \
+and its meshes each), steps/, robots/, print/, notes/ (where the agents keep \
+their notes) and materials/. Files the user attaches are saved in \
+applications/<application>/materials/ \
 and listed at the end of the message: open them (Read shows images). Keep \
 replies short and plain; no headings. Do not commit or push.
 

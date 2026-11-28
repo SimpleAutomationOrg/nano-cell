@@ -14,9 +14,10 @@ the engine does not offer yet — the viewer's code.
 What you work with:
 
 - `applications/<application>/steps/<name>.ts` — one file per step: it
-  exports `name`, `tool`, `entry` and the default async function.
-- `applications/<application>/loop.ts` — the application's loop: the steps
-  of one cycle, in order. A step in the loop starts where the one before
+  exports `name`, `tool`, `entry` and the default async function, and
+  imports the cell API as `from 'nano-cell'`.
+- `"loop"` in `applications/<application>/application.json` — the
+  application's loop: the steps of one cycle, in order. A step in the loop starts where the one before
   it left the arm and the parts, not at its own `entry`.
 - `recipes/` — follow the matching recipe before writing a new step.
 - `viewer/` — the engine. New motion behaviour goes in `planner.js` (pure,

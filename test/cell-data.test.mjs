@@ -3,15 +3,19 @@
 // another robot, and a robot that cannot run it must say why.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { composeCell, loadCell } from '../viewer/cell-data.js';
+import { composeCell, loadCell, loadApplication, assembleApplication, FORMAT } from '../viewer/cell-data.js';
 import { sections, moveStep } from '../viewer/step-order.js';
 
 const ROOT = new URL('..', import.meta.url);
 const readJson = async p => JSON.parse(readFileSync(new URL(p, ROOT)));
 const APP = 'case-assembly';
-const application = { ...await readJson(`applications/${APP}/application.json`), id: APP };
+const application = await loadApplication(readJson, APP);
+const appJson = f => readJson(`applications/${APP}/${f}`);
+const dirs = p => readdirSync(new URL(p, ROOT)).filter(n => statSync(new URL(`${p}${n}`, ROOT)).isDirectory());
 const robot = { ...await readJson(`${application.robot}/robot.json`), id: application.robot };
 
 test('every application composes onto its robot, and every mesh it names exists', async () => {
@@ -23,7 +27,9 @@ test('every application composes onto its robot, and every mesh it names exists'
         if (it[k]) assert.ok(existsSync(new URL(it[k], ROOT)), `${name}: ${it.id} ${k} ${it[k]} is missing`);
       }
     }
-    // steps belong to the application and use its grippers
+    // steps belong to the application, use its grippers, and import the
+    // cell API by name — not by a path into the engine, which would tie
+    // the application to where its folder happens to live
     const tdir = new URL(`applications/${name}/steps/`, ROOT);
     for (const t of existsSync(tdir) ? readdirSync(tdir) : []) {
       // one file per step, saying its name and its gripper the way the
@@ -35,6 +41,8 @@ test('every application composes onto its robot, and every mesh it names exists'
       assert.ok(cell.tools.some(x => x.id === said('tool')), `${name}/steps/${t}: tool '${said('tool')}' is not a gripper of the application`);
       assert.match(src, /^export const entry\b/m, `${name}/steps/${t}: no entry pose`);
       assert.match(src, /^export default async function/m, `${name}/steps/${t}: no default function`);
+      assert.match(src, /from 'nano-cell'/, `${name}/steps/${t}: import the cell API from 'nano-cell'`);
+      assert.ok(!/from '\.\.\//.test(src), `${name}/steps/${t}: imports by a relative path out of the application`);
     }
   }
 });
@@ -58,50 +66,110 @@ test('the step list: the loop in order, the rest below it, and a drag reorders, 
   assert.deepEqual(loop, ['c', 'a'], 'the input must not be changed');
 });
 
-test('loop.ts is read and rewritten by the server without touching anything but the step list', () => {
-  const run = code => execFileSync('python3', ['-c', code], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' });
-  const file = `../applications/${APP}/loop.ts`;
-  const out = JSON.parse(run(`
-import json, loop
-src = open(${JSON.stringify(file)}, encoding='utf-8').read()
-was = loop.parse(src)
-same = loop.with_steps(src, was['steps'])
-rev = loop.with_steps(src, was['steps'][::-1])
-none = loop.with_steps(src, [])
-strip = lambda t: [l for l in t.splitlines() if not l.strip().startswith("'") and 'steps:' not in l and l.strip() != '],']
-print(json.dumps({'was': was, 'same': same == src, 'rev': loop.parse(rev)['steps'], 'none': loop.parse(none)['steps'],
-  'rest': strip(rev) == strip(src), 'missing': loop.parse('export const x = 1;') is None}))`));
-  assert.ok(out.was.name && out.was.steps.length >= 2, 'the loop has a name and steps to reorder');
-  assert.ok(out.same, 'saving the same order must leave the file byte for byte');
-  assert.deepEqual(out.rev, [...out.was.steps].reverse());
-  assert.deepEqual(out.none, []);
-  assert.ok(out.rest, 'something outside the step list changed');
-  assert.ok(out.missing);
-});
-
-test('an application has ONE loop, naming steps that exist, each once', () => {
-  for (const name of readdirSync(new URL('applications/', ROOT))) {
-    const file = new URL(`applications/${name}/loop.ts`, ROOT);
-    if (!existsSync(file)) continue;
-    assert.ok(!existsSync(new URL(`applications/${name}/loops.ts`, ROOT)), `${name}: loops.ts — an application has one loop, in loop.ts`);
-    // step names are the quoted entries of the `steps: [...]` list, comments aside
-    const src = readFileSync(file, 'utf8').replace(/\/\/.*$/gm, '');
-    assert.equal([...src.matchAll(/^export const loop\b/gm)].length, 1, `${name}/loop.ts: exactly one  export const loop`);
-    const lists = [...src.matchAll(/steps:\s*\[([^\]]*)\]/g)].map(m => [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map(x => x[1]));
-    assert.equal(lists.length, 1, `${name}/loop.ts: one steps list`);
-    const steps = lists[0];
-    assert.equal(new Set(steps).size, steps.length, `${name}/loop.ts: a step is listed twice`);
-    for (const st of steps) assert.ok(existsSync(new URL(`applications/${name}/steps/${st}.ts`, ROOT)), `${name}/loop.ts: step '${st}' does not exist`);
+test('the application folder: a manifest of the current format that lists exactly its grippers and items', async () => {
+  for (const name of dirs('applications/')) {
+    const m = await readJson(`applications/${name}/application.json`);
+    assert.equal(m.format, FORMAT, `${name}: format`);
+    assert.match(m.uid, /^[0-9a-f-]{36}$/, `${name}: uid`);
+    assert.ok(m.name && typeof m.description === 'string' && Array.isArray(m.authors), `${name}: name, description, authors`);
+    // every folder is listed and every listed thing has its folder: nothing loads by accident, nothing is orphaned
+    for (const [key, sub, file] of [['grippers', 'grippers/', 'gripper.json'], ['items', 'items/', 'item.json']]) {
+      const have = existsSync(new URL(`applications/${name}/${sub}`, ROOT)) ? dirs(`applications/${name}/${sub}`).sort() : [];
+      assert.deepEqual([...m[key]].sort(), have, `${name}: "${key}" in application.json and the folders in ${sub} differ`);
+      for (const id of m[key]) {
+        const d = await readJson(`applications/${name}/${sub}${id}/${file}`);
+        assert.equal(d.id, id, `${name}/${sub}${id}/${file}: its id is not its folder's name`);
+        for (const k of ['mesh', 'collision_mesh']) {
+          if (d[k]) assert.ok(!d[k].includes('/') && existsSync(new URL(`applications/${name}/${sub}${id}/${d[k]}`, ROOT)), `${name}/${sub}${id}: ${k} must be a file beside ${file}`);
+        }
+      }
+    }
+    // the layout only places: what a thing IS lives in its item.json, once
+    const layout = await readJson(`applications/${name}/layout.json`);
+    for (const p of [...layout.fixtures, ...layout.parts]) {
+      assert.ok(m.items.includes(p.item), `${name}: '${p.id}' places the unknown item '${p.item}'`);
+      for (const k of ['mesh', 'collision_mesh', 'mesh_source', 'mass_kg']) assert.ok(!(k in p), `${name}: layout.json repeats '${k}' for '${p.id}' — it belongs in items/${p.item}/item.json`);
+    }
+    for (const id of m.items) assert.ok([...layout.fixtures, ...layout.parts].some(p => p.item === id), `${name}: items/${id} is placed nowhere`);
   }
 });
 
-test('an application holds nothing of the robot: no joint values outside taught_on, no arm, no IO', () => {
-  const { taught_on, ...rest } = application;
-  for (const k of ['arm', 'table', 'guard', 'flange_stack', 'io', 'cameras']) assert.ok(!(k in rest), `application has '${k}'`);
-  const text = JSON.stringify(rest);
-  assert.ok(!/_deg"/.test(text), 'a joint-space value sits outside taught_on');
+test('putting an application together: a placement is its item plus where it stands; bad files are named', async () => {
+  const [manifest, layout] = [await appJson('application.json'), await appJson('layout.json')];
+  const items = Object.fromEntries(await Promise.all(manifest.items.map(async i => [i, await appJson(`items/${i}/item.json`)])));
+  const grippers = Object.fromEntries(await Promise.all(manifest.grippers.map(async g => [g, await appJson(`grippers/${g}/gripper.json`)])));
+  const files = { manifest, layout, items, grippers, taught: null };
+  const app = assembleApplication(APP, files, 'cell_fr3');
+  const c1 = app.parts.find(p => p.id === 'front_case_1'), c2 = app.parts.find(p => p.id === 'front_case_2');
+  assert.equal(c1.mesh, 'items/front_case/front_case.glb');
+  assert.equal(c1.mesh, c2.mesh, 'two placements of one item share its mesh');
+  assert.notDeepEqual(c1.pose_table, c2.pose_table);
+  assert.ok(c1.name !== items.front_case.name && !('item' in c1) && !('kind' in c1), 'the placement keeps its own name; item and kind are not carried into the cell');
+  assert.equal(app.tools.find(t => t.id === 'rcup16_p0').mesh, 'grippers/rcup16_p0/rcup16_p0.glb');
+  assert.deepEqual(app.taught_on, {}, 'nothing taught on this robot: no joint values');
+
+  assert.throws(() => assembleApplication(APP, { ...files, manifest: { ...manifest, format: 99 } }, 'cell_fr3'), /format 99; this viewer reads format 1/);
+  const stray = { ...layout, parts: [...layout.parts, { id: 'x', item: 'nope', pose_table: c1.pose_table }] };
+  assert.throws(() => assembleApplication(APP, { ...files, layout: stray }, 'cell_fr3'), /places 'x' as the item 'nope'/);
+  const wrong = { ...layout, parts: [...layout.parts, { id: 'x', item: 'holder', pose_table: c1.pose_table }] };
+  assert.throws(() => assembleApplication(APP, { ...files, layout: wrong }, 'cell_fr3'), /'x' is listed under parts, but items\/holder is a fixture/);
+});
+
+test('the server side: the loop is saved into the manifest and nothing else changes; a new application loads', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'nano-app-'));
+  try {
+    const out = JSON.parse(execFileSync('python3', ['-c', `
+import json, os, shutil, sys, appfiles
+src, tmp = sys.argv[1], sys.argv[2]
+copy = os.path.join(tmp, 'applications', 'copy')
+os.makedirs(copy)
+shutil.copy(os.path.join(src, 'application.json'), copy)
+before = open(os.path.join(copy, 'application.json')).read()
+was = appfiles.read_loop(copy)
+same = appfiles.write_loop_steps(copy, was['steps'])
+appfiles.write_loop_steps(copy, was['steps'][::-1])
+after = json.load(open(os.path.join(copy, 'application.json')))
+rest = {k: v for k, v in after.items() if k != 'loop'} == {k: v for k, v in json.loads(before).items() if k != 'loop'}
+appfiles.new_application(os.path.join(tmp, 'applications', 'fresh'), 'Fresh one', src)
+print(json.dumps({'was': was, 'same': same is None, 'rev': appfiles.read_loop(copy), 'rest': rest,
+  'flat': appfiles.dumps({'p': [1.5, 2, 3], 'q': [[1, 2], [3, 4]], 'e': []})}))`,
+      new URL(`applications/${APP}`, ROOT).pathname, tmp], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' }));
+    assert.ok(out.was.name && out.was.steps.length >= 2, 'the loop has a name and steps to reorder');
+    assert.ok(out.same, 'saving the same order must not rewrite the file');
+    assert.deepEqual(out.rev, { name: out.was.name, steps: [...out.was.steps].reverse() });
+    assert.ok(out.rest, 'something besides the loop changed in the manifest');
+    assert.match(out.flat, /"p": \[1\.5, 2, 3\]/, 'a list of plain values is written on one line');
+    assert.deepEqual(JSON.parse(out.flat), { p: [1.5, 2, 3], q: [[1, 2], [3, 4]], e: [] });
+    // the empty application the New button makes is a valid one, on the same robot
+    const fresh = await loadApplication(async p => JSON.parse(readFileSync(join(tmp, p))), 'fresh');
+    assert.deepEqual([fresh.name, fresh.robot, fresh.tools, fresh.fixtures, fresh.loop.steps], ['Fresh one', application.robot, [], [], []]);
+    const cell = composeCell(robot, fresh);
+    assert.equal(cell.mounted_tool, robot.changer.bare_tool_id, 'an application with no gripper leaves the changer bare');
+  } finally { rmSync(tmp, { recursive: true }); }
+});
+
+test('an application has ONE loop, naming steps that exist, each once', async () => {
+  for (const name of dirs('applications/')) {
+    const m = await readJson(`applications/${name}/application.json`);
+    assert.ok(m.loop && typeof m.loop.name === 'string' && Array.isArray(m.loop.steps), `${name}: "loop" in application.json needs a name and steps`);
+    assert.ok(!existsSync(new URL(`applications/${name}/loop.ts`, ROOT)), `${name}: loop.ts — the loop lives in application.json`);
+    assert.equal(new Set(m.loop.steps).size, m.loop.steps.length, `${name}: a step is in the loop twice`);
+    for (const st of m.loop.steps) assert.ok(existsSync(new URL(`applications/${name}/steps/${st}.ts`, ROOT)), `${name}: loop step '${st}' does not exist`);
+  }
+});
+
+test('an application holds nothing of the robot: joint values only in robots/, no arm, no IO', () => {
+  const walk = d => readdirSync(new URL(d, ROOT), { withFileTypes: true }).flatMap(e =>
+    e.isDirectory() ? (['print', 'materials', 'notes'].includes(e.name) ? [] : walk(`${d}${e.name}/`)) : e.name.endsWith('.json') ? [`${d}${e.name}`] : []);
+  for (const f of walk(`applications/${APP}/`)) {
+    const text = readFileSync(new URL(f, ROOT), 'utf8');
+    if (!f.includes('/robots/')) assert.ok(!/_deg"/.test(text), `${f}: a joint-space value outside robots/`);
+    const d = JSON.parse(text);
+    for (const k of ['arm', 'table', 'guard', 'flange_stack', 'io', 'cameras']) assert.ok(!(k in d), `${f} has '${k}' — that is the robot's`);
+  }
+  assert.ok(Object.keys(application.taught_on).length === 1 && application.taught_on[application.robot].stands, 'what was taught on its robot is loaded from robots/');
   // and every pose it places is in the table frame (tools: the flange frame)
-  for (const it of [...rest.fixtures, ...rest.parts]) assert.ok(it.pose_table, `${it.id} has no pose_table`);
+  for (const it of [...application.fixtures, ...application.parts]) assert.ok(it.pose_table, `${it.id} has no pose_table`);
 });
 
 test('moved to another robot: the setup is unchanged in the table frame, taught joint values do not follow', () => {

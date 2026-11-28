@@ -1,0 +1,9 @@
+{
+ "id": "pcb_tray",
+ "name": "PCB tray: base plate with two 10-slot holders",
+ "kind": "fixture",
+ "mesh": "pcb_tray.glb",
+ "collision_mesh": "pcb_tray.collision.stl",
+ "mesh_source": "no print file yet: collision mesh rebuilt from the visual mesh (scripts/collision-from-visual.mjs) so the PCB slots are real",
+ "collision": "mesh"
+}

@@ -51,12 +51,14 @@ as free bodies. Without it the scene renders but steps are disabled.
   cameras, IO), the flange-stack meshes and the arm's link meshes
   (`arm/`). It is the robot an application runs on.
 - **`applications/<name>/`** — an application is one job and its
-  environment (`application.json`): the grippers (with measured cup-lip
-  frames), the tool rack, fixtures and parts with meshes + collision
-  meshes; plus its `print/` files and its steps. Every pose is in the
-  table frame, so an application can be moved to another robot; the
-  viewer shows it on the robot it names (`?app=<name>` picks the
-  application, `?robot=<name>` tries it on another robot).
+  environment, in one folder that can be copied, saved and shared:
+  `application.json` (a small manifest: name, description, robot, its
+  grippers and items, the loop), `layout.json` (what stands where),
+  `grippers/` and `items/` (one self-contained folder each: a
+  description and its meshes), `steps/`, and `print/` (the CAD). Every
+  pose is in the table frame, so an application can be moved to another
+  robot; the viewer shows it on the robot it names (`?app=<name>` picks
+  the application, `?robot=<name>` tries it on another robot).
   - `steps/<name>.ts` — one file per step: its name, its tool and an
     async function against the typed
     cell API; it states intent (`transitTip`, `suctionGrasp`,

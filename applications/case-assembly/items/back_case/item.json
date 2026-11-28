@@ -1,0 +1,9 @@
+{
+ "id": "back_case",
+ "name": "back case (BOTTOM)",
+ "kind": "part",
+ "mesh": "back_case.glb",
+ "collision_mesh": "back_case.collision.stl",
+ "mass_kg": 0.01853,
+ "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed"
+}

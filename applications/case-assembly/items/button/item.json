@@ -1,0 +1,8 @@
+{
+ "id": "button",
+ "name": "button",
+ "kind": "part",
+ "mesh": "button.glb",
+ "collision_mesh": "button.collision.stl",
+ "mesh_source": "print/case_button_my3_pin.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)"
+}

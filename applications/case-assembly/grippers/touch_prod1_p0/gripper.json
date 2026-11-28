@@ -1,0 +1,14 @@
+{
+ "id": "touch_prod1_p0",
+ "name": "touch probe prod1 on the 20 mm rack adapter",
+ "kind": "probe",
+ "mesh": "touch_prod1_p0.glb",
+ "collision_mesh": "touch_prod1_p0.collision.stl",
+ "pose_flange": {
+  "xyz_m": [0.0, 0.0, 0.0],
+  "rpy": [0.0, 0.0, 0.0]
+ },
+ "tip_flange_m": [0.0, 0.0, 0.154433],
+ "tip_name": "stylus_ball",
+ "catalog_index": 2
+}

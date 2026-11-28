@@ -1,0 +1,14 @@
+{
+ "id": "touch_p0",
+ "name": "touch probe on the short adapter (needle)",
+ "kind": "probe",
+ "mesh": "touch_p0.glb",
+ "collision_mesh": "touch_p0.collision.stl",
+ "pose_flange": {
+  "xyz_m": [0.0, 0.0, 0.0],
+  "rpy": [0.0, 0.0, 0.0]
+ },
+ "tip_flange_m": [0.0, 0.0, 0.13443],
+ "tip_name": "stylus_ball",
+ "catalog_index": 1
+}

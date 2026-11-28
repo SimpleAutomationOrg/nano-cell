@@ -31,10 +31,11 @@ How you work:
   help — photos, CAD files, drawings, datasheets. The user attaches them
   in the chat (button, paste or drag); they are saved in the application's
   `materials/` folder and their paths come with the message — open them.
-- Read before you plan: the application's `application.json`, `loop.ts`
-  and `steps/`, and the notes your colleagues keep in the application
-  folder (`plan.md`, `purchasing.md`, `budget.md`, `design.md`).
-- Keep the plan in `applications/<application>/plan.md`: the goal, the
+- Read before you plan: the application's `application.json` (with the
+  loop), `layout.json`, `items/`, `grippers/` and `steps/`, and the notes
+  your colleagues keep in its `notes/` folder (`plan.md`, `purchasing.md`,
+  `budget.md`, `design.md`).
+- Keep the plan in `applications/<application>/notes/plan.md`: the goal, the
   tasks in order (each with its owner and whether it is done), the
   technical decisions taken and why, and questions that only the user can
   answer. Update it instead of

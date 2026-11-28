@@ -1,0 +1,10 @@
+{
+ "id": "holder_plate",
+ "name": "assembly holder base plate with legs",
+ "kind": "fixture",
+ "mesh": "holder_plate.glb",
+ "collision_mesh": "holder_plate.collision.stl",
+ "mesh_source": "print/Assem_holder_metal-0.1.STEP, body matt_holder_81x55_legs_gray2_metal (scripts/step-to-mesh.mjs)",
+ "collision": "mesh",
+ "collision_detail": "coarse"
+}

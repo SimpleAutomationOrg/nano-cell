@@ -98,7 +98,7 @@ export function createPlanner(opts) {
   const checkOn = opts.collisionCheck ?? (() => true);
 
   // ---------- tool frame ----------
-  // For a vacuum cup the TCP is the LIP frame from application.json (origin lip
+  // For a vacuum cup the TCP is the LIP frame from its gripper.json (origin lip
   // centre, z along lip normal — the rcup16 is bent ~25° off the flange
   // axis); other tools control their tip point.
   const toolTcp = () => {

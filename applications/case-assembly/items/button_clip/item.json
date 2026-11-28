@@ -1,0 +1,9 @@
+{
+ "id": "button_clip",
+ "name": "button centring clip",
+ "kind": "fixture",
+ "mesh": "button_clip.glb",
+ "collision_mesh": "button_clip.collision.stl",
+ "mesh_source": "print/BUTTON__LAST2.STEP --up -z --origin bottom-centre (scripts/step-to-mesh.mjs)",
+ "collision": "mesh"
+}

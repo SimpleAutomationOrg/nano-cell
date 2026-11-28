@@ -1,0 +1,25 @@
+{
+ "id": "bigcup_p0",
+ "name": "big cup: 40 mm suction cup (DP40) for large flat parts",
+ "kind": "vacuum_cup",
+ "mesh": "bigcup_p0.glb",
+ "collision_mesh": "bigcup_p0.collision.stl",
+ "collision_detail": "coarse",
+ "pose_flange": {
+  "xyz_m": [0.0, 0.0, 0.0],
+  "rpy": [0.0, 0.0, 0.0]
+ },
+ "tip_flange_m": [0.028884, 5.6e-05, 0.165404],
+ "tip_name": "cup_tip",
+ "catalog_index": 6,
+ "vacuum": {
+  "output": "vacuum",
+  "held_input": "vacuum-held",
+  "cup_radius_m": 0.02,
+  "lip_centre_flange_m": [0.028884, 5.6e-05, 0.165404],
+  "lip_normal_flange": [0.421982, 0.00047, 0.906604],
+  "lip_inner_radius_m": 0.01935
+ },
+ "mesh_source": "cup: print/DP40_suction_cup.step; body (changer half, arm, nozzle): the body of rcup16_p0 — scripts/cup-tool.mjs print/DP40_suction_cup.step grippers/rcup16_p0 grippers/bigcup_p0",
+ "note": "the cup's mount face is seated on the end face of the rcup16_p0 nozzle, on its axis: how the real cup fixes to the nozzle (adapter, thread) is not modelled. tip = lip centre. collision_detail coarse: the collision mesh is the full print geometry (85 000 triangles), boxed on a 6 mm grid — a tool hanging in the rack has no tight fits."
+}

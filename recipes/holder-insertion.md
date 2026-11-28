@@ -88,10 +88,10 @@ truth for geometry. Build an item's visual AND collision mesh from
 them in one step, so the two cannot disagree:
 
     node scripts/step-to-mesh.mjs applications/<application>/print/<file>.STEP --list
-    node scripts/step-to-mesh.mjs applications/<application>/print/<file>.STEP <body> applications/<application>/meshes/<item>
+    node scripts/step-to-mesh.mjs applications/<application>/print/<file>.STEP <body> applications/<application>/items/<item>/<item>
 
-Record where a mesh came from in the item's `mesh_source` in
-application.json. For an item with no STEP file,
+Record where a mesh came from as `mesh_source` in the item's
+`item.json`. For an item with no STEP file,
 `scripts/collision-from-visual.mjs` at least makes the collision mesh
 match the visual one. The 'the case FITS the holder pocket' test in
 `test/mujoco.test.mjs` guards this pair.

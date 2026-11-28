@@ -23,23 +23,30 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   on: `robot.json` (arm + mount, table, guard, flange stack, cameras, IO),
   `meshes/` (flange stack) and `arm/` (FR3 link meshes; the kinematic
   chain constants live in `ik.js`). Knows nothing about the job.
-- `applications/<name>/` — an application: one job and its environment.
-  `application.json` (grippers, tool rack, fixtures, parts — poses in the
-  table frame, z up, metres), `meshes/`, `print/` (STEP source files) and
-  `steps/`. It names the robot it is set up on and can be moved to
-  another: keep robot facts OUT of it (no arm, IO definitions or joint
-  values — joint-space values taught on one robot live under
-  `taught_on.<robot>`). `viewer/cell-data.js` composes robot + application
-  into the one cell the planner and physics see ("cell.json" in older
-  comments means this composed cell) and checks the robot can run it.
-- `applications/<name>/loop.ts` — the application's ONE loop: a name and
-  the ordered list of steps of one cycle of work. The viewer's steps
-  dock shows it and rewrites the `steps: [...]` list when steps are
-  dragged (`viewer/loop.py`); each row runs its step alone, **Run loop**
+- `applications/<name>/` — an application: one job and its environment, one
+  folder that can be copied, saved and shared. `application.json` is the
+  small manifest (format, name, description, robot, its `grippers` and
+  `items`, `mounted_tool`, and the ONE `loop`: a name and ordered steps);
+  `layout.json` is what stands where (fixtures, parts, tool rack — poses in
+  the table frame, z up, metres); `grippers/<id>/` and `items/<id>/` hold a
+  description (`gripper.json` / `item.json`) with its meshes beside it;
+  `robots/<robot>.json` what was taught on one robot; `print/` the STEP
+  sources; `notes/` the agents' notes; `materials/` chat attachments.
+  An item is described ONCE in `items/` and placed as often as needed in
+  the layout — never repeat a mesh, mass or `mesh_source` in a placement.
+  It names the robot it is set up on and can be moved to another: keep
+  robot facts OUT of it (no arm, IO definitions; joint values only in
+  `robots/`). `viewer/cell-data.js` puts the files together and composes
+  robot + application into the one cell the planner and physics see
+  ("cell.json" in older comments means this composed cell), checking the
+  robot can run it. The viewer's steps dock shows the loop and saves its
+  order when steps are dragged; each row runs its step alone, **Run loop**
   runs them back to back (later steps start where the previous one ended,
-  not at their own `entry`).
+  not at their own `entry`). Format details: AGENTS.md, "The application
+  folder".
 - `applications/<name>/steps/<step>.ts` — a step is ONE file: it exports
-  `name`, `tool`, `entry` and the default async function.
+  `name`, `tool`, `entry` and the default async function, and imports the
+  cell API as `from 'nano-cell'` (never by a relative path).
 - `agents/<id>.md` — the chat's agents (Lead engineer, CAD designer, Programmer,
   Component buyer, Accountant): a short header plus the role description
   that becomes the agent's instructions. `viewer/chat.py` runs them, one
@@ -54,7 +61,7 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   to the part face, approach and retreat along the surface normal. Use
   `ctx.h.suctionGrasp(item, standoff)` — do not hand-build grasp poses.
   The controlled frame for a vacuum tool is the CUP LIP frame from
-  application.json (`vacuum.lip_centre_flange_m` / `lip_normal_flange`) — the
+  the gripper's `gripper.json` (`vacuum.lip_centre_flange_m` / `lip_normal_flange`) — the
   rcup16's cup is bent ~25° off the flange axis, so the flange axis is
   never the cup axis.
 - **The wrist camera stays parallel to the breadboard while picking** when

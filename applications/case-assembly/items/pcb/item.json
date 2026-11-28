@@ -1,0 +1,8 @@
+{
+ "id": "pcb",
+ "name": "PCB with display",
+ "kind": "part",
+ "mesh": "pcb.glb",
+ "collision_mesh": "pcb.collision.stl",
+ "mesh_source": "print/pcb_fake1_full2_nologo.STEP --all (scripts/step-to-mesh.mjs)"
+}

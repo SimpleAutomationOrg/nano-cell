@@ -1,0 +1,22 @@
+{
+ "id": "rcup16_p0",
+ "name": "medium cup: 16 mm suction cup for the cases and the PCB",
+ "kind": "vacuum_cup",
+ "mesh": "rcup16_p0.glb",
+ "collision_mesh": "rcup16_p0.collision.stl",
+ "pose_flange": {
+  "xyz_m": [0.0, 0.0, 0.0],
+  "rpy": [0.0, 0.0, 0.0]
+ },
+ "tip_flange_m": [0.016259, 0.000122, 0.156291],
+ "tip_name": "cup_tip",
+ "catalog_index": 3,
+ "vacuum": {
+  "output": "vacuum",
+  "held_input": "vacuum-held",
+  "cup_radius_m": 0.00809,
+  "lip_centre_flange_m": [0.023184, 5e-05, 0.153158],
+  "lip_normal_flange": [0.42198, 0.00047, 0.9066],
+  "lip_inner_radius_m": 0.00391
+ }
+}

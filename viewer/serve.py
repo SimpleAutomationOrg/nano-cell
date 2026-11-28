@@ -19,7 +19,7 @@ import webbrowser
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chat import Chats  # noqa: E402
-import loop as loopfile  # noqa: E402
+import appfiles  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -34,27 +34,6 @@ CHATS = Chats(ROOT)
 # what the user attaches in the chat lands in applications/<name>/materials/
 MATERIALS = "materials"
 MAX_UPLOAD = 50_000_000
-
-NEW_LOOP = """// The loop of the %(id)s application: the steps that make up one cycle
-// of work, in the order they run. A step is a file in steps/, named here
-// without its extension. Steps not listed still exist and can be run on
-// their own (a fallback, a demo).
-//
-// The viewer rewrites the `steps` list when steps are dragged in its
-// panel: keep comments outside that list.
-
-export interface Loop {
-  /** What the loop is called in the viewer. */
-  name: string;
-  /** The steps of one cycle, in order. */
-  steps: string[];
-}
-
-export const loop: Loop = {
-  name: '%(name)s',
-  steps: [],
-};
-"""
 
 # starts at the clock, not at 0: pages left open across a server restart
 # see a newer generation and reload, instead of running their old code
@@ -104,8 +83,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._reload_poll()
         if self.path.startswith("/__applications"):
             return self._applications()
-        if self.path.startswith("/__loop"):
-            return self._loop()
         if self.path.startswith("/__steps"):
             return self._steps()
         if self.path.startswith("/__chat/agents"):
@@ -250,9 +227,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return self._json({"ok": True, "path": os.path.relpath(path, ROOT), "name": os.path.basename(path)})
 
     def _new_application(self, data):
-        # a new, empty application: a folder with application.json, loop.ts
-        # and steps/, set up on the same robot as the application `like`
-        import json
+        # a new, empty application (viewer/appfiles.py), set up on the same
+        # robot as the application `like`
         name = " ".join(str(data.get("name", "")).split())[:60]
         app_id = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
         if not app_id:
@@ -264,46 +240,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not like:
             return self._json({"error": "bad request"}, 400)
         try:
-            with open(os.path.join(like, "application.json"), encoding="utf-8") as f:
-                old = json.load(f)
-            app = {
-                "name": name,
-                "about": "An application: everything that belongs to one job and its environment — the "
-                         "grippers, the tool rack, the fixtures and parts on the table, its loop (loop.ts) "
-                         "and its steps (steps/). Every pose is in the table frame, so the application "
-                         "does not depend on which robot runs it; 'robot' names the one it is set up on now.",
-                "robot": old.get("robot"),
-                "units": old.get("units"),
-                "conventions": old.get("conventions", {}),
-                "tools": [],
-                "tool_rack": {"stands": []},
-                "mounted_tool": None,
-                "fixtures": [],
-                "parts": [],
-                "unplaced_parts": [],
-            }
-            os.makedirs(os.path.join(d, "steps"))
-            os.makedirs(os.path.join(d, "meshes"))
-            with open(os.path.join(d, "application.json"), "w", encoding="utf-8") as f:
-                f.write(json.dumps(app, indent=1, ensure_ascii=False) + "\n")
-            with open(os.path.join(d, "loop.ts"), "w", encoding="utf-8") as f:
-                f.write(NEW_LOOP % {"id": app_id, "name": name.replace("\\", "").replace("'", "")})
-        except OSError as e:
+            appfiles.new_application(d, name, like)
+        except (OSError, ValueError) as e:
             return self._json({"error": str(e)}, 500)
         return self._json({"ok": True, "id": app_id})
 
-    def _loop(self):
-        # the loop of one application: /__loop?app=<name>  ->  {name, steps} or null
-        from urllib.parse import parse_qs, urlparse
-        d = self._app_dir(parse_qs(urlparse(self.path).query).get("app", [""])[0])
-        try:
-            with open(os.path.join(d, "loop.ts"), encoding="utf-8") as f:
-                return self._json(loopfile.parse(f.read()))
-        except (OSError, TypeError):
-            return self._json(None)
-
     def _save_loop(self, data):
-        # the page dragged a step: write the loop's new order into loop.ts
+        # the page dragged a step: write the loop's new order into the manifest
         d = self._app_dir(data.get("app"))
         steps = data.get("steps")
         if not d or not isinstance(steps, list) or len(steps) > 200:
@@ -312,18 +255,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if not (isinstance(st, str) and re.fullmatch(r"[\w-]+", st)
                     and os.path.isfile(os.path.join(d, "steps", st + ".ts"))):
                 return self._json({"error": f"no such step: {st}"}, 400)
-        path = os.path.join(d, "loop.ts")
         try:
-            with open(path, encoding="utf-8") as f:
-                src = f.read()
-            out = loopfile.with_steps(src, steps)
-            if out is None:
-                return self._json({"error": "loop.ts declares no loop"}, 400)
-            if out != src:
-                with open(path, "w", encoding="utf-8") as f:
-                    f.write(out)
-                _own_writes[path] = os.stat(path).st_mtime_ns
-        except OSError as e:
+            path = appfiles.write_loop_steps(d, steps)
+            if path:
+                _own_writes[path] = os.stat(path).st_mtime_ns     # no page reload for it
+        except (OSError, ValueError) as e:
             return self._json({"error": str(e)}, 500)
         return self._json({"ok": True})
 

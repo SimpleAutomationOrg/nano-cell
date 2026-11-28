@@ -6,7 +6,7 @@
 //    the pocket floor or whatever already lies in it. No computed drop
 //    heights, so repeated runs stack correctly by construction.
 
-import type { CellAPI, Ctx, Entry } from '../../../viewer/cell';
+import type { CellAPI, Ctx, Entry } from 'nano-cell';
 
 // what the viewer's step list shows, and the gripper the step works with
 export const name = 'Pick a back case into the holder';

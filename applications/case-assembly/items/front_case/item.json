@@ -1,0 +1,10 @@
+{
+ "id": "front_case",
+ "name": "front case (TOP)",
+ "kind": "part",
+ "mesh": "front_case.glb",
+ "collision_mesh": "front_case.collision.stl",
+ "mesh_source": "print/case_top2_my2_pingg.STEP (scripts/step-to-mesh.mjs)",
+ "mass_kg": 0.02003,
+ "mass_source": "CAD volume x 2700 kg/m3 (aluminium by the CAD's name); not weighed"
+}

@@ -425,10 +425,10 @@ function buildAppUI(apps, current) {
 
 async function buildStepUI(cell, mountToolFn) {
   const app = encodeURIComponent(cell.application);
-  let steps = [], loop = null;
+  let steps = [];
+  const loop = cell.loop;
   try {
     steps = await (await fetch(`/__steps?app=${app}`)).json();
-    loop = await (await fetch(`/__loop?app=${app}`)).json();
   } catch { /* not serve.py */ }
 
   stepsPanel = createStepsPanel({
@@ -438,14 +438,14 @@ async function buildStepUI(cell, mountToolFn) {
       if (s.tool && !running) await mountToolFn(s.tool);
     },
     onRun: s => runSteps(cell.application, [s], mountToolFn),
-    // a drag changed the loop: its order goes into the application's loop.ts
+    // a drag changed the loop: its order goes into the application's manifest
     onSave: async ids => {
       const r = await (await fetch('/__loop/save', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Nano-Cell': 'chat' },
         body: JSON.stringify({ app: cell.application, steps: ids }),
       })).json();
       if (r.error) { status('step order not saved: ' + r.error); throw new Error(r.error); }
-      status('step order saved to loop.ts');
+      status('loop order saved');
     },
   });
   // the whole loop, in the order the list shows it

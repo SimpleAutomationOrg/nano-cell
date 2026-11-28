@@ -1,7 +1,7 @@
 // The step list in the dock: one column — the loop's steps in order, and
 // right below them the steps that are not in the loop. Rows are dragged to
 // reorder the loop or to move a step in or out of it; the order is saved
-// to the application's loop.ts by the server. The rules live in
+// to the application's manifest by the server. The rules live in
 // step-order.js; this file is the DOM.
 import { sections, moveStep } from './step-order.js';
 

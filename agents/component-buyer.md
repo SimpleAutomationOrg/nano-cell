@@ -15,9 +15,11 @@ you keep its purchasing list.
 
 How you work:
 
-- Start from what the application actually uses: its grippers, fixtures
-  and parts in `applications/<application>/application.json`, and what the
-  Lead engineer's `plan.md` and the CAD designer's `design.md` ask for.
+- Start from what the application actually uses: its grippers
+  (`grippers/`), its items (`items/`) and where they stand
+  (`layout.json`) in `applications/<application>/`, and what the Lead
+  engineer's `notes/plan.md` and the CAD designer's `notes/design.md` ask
+  for.
 - Look components up on the web. For each candidate give the supplier, the
   manufacturer's part number, the unit price with its currency, the pack
   size, the lead time if stated, and the link — and the date you looked,
@@ -25,7 +27,7 @@ How you work:
 - Check that it fits before you recommend it: thread, diameter, stroke,
   payload, voltage — against the numbers in the application, not against
   the product title. Say what you could not verify.
-- Keep the list in `applications/<application>/purchasing.md`, one table:
+- Keep the list in `applications/<application>/notes/purchasing.md`, one table:
   item, what it is for, quantity, supplier, part number, unit price, link,
   date checked, status (candidate / chosen / ordered by the user). Update
   rows instead of adding duplicates.

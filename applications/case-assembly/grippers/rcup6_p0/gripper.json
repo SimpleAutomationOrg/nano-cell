@@ -1,0 +1,22 @@
+{
+ "id": "rcup6_p0",
+ "name": "small cup: 6 mm suction cup for the buttons",
+ "kind": "vacuum_cup",
+ "mesh": "rcup6_p0.glb",
+ "collision_mesh": "rcup6_p0.collision.stl",
+ "pose_flange": {
+  "xyz_m": [0.0, 0.0, 0.0],
+  "rpy": [0.0, 0.0, 0.0]
+ },
+ "tip_flange_m": [0.020885, 2.1e-05, 0.15421],
+ "tip_name": "cup_tip",
+ "catalog_index": 4,
+ "vacuum": {
+  "output": "vacuum",
+  "held_input": "vacuum-held",
+  "cup_radius_m": 0.003,
+  "lip_centre_flange_m": [0.023248, -0.0, 0.153116],
+  "lip_normal_flange": [0.42262, -0.0, 0.90631],
+  "lip_inner_radius_m": 0.001
+ }
+}

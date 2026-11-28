@@ -2,11 +2,12 @@
 // Build a suction-cup TOOL (an interchangeable gripper) from a cup's print
 // file and the body of an existing cup tool:
 //
-//   node scripts/cup-tool.mjs <cup.step> <reference tool, no extension> <out, no extension>
+//   node scripts/cup-tool.mjs <cup.step> <reference gripper folder> <new gripper folder>
 //   node scripts/cup-tool.mjs applications/case-assembly/print/DP40_suction_cup.step \
-//        applications/case-assembly/meshes/rcup16_p0 applications/case-assembly/meshes/bigcup_p0
+//        applications/case-assembly/grippers/rcup16_p0 applications/case-assembly/grippers/bigcup_p0
 //
-//   -> <out>.glb, <out>.collision.stl   and, printed, the tool's lip frame
+//   -> <new>/<id>.glb, <new>/<id>.collision.stl   and, printed, the tool's lip
+//      frame for its gripper.json
 //
 // A cup tool's mesh has two parts: the BODY (the changer's tool half and the
 // bent arm with its nozzle) and the CUP on the nozzle. The body is taken
@@ -17,18 +18,18 @@
 //  - the cup's axis is the STEP's z; its LIP is the wide open end and its
 //    mount the other end (both found from the profile);
 //  - the nozzle axis is the reference tool's lip normal, through its lip
-//    centre (`vacuum.lip_*` of the reference, read from application.json);
+//    centre (`vacuum.lip_*` in the reference's gripper.json);
 //  - the cup's mount face is seated on the nozzle's end face — the body's
 //    furthest point along that axis — coaxial with it.
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const [stepPath, refBase, out] = process.argv.slice(2);
-if (!stepPath || !refBase || !out) {
-  console.error('usage: cup-tool.mjs <cup.step> <reference tool path without extension> <out path without extension>');
+const [stepPath, refDir, outDir] = process.argv.slice(2);
+if (!stepPath || !refDir || !outDir) {
+  console.error('usage: cup-tool.mjs <cup.step> <reference gripper folder> <new gripper folder>');
   process.exit(1);
 }
 
@@ -97,10 +98,11 @@ function writeStl(path, prims) {
 }
 
 // ---- the reference tool: its body, and the nozzle axis it carries ----
-const refId = basename(refBase);
-const app = JSON.parse(readFileSync(join(dirname(refBase), '..', 'application.json')));
-const ref = app.tools.find(t => t.id === refId);
-if (!ref?.vacuum?.lip_centre_flange_m) { console.error(`${refId} is not a cup tool of ${app.name} (no vacuum.lip_centre_flange_m)`); process.exit(1); }
+const refId = basename(refDir.replace(/\/$/, '')), outId = basename(outDir.replace(/\/$/, ''));
+const refBase = join(refDir, refId), out = join(outDir, outId);
+const ref = JSON.parse(readFileSync(join(refDir, 'gripper.json')));
+if (!ref?.vacuum?.lip_centre_flange_m) { console.error(`${refId} is not a cup gripper (no vacuum.lip_centre_flange_m in its gripper.json)`); process.exit(1); }
+mkdirSync(outDir, { recursive: true });
 const refPrims = readGlb(`${refBase}.glb`);
 if (refPrims.length !== 2) { console.error(`${refBase}.glb: expected two parts (body, cup), found ${refPrims.length}`); process.exit(1); }
 const body = refPrims[0];

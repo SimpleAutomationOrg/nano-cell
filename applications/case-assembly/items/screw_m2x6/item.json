@@ -1,0 +1,8 @@
+{
+ "id": "screw_m2x6",
+ "name": "M2x6 socket head cap screw (ISO 4762)",
+ "kind": "part",
+ "mesh": "screw_m2x6.glb",
+ "collision_mesh": "screw_m2x6.collision.stl",
+ "mesh_source": "print/M2x6_ISO4762.step --all (scripts/step-to-mesh.mjs); origin at the shank tip, head up"
+}

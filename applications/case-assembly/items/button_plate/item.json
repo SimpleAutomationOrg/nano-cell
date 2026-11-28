@@ -1,0 +1,9 @@
+{
+ "id": "button_plate",
+ "name": "green button plate",
+ "kind": "fixture",
+ "mesh": "button_plate.glb",
+ "collision_mesh": "button_plate.collision.stl",
+ "mesh_source": "print/matt_holder_80x70_green.STEP --color 0.30,0.69,0.31 (scripts/step-to-mesh.mjs)",
+ "collision": "mesh"
+}
