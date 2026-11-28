@@ -18,8 +18,13 @@ install https://github.com/SimpleAutomationOrg/nano-cell
 ```
 
 It clones the repository, installs what it needs, checks it, starts the
-viewer in your browser and — in Claude — makes the desktop app for you
-("Install as app"). Needs Python 3.8+, Node 18+ and git.
+viewer in your browser and — in Claude — makes you a Microfactory page of
+your own: the simulation and an assistant, in a page that asks for no
+access to your computer. Needs Python 3.8+, Node 18+ and git.
+
+There is also an app that installs on your computer with full access to
+it (the CAD pipeline, web lookups, your files on disk): ask the agent for
+"the installable app" after installing.
 
 **If you are the agent reading this page**: clone the repository, open
 [AGENTS.md](AGENTS.md) in the clone and follow its section **Install**

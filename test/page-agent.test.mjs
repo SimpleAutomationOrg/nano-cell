@@ -638,7 +638,7 @@ test('where there is no assistant, or it cannot use the page\'s tools, the turn 
   let s = setup([], { sample: null });
   assert.deepEqual(await ask(s.chat, 'hello'), [
     { type: 'user', text: 'hello', files: [] },
-    { type: 'error', text: 'the assistant is not available in this view: it answers only when Microfactory is opened inside Claude, signed in' },
+    { type: 'error', text: 'the assistant is not available in this view: it answers only to people signed in to Claude who have been given this page. To have a copy of your own where it answers, give Claude Code one line: install https://github.com/SimpleAutomationOrg/nano-cell' },
     { type: 'done' }]);
   s = setup([], { getSample: async () => { throw new Error('no runtime'); } });
   assert.match((await ask(s.chat, 'hello'))[1].text, /^the assistant is not available in this view/);

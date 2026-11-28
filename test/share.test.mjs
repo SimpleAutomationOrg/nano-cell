@@ -518,7 +518,10 @@ test('where there is no assistant the chat says so before anything is typed, and
   const id = (await (await none.fetch2('/__applications')).json())[0].id;
   const agent = await (await none.fetch2('/__chat/agent', { headers: HEAD })).json();
   assert.match(agent.hint, /The assistant is not available in this view/);
-  assert.match(agent.hint, /Import and Export/);
+  assert.match(agent.hint, /New and Import\./);
+  // on a public link saving a file is not offered either: the hint must not promise Export
+  assert.doesNotMatch(agent.hint, /Export/);
+  assert.match(agent.hint, /install https:\/\/github\.com\//);
   assert.deepEqual(await (await none.fetch2('/__chat/send', { method: 'POST', headers: HEAD, body: JSON.stringify({ app: id, text: 'hello', context: '', files: [], model: '' }) })).json(), { ok: true });
   await none.chat.whenIdle();
   const { events, running } = await (await none.fetch2(`/__chat/events?app=${id}&epoch=-1&since=0`, { headers: HEAD })).json();

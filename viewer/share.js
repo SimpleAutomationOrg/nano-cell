@@ -181,8 +181,8 @@ export function measureText(host, ids = [], { tool = null, probe = () => null } 
 }
 
 // ---- files, assistant and engine, put together ----
-const NO_ASSISTANT = 'The assistant is not available in this view: it answers only when Microfactory is opened inside Claude, signed in. '
-  + 'Everything else works here — the simulation, running and reordering the steps, New, Import and Export.';
+const NO_ASSISTANT = 'The assistant is not available in this view: it answers only to people signed in to Claude who have been given this page. To have a copy of your own where it answers, give Claude Code one line: install https://github.com/SimpleAutomationOrg/nano-cell. '
+  + 'The simulation works here all the same: running and reordering the steps, New and Import.';
 /**
  * @param o.pack       the parsed ws/files.json
  * @param o.readText   (ref) => Promise<string>: the text of a carried file ('ws/b/3.txt', 'ws/mujoco.wasm.txt')

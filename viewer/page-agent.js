@@ -90,7 +90,7 @@ export function errorWords(e) {
   const code = e?.code;
   switch (code) {
     case 'none':
-      return 'the assistant is not available in this view: it answers only when Microfactory is opened inside Claude, signed in';
+      return 'the assistant is not available in this view: it answers only to people signed in to Claude who have been given this page. To have a copy of your own where it answers, give Claude Code one line: install https://github.com/SimpleAutomationOrg/nano-cell';
     case 'not_granted':
       return 'the assistant was not allowed to use Claude in this view, so it cannot answer — reload the page and allow it when asked';
     case 'sampling_disabled':
