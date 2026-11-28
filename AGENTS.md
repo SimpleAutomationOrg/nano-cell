@@ -187,6 +187,14 @@ cannot see or drive the viewer, and cannot message each other — the
 Lead engineer writes a task so that the user can paste it to the right one.
 The endpoints answer only to the page's own origin.
 
+**Attachments**: the user can attach files to a message — the `+`
+button, pasting (a screenshot) or dropping them on the conversation.
+They are saved when the message is sent, in
+`applications/<application>/materials/` (never over an existing file),
+and their paths are given to the agent, which opens them itself. That
+folder is git-ignored: photos and datasheets stay on this machine. A
+STEP a part is really made from belongs in `print/`, not there.
+
 ## Debugging
 
 - The status line shows the running command with elapsed time; the

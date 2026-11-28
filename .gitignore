@@ -5,3 +5,6 @@ out/
 dist/
 __pycache__/
 .vscode/
+
+# what the user attaches in the chat (photos, CAD, datasheets): kept local
+applications/*/materials/

@@ -22,8 +22,15 @@ box.innerHTML = `
       <button id="chatNew" title="forget this conversation and start a new one">New</button></header>
     <div id="chatBody">
       <div id="chatLog"></div>
-      <form><textarea id="chatIn" placeholder="Message…  (Enter to send, Shift+Enter for a new line)"></textarea>
-        <button id="chatSend">Send</button></form>
+      <form>
+        <div id="chatFiles"></div>
+        <div class="line">
+          <button type="button" id="chatAttach" title="attach files — or paste a screenshot, or drop files here">＋</button>
+          <input type="file" id="chatPick" multiple hidden>
+          <textarea id="chatIn" placeholder="Message…  (Enter to send, Shift+Enter for a new line)"></textarea>
+          <button id="chatSend">Send</button>
+        </div>
+      </form>
     </div>
   </div>`;
 document.body.appendChild(box);
@@ -58,12 +65,24 @@ function rich(text) {
     ? `<pre><code>${esc(part.replace(/^[a-z]*\n/, ''))}</code></pre>`
     : esc(part).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')).join('');
 }
+const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 function draw(ev) {
   if (ev.type === 'done') return;
   const el = document.createElement('div');
   el.className = `msg ${ev.type}`;
   if (ev.type === 'text') el.innerHTML = rich(ev.text.trim());
   else el.textContent = ev.type === 'tool' ? `· ${ev.text}` : ev.text;
+  // what the user attached: images shown, other files named; both open the saved file
+  for (const path of ev.files ?? []) {
+    const a = document.createElement('a');
+    a.className = 'sent-file';
+    a.href = '/' + path.split('/').map(encodeURIComponent).join('/');
+    a.target = '_blank';
+    a.title = path;
+    if (IMAGE.test(path)) { const img = document.createElement('img'); img.src = a.href; img.alt = path.split('/').pop(); a.appendChild(img); }
+    else a.textContent = '📎 ' + path.split('/').pop();
+    el.appendChild(a);
+  }
   log.appendChild(el);
 }
 function hint(text) {
@@ -111,15 +130,86 @@ const context = () => {
   return `application: ${app}; step selected: ${step}; last status line: "${line}"`;
 };
 
+// ---- attachments ----
+// Files wait here as chips until the message is sent; only then are they
+// saved, into the open application's materials/ folder, and named to the
+// agent. Three ways in: the + button, pasting (a screenshot), dropping.
+let pending = [];                   // [{ file, name, url }]
+const filesEl = box.querySelector('#chatFiles');
+const stamp = () => new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '-');
+function attach(list) {
+  for (const file of list) {
+    // a pasted screenshot arrives as "image.png": give it a name that says when
+    const name = /^image\.\w+$/i.test(file.name || '') || !file.name
+      ? `screenshot-${stamp()}.${(file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')}` : file.name;
+    pending.push({ file, name, url: file.type.startsWith('image/') ? URL.createObjectURL(file) : null });
+  }
+  drawPending();
+}
+function drawPending() {
+  filesEl.innerHTML = '';
+  pending.forEach((p, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.title = `${p.name} · ${(p.file.size / 1024).toFixed(0)} kB`;
+    if (p.url) { const img = document.createElement('img'); img.src = p.url; chip.appendChild(img); }
+    const n = document.createElement('span'); n.textContent = p.name; chip.appendChild(n);
+    const x = document.createElement('button');
+    x.type = 'button'; x.textContent = '×'; x.title = 'remove';
+    x.onclick = () => { if (p.url) URL.revokeObjectURL(p.url); pending.splice(i, 1); drawPending(); };
+    chip.appendChild(x);
+    filesEl.appendChild(chip);
+  });
+}
+const picker = box.querySelector('#chatPick');
+box.querySelector('#chatAttach').addEventListener('click', () => picker.click());
+picker.addEventListener('change', () => { attach(picker.files); picker.value = ''; });
+input.addEventListener('paste', ev => {
+  const files = [...(ev.clipboardData?.files ?? [])];
+  if (files.length) { ev.preventDefault(); attach(files); }
+});
+const main = box.querySelector('#chatMain');
+const hasFiles = ev => [...(ev.dataTransfer?.types ?? [])].includes('Files');
+main.addEventListener('dragover', ev => { if (hasFiles(ev)) { ev.preventDefault(); main.classList.add('dropping'); } });
+main.addEventListener('dragleave', ev => { if (!main.contains(ev.relatedTarget)) main.classList.remove('dropping'); });
+main.addEventListener('drop', ev => {
+  if (!hasFiles(ev)) return;
+  ev.preventDefault();
+  main.classList.remove('dropping');
+  attach(ev.dataTransfer.files);
+});
+
+async function upload(p) {
+  const app = document.documentElement.dataset.application;
+  if (!app) throw new Error('no application is open');
+  const r = await (await fetch(`/__chat/upload?app=${encodeURIComponent(app)}&name=${encodeURIComponent(p.name)}`, {
+    method: 'POST', headers: { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/octet-stream' }, body: p.file,
+  })).json();
+  if (r.error) throw new Error(`${p.name}: ${r.error}`);
+  return r.path;
+}
+
+let sending = false;
 async function send() {
-  if (!current) return;
+  if (!current || sending) return;
   if (running) { await post('stop'); return; }
   const text = input.value.trim();
-  if (!text) return;
-  const r = await post('send', { text, context: context() }).catch(e => ({ error: String(e) }));
-  if (r.error) { draw({ type: 'error', text: r.error }); log.scrollTop = log.scrollHeight; return; }
-  input.value = '';
-  sessionStorage.removeItem(draftKey());
+  if (!text && !pending.length) return;
+  sending = true;
+  try {
+    const files = [];
+    for (const p of pending) files.push(await upload(p));
+    const r = await post('send', { text, context: context(), files });
+    if (r.error) throw new Error(r.error);
+    input.value = '';
+    sessionStorage.removeItem(draftKey());
+    pending.forEach(p => p.url && URL.revokeObjectURL(p.url));
+    pending = [];
+    drawPending();
+  } catch (e) {
+    draw({ type: 'error', text: String(e.message ?? e) });
+    log.scrollTop = log.scrollHeight;
+  } finally { sending = false; }
 }
 box.querySelector('form').addEventListener('submit', ev => { ev.preventDefault(); send(); });
 input.addEventListener('keydown', ev => {

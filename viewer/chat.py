@@ -39,7 +39,9 @@ their browser while they talk to you; the page reloads by itself whenever \
 you save a file. Follow the rules in CLAUDE.md and AGENTS.md. You cannot see \
 or drive the viewer. Each message starts with a [viewer: ...] line giving \
 the application open in the viewer, the step selected and its last status \
-line; "the application" means that one unless the user names another. Keep \
+line; "the application" means that one unless the user names another. \
+Files the user attaches are saved in applications/<application>/materials/ \
+and listed at the end of the message: open them (Read shows images). Keep \
 replies short and plain; no headings. Do not commit or push.
 
 Your role:
@@ -144,9 +146,10 @@ class Chat:
                     "next": len(self.events), "running": self.running()}
 
     # ---- actions ----
-    def send(self, text, context=""):
+    def send(self, text, context="", files=()):
         text = (text or "").strip()
-        if not text:
+        files = list(files)
+        if not text and not files:
             return "empty message"
         with self.cond:
             if self.proc is not None:
@@ -169,9 +172,13 @@ class Chat:
             except OSError as e:
                 return f"could not start the agent: {e}"
             proc = self.proc
-            self.events.append({"type": "user", "text": text})
+            self.events.append({"type": "user", "text": text, "files": files})
             self.cond.notify_all()
         prompt = f"[viewer: {context}]\n{text}" if context else text
+        if files:
+            # the agent opens them itself (Read shows images)
+            prompt += "\n\n[attached by the user, saved in the repository — read them:\n" + \
+                "\n".join(f"  {p}" for p in files) + "]"
         threading.Thread(target=self._run, args=(proc, prompt), daemon=True).start()
         return None
 

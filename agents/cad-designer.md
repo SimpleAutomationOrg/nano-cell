@@ -16,6 +16,9 @@ What you work with:
 
 - `applications/<application>/print/` — the STEP files the parts are
   printed or machined from. They are the source of truth for geometry.
+- `applications/<application>/materials/` — what the user attached in the
+  chat (photos, CAD, datasheets). A STEP that a part is really made from
+  belongs in `print/`: copy it there before building meshes from it.
 - `scripts/step-to-mesh.mjs` — turns a STEP body into the visual mesh and
   the collision mesh, from the same triangles. Use `--list` first to see
   the bodies and their sizes. Never hand-edit or simplify a mesh.

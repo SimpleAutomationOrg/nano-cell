@@ -125,7 +125,21 @@
   #chatLog code { font-family: ui-monospace, monospace; font-size: 11.5px; background: #0c0f13; border-radius: 4px; padding: 1px 4px; }
   #chatLog pre { margin: 4px 0; padding: 7px 9px; background: #0c0f13; border-radius: 6px; overflow-x: auto; white-space: pre; }
   #chatLog pre code { padding: 0; background: none; }
-  #chat form { display: flex; gap: 6px; padding: 8px 10px 10px; border-top: 1px solid #263040; align-items: flex-end; }
+  #chat form { padding: 8px 10px 10px; border-top: 1px solid #263040; }
+  #chat form .line { display: flex; gap: 6px; align-items: flex-end; }
+  #chatAttach { padding: 2px 8px; font-size: 16px; line-height: 20px; }
+  /* files waiting to be sent, and files in a sent message */
+  #chatFiles { display: flex; flex-wrap: wrap; gap: 6px; }
+  #chatFiles:not(:empty) { margin-bottom: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 4px 3px 6px;
+    background: #151b22; border: 1px solid #2f3b4a; border-radius: 7px; font-size: 11.5px; }
+  .chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 4px; }
+  .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 170px; }
+  .chip button { padding: 0 5px; border: 0; background: none; color: #7d8a99; font-size: 14px; }
+  .chip button:hover { color: #fff; background: none; }
+  #chatLog .sent-file { display: block; margin-top: 5px; color: #b9d4f5; text-decoration: none; font-size: 11.5px; }
+  #chatLog .sent-file img { display: block; max-width: 100%; max-height: 180px; border-radius: 6px; }
+  #chatMain.dropping { outline: 2px dashed #4da3ff; outline-offset: -6px; background: #0f1721; }
   #chat textarea {
     flex: 1; resize: none; height: 54px; background: #0c0f13; color: #e8eef4; border: 1px solid #2f3b4a;
     border-radius: 6px; padding: 6px 8px; font: inherit;

@@ -31,6 +31,10 @@ SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store"}
 
 CHATS = Chats(ROOT)
 
+# what the user attaches in the chat lands in applications/<name>/materials/
+MATERIALS = "materials"
+MAX_UPLOAD = 50_000_000
+
 NEW_LOOP = """// The loop of the %(id)s application: the steps that make up one cycle
 // of work, in the order they run. A step is a file in steps/, named here
 // without its extension. Steps not listed still exist and can be run on
@@ -148,6 +152,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         if not self._same_origin():
             return self._json({"error": "forbidden"}, 403)
+        if self.path.startswith("/__chat/upload"):
+            return self._upload()
         try:
             n = int(self.headers.get("Content-Length") or 0)
             data = json.loads(self.rfile.read(n) or b"{}") if n < 200_000 else None
@@ -164,7 +170,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if chat is None:
             return self._json({"error": "no such agent"}, 404)
         if action == "send":
-            err = chat.send(str(data.get("text", "")), str(data.get("context", ""))[:400])
+            # attachments: only files that really are in an application's materials/
+            files = []
+            for p in data.get("files") or []:
+                full = os.path.realpath(os.path.join(ROOT, str(p)))
+                parts = os.path.relpath(full, ROOT).split(os.sep)
+                if (len(parts) == 4 and parts[0] == "applications" and parts[2] == MATERIALS
+                        and os.path.isfile(full)):
+                    files.append("/".join(parts))
+            err = chat.send(str(data.get("text", "")), str(data.get("context", ""))[:400], files[:20])
             return self._json({"error": err} if err else {"ok": True}, 409 if err else 200)
         if action == "stop":
             chat.stop()
@@ -192,6 +206,48 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         d = os.path.join(ROOT, "applications", app)
         ok = isinstance(app, str) and app and app == os.path.basename(app) and app not in (".", "..")
         return d if ok and os.path.isfile(os.path.join(d, "application.json")) else None
+
+    def _upload(self):
+        # a file attached in the chat: /__chat/upload?app=<name>&name=<file name>,
+        # the file itself as the body. Saved in the application's materials/
+        # folder under a safe name, never over an existing file.
+        from urllib.parse import parse_qs, urlparse
+        q = parse_qs(urlparse(self.path).query)
+        d = self._app_dir(q.get("app", [""])[0])
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        if not d or n < 0:
+            return self._json({"error": "bad request"}, 400)
+        if n > MAX_UPLOAD:
+            return self._json({"error": f"file too large (limit {MAX_UPLOAD // 1_000_000} MB)"}, 413)
+        # keep letters, digits, dot, dash, underscore; no folders, no hidden files
+        raw = os.path.basename(q.get("name", ["file"])[0].replace("\\", "/"))
+        stem, ext = os.path.splitext(re.sub(r"[^\w.-]+", "-", raw).strip(".-") or "file")
+        stem, ext = (stem or "file")[:80], ext[:12]
+        folder = os.path.join(d, MATERIALS)
+        try:
+            os.makedirs(folder, exist_ok=True)
+            path, k = os.path.join(folder, stem + ext), 1
+            while os.path.exists(path):
+                k += 1
+                path = os.path.join(folder, f"{stem}-{k}{ext}")
+            left = n
+            with open(path, "xb") as f:
+                while left > 0:
+                    chunk = self.rfile.read(min(left, 1 << 20))
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    left -= len(chunk)
+            if left:
+                os.remove(path)
+                return self._json({"error": "upload cut short"}, 400)
+            _own_writes[path] = os.stat(path).st_mtime_ns     # no page reload for it
+        except OSError as e:
+            return self._json({"error": str(e)}, 500)
+        return self._json({"ok": True, "path": os.path.relpath(path, ROOT), "name": os.path.basename(path)})
 
     def _new_application(self, data):
         # a new, empty application: a folder with application.json, loop.ts

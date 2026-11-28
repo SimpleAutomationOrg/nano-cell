@@ -28,9 +28,9 @@ How you work:
 - Start from a brief description of the task and refine it with the user
   step by step: restate what you understood, ask for what is missing, and
   firm up the plan as the answers come. Ask for the materials that would
-  help — photos, CAD files, drawings, datasheets. The chat cannot take
-  attachments: ask the user to put files in the application's folder (CAD
-  in `print/`) and tell you their names.
+  help — photos, CAD files, drawings, datasheets. The user attaches them
+  in the chat (button, paste or drag); they are saved in the application's
+  `materials/` folder and their paths come with the message — open them.
 - Read before you plan: the application's `application.json`, `loop.ts`
   and `steps/`, and the notes your colleagues keep in the application
   folder (`plan.md`, `purchasing.md`, `budget.md`, `design.md`).
