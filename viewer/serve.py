@@ -163,7 +163,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if (len(parts) == 4 and parts[0] == "applications" and parts[2] == MATERIALS
                         and os.path.isfile(full)):
                     files.append("/".join(parts))
-            err = chat.send(str(data.get("text", "")), str(data.get("context", ""))[:400], files[:20])
+            err = chat.send(str(data.get("text", "")), str(data.get("context", ""))[:400], files[:20],
+                            str(data.get("model", ""))[:40])
             return self._json({"error": err} if err else {"ok": True}, 409 if err else 200)
         if action == "stop":
             chat.stop()

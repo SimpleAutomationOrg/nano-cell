@@ -160,6 +160,9 @@
   #chat form .line { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
   #chat form .tip { flex: 1; min-width: 0; color: #55606d; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #chatAttach { flex: none; }
+  /* which model answers: a quiet picker beside Send, as in a chat app */
+  #chatModel { flex: none; max-width: 96px; background: transparent; color: #9fb0c0; border: 1px solid transparent; border-radius: 7px; padding: 4px 2px; font-size: 11.5px; cursor: pointer; }
+  #chatModel:hover, #chatModel:focus { color: #e8eef4; border-color: #2f3b4a; outline: none; }
   #chatSend { flex: none; background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
   #chatSend:hover { background: #2a62a8; }
   #chatLog .note { color: #8fb4dd; font-size: 11.5px; }

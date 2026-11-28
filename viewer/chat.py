@@ -37,6 +37,17 @@ EXTRA_TOOLS = {"WebSearch", "WebFetch", "Bash(node:*)"}
 # the one agent's conversation is kept under this name (chats/<AGENT>.json)
 AGENT = "assistant"
 
+# The models the chat offers, as the CLI names them (an alias is always the
+# latest model of its family). "" leaves the choice to the CLI's own setting.
+# The page sends an id with each message; only these are passed on.
+MODELS = [
+    {"id": "", "label": "Default", "note": "the model Claude Code is set to use"},
+    {"id": "fable", "label": "Fable", "note": "most capable, for hard problems"},
+    {"id": "opus", "label": "Opus", "note": "strong at long, careful work"},
+    {"id": "sonnet", "label": "Sonnet", "note": "fast, for everyday tasks"},
+    {"id": "haiku", "label": "Haiku", "note": "fastest, for quick answers"},
+]
+
 BRIEF = """You are answering from the chat inside the microfactory viewer: the \
 one assistant of this project. The user is looking at the 3D cell in \
 their browser while they talk to you; the page reloads by itself whenever \
@@ -153,7 +164,7 @@ class Chats:
     def agent(self):
         """What the page needs to draw the chat (no instructions)."""
         a = load_agent(self.root)
-        return {"name": a["name"], "hint": a["hint"], "guides": a["guides"]}
+        return {"name": a["name"], "hint": a["hint"], "guides": a["guides"], "models": MODELS}
 
     def get(self, app):
         """The conversation about the application `app` (its folder name), or None if there is none such."""
@@ -298,11 +309,14 @@ class Chat:
 
     # ---- actions ----
     def _spawn(self, resume):
-        """Start the CLI for one turn; `resume` continues its own session."""
+        """Start the CLI for one turn; `resume` continues its own session.
+        The turn runs on `self.model` (one of MODELS) when one was chosen."""
         cmd = [shutil.which("claude"), "-p", "--output-format", "stream-json", "--verbose",
                "--permission-mode", "acceptEdits",
                "--append-system-prompt", self.agent["brief"],
                "--allowedTools", *ALLOWED_TOOLS, *self.agent["tools"]]
+        if getattr(self, "model", ""):
+            cmd += ["--model", self.model]
         if resume:
             cmd += ["--resume", resume]
         env = {k: v for k, v in os.environ.items()
@@ -342,9 +356,10 @@ class Chat:
                 "record." + (" Only the latest part is shown." if cut else "") + "\n\n" + body +
                 "\n\nEnd of the earlier conversation. The user's new message follows.]\n\n")
 
-    def send(self, text, context="", files=()):
+    def send(self, text, context="", files=(), model=""):
         text = (text or "").strip()
         files = list(files)
+        model = model if any(m["id"] == model for m in MODELS) else ""
         if not text and not files:
             return "empty message"
         with self.cond:
@@ -353,6 +368,7 @@ class Chat:
             if not shutil.which("claude"):
                 return "the `claude` command was not found — install Claude Code and sign in"
             earlier = list(self.events)             # the conversation before this message
+            self.model = model
             try:
                 self.proc = self._spawn(self.session)
             except OSError as e:

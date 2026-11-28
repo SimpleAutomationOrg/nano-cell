@@ -29,6 +29,7 @@ box.innerHTML = `
             <button type="button" id="chatAttach" title="choose files to attach">📎 Attach files</button>
             <span class="tip">or paste a screenshot, or drop files here</span>
             <input type="file" id="chatPick" multiple hidden>
+            <select id="chatModel" title="the model that answers the next message" hidden></select>
             <button id="chatSend">Send</button>
           </div>
         </div>
@@ -229,6 +230,26 @@ function drawPending() {
 }
 const picker = box.querySelector('#chatPick');
 box.querySelector('#chatAttach').addEventListener('click', () => picker.click());
+
+// ---- which model answers: chosen here, remembered on this computer, sent with each message ----
+const MODEL_KEY = 'microfactory.chat.model';
+const modelPick = box.querySelector('#chatModel');
+function offerModels(models) {
+  if (!models?.length) return;
+  modelPick.innerHTML = '';
+  for (const m of models) {
+    const o = document.createElement('option');
+    o.value = m.id; o.textContent = m.label; o.title = m.note ?? '';
+    modelPick.appendChild(o);
+  }
+  const saved = localStorage.getItem(MODEL_KEY) ?? '';
+  modelPick.value = models.some(m => m.id === saved) ? saved : models[0].id;
+  modelPick.hidden = false;
+}
+modelPick.addEventListener('change', () => {
+  localStorage.setItem(MODEL_KEY, modelPick.value);
+  modelPick.title = modelPick.selectedOptions[0]?.title || 'the model that answers the next message';
+});
 picker.addEventListener('change', () => { attach(picker.files); picker.value = ''; });
 input.addEventListener('paste', ev => {
   const files = [...(ev.clipboardData?.files ?? [])];
@@ -265,7 +286,7 @@ async function send() {
   try {
     const files = [];
     for (const p of pending) files.push(await upload(p));
-    const r = await post('send', { text, context: context(), files });
+    const r = await post('send', { text, context: context(), files, model: modelPick.value });
     if (r.error) throw new Error(r.error);
     input.value = '';
     sessionStorage.removeItem(draftKey());
@@ -312,7 +333,7 @@ async function follow() {
   for (;;) {
     try {
       const a = await (await fetch('/__chat/agent', { headers: HEAD })).json();
-      if (a && typeof a.name === 'string') { agent = a; break; }
+      if (a && typeof a.name === 'string') { agent = a; offerModels(a.models); break; }
     } catch { /* server not up yet */ }
     await new Promise(res => setTimeout(res, 2000));
   }

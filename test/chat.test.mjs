@@ -21,7 +21,8 @@ if "--resume" in a and a[a.index("--resume") + 1] != "live":
     sys.stderr.write("No conversation found with session ID\\\\n"); sys.exit(1)
 p = sys.stdin.read()
 print(json.dumps({"type": "system", "session_id": "live"}))
-print(json.dumps({"type": "assistant", "session_id": "live", "message": {"content": [{"type": "text", "text": ("RESUMED " if "--resume" in a else "FRESH ") + p}]}}))
+m = ("[" + a[a.index("--model") + 1] + "] ") if "--model" in a else ""
+print(json.dumps({"type": "assistant", "session_id": "live", "message": {"content": [{"type": "text", "text": m + ("RESUMED " if "--resume" in a else "FRESH ") + p}]}}))
 print(json.dumps({"type": "result", "is_error": False, "session_id": "live"}))
 ''')
 os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
@@ -107,7 +108,7 @@ print(json.dumps({'fresh': fresh, 'first': first['text'], 'second': second['text
   assert.deepEqual(out.cut, ['user', 'tool', 'error', 'done'], 'a conversation cut off by a restart must say so and end');
   assert.deepEqual(out.cleared, { file: false, events: [], session: null }, 'New forgets the conversation on disk as well');
   assert.deepEqual(out.unknown, [true, true, true], 'an unknown application has no conversation');
-  assert.deepEqual(Object.keys(out.info).sort(), ['guides', 'hint', 'name'], 'the page is told who answers, never the instructions');
+  assert.deepEqual(Object.keys(out.info).sort(), ['guides', 'hint', 'models', 'name'], 'the page is told who answers, never the instructions');
 });
 
 test('without a session of its own the agent gets the saved conversation as background — after an import, or when its session is gone', () => {
@@ -149,4 +150,23 @@ print(json.dumps(res))`);
   assert.deepEqual(out.files, ['assistant.json', 'programmer.json'], 'the other agents\' files stay as a record');
   assert.equal(out.session, 'live', 'and its session with it, so the agent still remembers');
   assert.match(out.reply, /^RESUMED /);
+});
+
+test('the model chosen in the chat is the one the agent runs on; an unknown one is not passed on', () => {
+  const out = py(FAKE_CLI + `
+c = chat.Chats(tmp).get('demo')
+def ask(text, model):
+    assert c.send(text, 'application: demo', (), model) is None
+    for _ in range(200):
+        if not c.running(): break
+        time.sleep(0.05)
+    return [e for e in c.events if e['type'] == 'text'][-1]['text']
+print(json.dumps({'models': chat.Chats(tmp).agent()['models'], 'default': ask('one', ''), 'sonnet': ask('two', 'sonnet'),
+                  'bad': ask('three', 'sonnet; rm -rf'), 'back': ask('four', '')}))`);
+  assert.deepEqual(out.models.map(m => m.id), ['', 'fable', 'opus', 'sonnet', 'haiku']);
+  assert.ok(out.models.every(m => m.label && m.note));
+  assert.ok(!out.default.startsWith('['), 'no model chosen: the CLI decides');
+  assert.ok(out.sonnet.startsWith('[sonnet] '), out.sonnet.slice(0, 40));
+  assert.ok(!out.bad.startsWith('['), 'a model the server does not offer was passed to the CLI');
+  assert.ok(!out.back.startsWith('['), 'the earlier choice must not stick to the next message');
 });
