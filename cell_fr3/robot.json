@@ -207,14 +207,8 @@
     }
    ]
   },
-  "start_deg": [
-   -96.7614,
-   -85.3888,
-   -86.5777,
-   -98.0352,
-   89.8929,
-   -52.5349
-  ]
+  "start_deg": [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48],
+  "start_note": "where the arm stands when a cell is opened or reset: over the middle of the breadboard, tool down, clear of the tool rack and of everything set up on the table"
  },
  "table": {
   "size_m": [

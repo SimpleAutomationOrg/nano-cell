@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { composeCell, loadCell, loadApplication, assembleApplication, FORMAT } from '../viewer/cell-data.js';
 import { sections, moveStep } from '../viewer/step-order.js';
+import * as IK from '../viewer/ik.js';
 
 const ROOT = new URL('..', import.meta.url);
 const readJson = async p => JSON.parse(readFileSync(new URL(p, ROOT)));
@@ -164,6 +165,12 @@ print(json.dumps({'was': was, 'same': same is None, 'rev': appfiles.read_loop(co
       assert.ok(x - HALF >= x0 && x + TOOL <= x1 && y - HALF >= y0 && y + HALF <= y1, `${f.id} is not wholly on the breadboard`);
       assert.ok(Math.min(x - x0, x1 - x, y - y0, y1 - y) < 0.07, `${f.id} is not at an edge of the breadboard`);
       assert.ok(Math.hypot(x - bx, y - by) < 0.5, `${f.id} is too far from the robot's base to dock a tool comfortably`);
+    }
+    // the arm's start pose is not the dock pose over a rack stand: its flange is well away from every stand
+    const startFlange = IK.pos(IK.mul(IK.fromXyzRpy(robot.arm.mount_table.xyz_m, robot.arm.mount_table.rpy), IK.fkFlange(robot.arm.start_deg.map(d => d * Math.PI / 180))));
+    for (const st of [...kit.tool_rack.stands, ...application.tool_rack.stands]) {
+      const [x, y] = st.pose_table.xyz_m;
+      assert.ok(Math.hypot(startFlange[0] - x, startFlange[1] - y) > 0.15, `the start pose stands over ${st.name}`);
     }
     const kcell = composeCell(robot, kitted);
     assert.deepEqual(kcell.changer.stands.map(s => s.tool_id), kit.tool_rack.stands.map(s => s.tool_id));

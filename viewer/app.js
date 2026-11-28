@@ -238,7 +238,9 @@ function buildGuard(guard) {
 
 // ---------- FR3 ----------
 const FLANGE_IN_WRIST3 = [0, 0, 0.1];
-const POSE_DOCK = [-27.55, -93.04, -110.382, -66.561, 90.068, -140.229];
+// where the arm stands when a cell is opened or reset: the robot's own start pose
+// (robot.json, arm.start_deg) — over the table, tool down, clear of the tool rack
+let POSE_START = [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48];
 const POSE_UP = [0, -90, 0, -90, 0, 0];
 
 const spins = [];
@@ -305,7 +307,7 @@ function buildJointUI() {
       document.getElementById('jo' + i).value = v.toFixed(1) + '°';
     });
   });
-  document.getElementById('poseDemo').onclick = () => setJoints(POSE_DOCK);
+  document.getElementById('poseDemo').onclick = () => setJoints(POSE_START);
   document.getElementById('poseUp').onclick = () => setJoints(POSE_UP);
 }
 
@@ -556,9 +558,10 @@ async function main() {
 
   buildTable(cell.table);
   const guard = buildGuard(cell.guard);
+  if (cell.arm.start_deg?.length === 6) POSE_START = cell.arm.start_deg;
   await buildArm(cell.arm, `../${cell.robot_dir}arm/meshes/`);
   buildJointUI();
-  setJoints(POSE_DOCK);
+  setJoints(POSE_START);
 
   const fixtures = new THREE.Group(); world.add(fixtures);
   const parts = new THREE.Group(); world.add(parts);
@@ -849,7 +852,7 @@ async function main() {
       applyPose(node, it.pose_table);
       node.updateMatrix();
     }
-    setJoints(POSE_DOCK);
+    setJoints(POSE_START);
     stepLog('scene reset');
     status('scene reset');
   };
