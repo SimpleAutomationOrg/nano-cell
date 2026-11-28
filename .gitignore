@@ -16,3 +16,6 @@ applications/*/materials/
 applications/*/chats/
 # the agents' CLI sessions: local to this machine
 .chat-sessions.json
+
+# scratch output of the artifact build test
+dist-test-*/

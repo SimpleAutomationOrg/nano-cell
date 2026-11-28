@@ -26,6 +26,16 @@ working as a static page. The page stays the interface, and the core that
 has to feel immediate (scene, planning, physics, running steps) stays in
 it, with no build step.
 
+The installable form is a Claude artifact with the `desktop` capability
+("Install as app" in the Claude desktop app). Making it is one defined
+step, the project skill **`/publish-app`**
+(`.claude/skills/publish-app/SKILL.md`): check, `node
+scripts/build-artifact.mjs`, publish — a new version of the artifact named
+in `artifact.json`. The artifact carries the page only; the installed app
+works on a workspace folder (a checkout of this repository) through
+`viewer/desktop.js` and `python3 viewer/serve.py --stdio`. Details:
+AGENTS.md, "The installable app".
+
 Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
 Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
 

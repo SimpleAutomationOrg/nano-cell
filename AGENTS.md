@@ -29,6 +29,43 @@ it holds the same working rules in condensed form.
 There is no build step. Do not add bundlers, package installs, or
 frameworks during installation.
 
+## The installable app
+
+nano-cell is delivered as a Claude artifact that **installs as a desktop
+app** (the artifact declares the `desktop` capability; in the Claude
+desktop app its menu offers "Install as app"). The step that makes it is
+defined once, as the project skill **`/publish-app`**
+(`.claude/skills/publish-app/SKILL.md`): check, build
+(`node scripts/build-artifact.mjs` → `dist/artifact/`), publish with the
+Artifact tool — the first time as a new artifact, afterwards as a new
+version of the one named in `artifact.json`.
+
+How the installed app works:
+
+- **The artifact holds the page only** — `viewer/*.js` and the markup,
+  nothing third-party (three.js and MuJoCo's module load from the CDN;
+  MuJoCo's compiled physics is read from the workspace's `node_modules`). The engine, the robot, the applications, CAD and chats are
+  never in it; the build refuses anything else.
+- **Everything else is the workspace**: a folder on the person's
+  computer with a checkout of this repository. The first run asks where
+  it is.
+- **The page cannot open a network connection to the computer**, so
+  `viewer/desktop.js` (the installed app's entry, in place of `app.js`
+  and `chat.js`) starts the engine there as a child process —
+  `python3 viewer/serve.py --stdio` — and `viewer/desktop-bridge.js`
+  turns every request the page makes for the cell into a JSON line
+  through its pipes. The viewer and the chat run unchanged on top.
+- **A page reload ends that process**, and any agent run under it, so
+  the installed app reloads for a file change only when no agent is
+  working.
+- **No browser dialogs**: `prompt()`, `confirm()` and `alert()` do
+  nothing in an artifact; use `viewer/dialogs.js`. A file for the user is
+  written to their Downloads folder (`window.nanoDesktop.saveFile`), not
+  offered as a download link.
+
+Keep the viewer working BOTH ways: served by `serve.py` in a browser, and
+installed. Code that must differ asks `window.nanoDesktop`.
+
 ## The architecture in one paragraph
 
 A **cell is data**, in two halves. A **robot**

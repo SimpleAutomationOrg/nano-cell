@@ -10,6 +10,12 @@ import { dockedTools } from './planner.js';
 import { loadCell } from './cell-data.js';
 import { createStepsPanel } from './steps-panel.js';
 import { pollFetch } from './poll.js';
+import { ask, choose, tell } from './dialogs.js';
+
+// When the page runs as the installed desktop app, viewer/desktop.js sets
+// this up before loading us: { saveFile(name, blob) -> where it was saved }.
+// In a browser, served by serve.py, it is undefined.
+const desktopApp = window.nanoDesktop ?? null;
 import { physicalKey, shortcutKey, flyDirection, FLY_KEYS } from './keys.js';
 
 const status = m => document.getElementById('status').textContent = m;
@@ -400,7 +406,11 @@ async function runSteps(appId, list, mountToolFn, what = 'step') {
 // The applications: a list to open one, and a button that makes a new one.
 // Opening is a page load with ?app=<id>.
 function buildAppUI(apps, current) {
-  const open = id => { localStorage.setItem('app.last', id); location.search = `?app=${encodeURIComponent(id)}`; };
+  // (the installed app's address takes no ?app=: there the choice is remembered and the page reloaded)
+  const open = id => {
+    localStorage.setItem('app.last', id);
+    if (desktopApp) location.reload(); else location.search = `?app=${encodeURIComponent(id)}`;
+  };
   localStorage.setItem('app.last', current);
   const sel = document.getElementById('appSel');
   sel.innerHTML = '';
@@ -412,13 +422,13 @@ function buildAppUI(apps, current) {
   sel.value = current;
   sel.addEventListener('change', () => open(sel.value));
   document.getElementById('appNew').onclick = async () => {
-    const name = prompt('Name of the new application (for example "button assembly"):');
+    const name = await ask('Name of the new application', { placeholder: 'for example: button assembly', ok: 'Create' });
     if (!name?.trim()) return;
     const r = await (await fetch('/__applications/new', {
       method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Nano-Cell': 'chat' },
       body: JSON.stringify({ name: name.trim(), like: current }),
     })).json();
-    if (r.error) { status('new application: ' + r.error); alert(r.error); return; }
+    if (r.error) { status('new application: ' + r.error); tell(r.error); return; }
     open(r.id);
   };
 
@@ -427,11 +437,17 @@ function buildAppUI(apps, current) {
   document.getElementById('appExport').onclick = async () => {
     status(`exporting ${current}…`);
     const r = await fetch(`/__applications/export?app=${encodeURIComponent(current)}`, { headers: HEAD });
-    if (!r.ok) { const e = (await r.json().catch(() => ({}))).error ?? r.status; status('export failed: ' + e); alert('Export failed: ' + e); return; }
+    if (!r.ok) { const e = (await r.json().catch(() => ({}))).error ?? r.status; status('export failed: ' + e); tell('Export failed: ' + e); return; }
     const blob = await r.blob();
     // the server names the file: <application>-<date>-<time>.microfactory,
     // when it was saved, to the second
     const fileName = r.headers.get('X-Microfactory-File') ?? `${current}.microfactory`;
+    if (desktopApp) {
+      // the installed app writes the file itself and shows it in its folder
+      try { status(`exported ${await desktopApp.saveFile(fileName, blob)} (${(blob.size / 1e6).toFixed(1)} MB)`); }
+      catch (e) { status('export failed: ' + e.message); tell('Export failed: ' + e.message); }
+      return;
+    }
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = fileName;
@@ -456,11 +472,15 @@ function buildAppUI(apps, current) {
       // never overwrite silently: replace (the one here is kept as a backup) or keep both
       const what = r.same ? `"${r.name}" is already here (an earlier or later version of this same application).`
         : `Another application is already here under the name "${r.id}".`;
-      if (confirm(`${what}\n\nOK — replace it (the one here is moved to .backups/, not deleted)\nCancel — keep it and choose again`)) r = await send(file, 'replace');
-      else if (confirm(`Import "${file.name}" as a separate copy beside it?`)) r = await send(file, 'copy');
-      else { status('import cancelled'); return; }
+      const how = await choose(`${what}\n\nReplacing moves the one here to .backups/ — it is not deleted.`, [
+        { label: 'Cancel', value: null },
+        { label: 'Import as a separate copy', value: 'copy' },
+        { label: 'Replace it', value: 'replace', primary: true },
+      ]);
+      if (!how) { status('import cancelled'); return; }
+      r = await send(file, how);
     }
-    if (r.error) { status('import failed: ' + r.error); alert('Import failed: ' + r.error); return; }
+    if (r.error) { status('import failed: ' + r.error); tell('Import failed: ' + r.error); return; }
     open(r.id);
   }
   pick.addEventListener('change', () => { const f = pick.files[0]; pick.value = ''; if (f) importFile(f); });
@@ -633,8 +653,21 @@ async function main() {
   document.getElementById('toggles').appendChild(backendBadge);
   try {
     status('loading physics…');
-    const loadMujoco = (await import('/node_modules/@mujoco/mujoco/mujoco.js')).default;
-    const mjmod = await loadMujoco();
+    // In a browser MuJoCo comes from the workspace's node_modules. The
+    // installed app can import code only from its own files or the CDN, so
+    // there the module comes from the CDN — at exactly the version the
+    // workspace has installed — and the compiled physics (the .wasm) from
+    // the workspace, handed to it as bytes.
+    const MJ = '/node_modules/@mujoco/mujoco/';
+    let mjModule = MJ + 'mujoco.js', mjOptions = {};
+    if (desktopApp) {
+      const pkg = await fetch(MJ + 'package.json').then(r => (r.ok ? r.json() : Promise.reject(new Error('MuJoCo is not installed in the workspace: run `npm install` there'))));
+      if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) throw new Error(`unexpected MuJoCo version ${pkg.version}`);
+      mjModule = `https://cdn.jsdelivr.net/npm/@mujoco/mujoco@${pkg.version}/mujoco.js`;
+      mjOptions = { wasmBinary: await fetch(MJ + 'mujoco.wasm').then(r => r.arrayBuffer()) };
+    }
+    const loadMujoco = (await import(mjModule)).default;
+    const mjmod = await loadMujoco(mjOptions);
     mjWorldRef = await createMjWorld({
       getToolId: () => sel.value,
       mj: mjmod, cellData: cell, armCapsules, toolCapsules,
@@ -968,7 +1001,12 @@ renderer.setAnimationLoop(() => {
       if (!r) continue;               // the tab was hidden: wait until it is shown
       if (!r.ok) return;
       const g = parseInt(await r.text(), 10);
-      if (gen !== -1 && g > gen) location.reload();
+      if (gen !== -1 && g > gen) {
+        // In the installed app a reload ends its helper process and every agent
+        // run under it: wait until no agent is working.
+        while (desktopApp && document.querySelector('#chatRail .agent.busy')) await new Promise(res => setTimeout(res, 1000));
+        location.reload();
+      }
       gen = g;
     } catch { await new Promise(res => setTimeout(res, 2000)); }
   }

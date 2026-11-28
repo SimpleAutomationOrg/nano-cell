@@ -2,6 +2,7 @@
 """Serve the repo and open the arm-in-cell viewer, reloading it on changes.
 
     python3 viewer/serve.py [port] [--no-open]
+    python3 viewer/serve.py --stdio          (for the installed desktop app)
 
 Serves the repository root (the viewer fetches ../cell_fr3 and
 ../applications) with
@@ -25,6 +26,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
 PORT = int(_args[0]) if _args else 8742
 OPEN_BROWSER = "--no-open" not in sys.argv   # a restart need not open one more tab
+STDIO = "--stdio" in sys.argv             # serve a parent process through pipes (the desktop app)
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
 SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups", "chats"}
@@ -392,8 +394,68 @@ class Server(socketserver.ThreadingTCPServer):
     daemon_threads = True
 
 
+def _stdio(httpd):
+    """Serve the same server to a parent process over stdin/stdout.
+
+    The installed desktop app (an artifact page, viewer/desktop.js) cannot
+    open a network connection to this machine, but it can run this program
+    and talk to it through its pipes. So every request the page makes
+    arrives here as one JSON line and is answered with one JSON line:
+
+      -> {"id": 7, "method": "GET", "path": "/__steps?app=x", "headers": {...}, "body": "<base64>"}
+      <- {"id": 7, "status": 200, "headers": {...}, "body": "<base64>"}
+
+    Each is passed to the HTTP server above on its own thread, so long
+    polls do not hold the others up. The first line written is
+    {"ready": true}; the program ends when stdin closes.
+    """
+    import base64
+    import http.client
+    import json
+    out_lock = threading.Lock()
+
+    def reply(obj):
+        with out_lock:
+            sys.stdout.write(json.dumps(obj) + "\n")
+            sys.stdout.flush()
+
+    def handle(req):
+        try:
+            conn = http.client.HTTPConnection("127.0.0.1", PORT, timeout=120)
+            headers = {k: v for k, v in (req.get("headers") or {}).items()
+                       if k.lower() not in ("host", "origin", "content-length", "connection")}
+            body = base64.b64decode(req.get("body") or "")
+            conn.request(req.get("method", "GET"), req["path"], body=body or None, headers=headers)
+            r = conn.getresponse()
+            data = r.read()
+            reply({"id": req["id"], "status": r.status, "headers": dict(r.getheaders()),
+                   "body": base64.b64encode(data).decode()})
+            conn.close()
+        except Exception as e:                      # the page gets an answer whatever happens
+            reply({"id": req.get("id"), "status": 502, "headers": {"Content-Type": "application/json"},
+                   "body": base64.b64encode(json.dumps({"error": f"bridge: {e}"}).encode()).decode()})
+
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    reply({"ready": True, "root": ROOT})
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+        except ValueError:
+            continue
+        threading.Thread(target=handle, args=(req,), daemon=True).start()
+
+
 if __name__ == "__main__":
     threading.Thread(target=_watch, daemon=True).start()
+    if STDIO:
+        # for the installed desktop app: any free port, nothing printed but the protocol
+        with Server(("127.0.0.1", 0), Handler) as httpd:
+            PORT = httpd.server_address[1]
+            _stdio(httpd)
+        sys.exit(0)
     with Server(("127.0.0.1", PORT), Handler) as httpd:
         url = f"http://127.0.0.1:{PORT}/viewer/"
         print(f"viewer: {url}  (live reload on, ctrl-c to stop)")

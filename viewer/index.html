@@ -75,6 +75,16 @@
   .step-row.st-stopped .mark { color: #d0a060; }
   .step-row button { padding: 0 6px; font-size: 10px; line-height: 16px; }
   .steps-drop { height: 2px; background: #4da3ff; border-radius: 1px; margin: 1px 4px; pointer-events: none; }
+  /* dialogs drawn in the page (dialogs.js) */
+  .dlg-veil { position: fixed; inset: 0; z-index: 50; background: rgba(5, 8, 11, .6); display: grid; place-items: center; }
+  .dlg { width: min(420px, calc(100vw - 40px)); background: #151b22; border: 1px solid #2f3b4a; border-radius: 12px;
+    padding: 16px; color: #cdd6e0; font-size: 13px; box-shadow: 0 18px 50px rgba(0, 0, 0, .5); }
+  .dlg-text { white-space: pre-wrap; line-height: 1.45; color: #e8eef4; }
+  .dlg input { width: 100%; box-sizing: border-box; margin-top: 10px; background: #0c0f13; color: #e8eef4;
+    border: 1px solid #2f3b4a; border-radius: 6px; padding: 7px 9px; font: inherit; }
+  .dlg input:focus { outline: 1px solid #4da3ff; }
+  .dlg-row { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .dlg button.primary { background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
   #tip {
     position: fixed; pointer-events: none; background: #0c0f13; color: #e8eef4;
     border: 1px solid #334155; border-radius: 6px; padding: 3px 8px; font-size: 12px;
