@@ -70,6 +70,7 @@ applications/<name>/
   print/               the CAD (STEP) the items are made from
   notes/               the agents' notes: plan.md, design.md, purchasing.md, budget.md
   materials/           what the user attached in the chat (git-ignored)
+  chats/<agent>.json   the conversations with the agents (git-ignored)
 ```
 
 - **`application.json` is small on purpose**: it answers "what is this"
@@ -243,8 +244,15 @@ edit its description (it is re-read with every message).
 How it runs (`viewer/chat.js`, `viewer/chat.py`, served by `serve.py`
 under `/__chat/*`): every message runs the Claude Code CLI (`claude`,
 installed and signed in) headless in the repository root, continuing
-that agent's own conversation. The conversations are kept in the server,
-so they survive page reloads; **New** forgets the one shown. Every agent
+that agent's own conversation. There is one conversation per agent
+**per application**, and it is kept on disk in
+`applications/<application>/chats/<agent>.json` — so it survives page
+reloads and server restarts, belongs to the application it is about,
+and goes along in an export. What lets the agent *remember* it (its
+CLI session) is local to this machine, in `.chat-sessions.json` at the
+repository root: on another machine the conversation is shown, but the
+agent starts fresh. **New** forgets the one shown, on disk too. Both
+are git-ignored. Every agent
 may read, search and edit files and run `./scripts/check.sh`; `tools:`
 in its header can add only what `EXTRA_TOOLS` in `chat.py` lists (web
 search for the buyer, `step-to-mesh` for the CAD designer). Agents

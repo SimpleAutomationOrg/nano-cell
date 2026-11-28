@@ -59,7 +59,7 @@ box.querySelector('header').addEventListener('click', ev => {
 let agents = [];
 let current = null;                 // the agent whose conversation is shown
 let poll = null;                    // AbortController of its long poll
-const draftKey = () => `chat.draft.${current?.id}`;
+const draftKey = () => `chat.draft.${document.documentElement.dataset.application}.${current?.id}`;
 input.addEventListener('input', () => sessionStorage.setItem(draftKey(), input.value));
 
 // ---- drawing ----
@@ -133,10 +133,10 @@ const watching = id => current?.id === id && !box.classList.contains('closed') &
 function drawUnread() {
   let changed = false;
   for (const b of rail.children) {
-    const id = b.dataset.id, n = answers[id] ?? 0;
-    // a conversation that was cleared (or a restarted server) starts counting again
-    if ((seen[id] ?? 0) > n || (watching(id) && seen[id] !== n)) { seen[id] = n; changed = true; }
-    const unread = n - (seen[id] ?? 0);
+    const id = b.dataset.id, n = answers[id] ?? 0, key = `${appId()}/${id}`;
+    // a conversation that was cleared starts counting again
+    if ((seen[key] ?? 0) > n || (watching(id) && seen[key] !== n)) { seen[key] = n; changed = true; }
+    const unread = n - (seen[key] ?? 0);
     b.classList.toggle('unread', unread > 0);
     b.querySelector('.badge').textContent = unread > 9 ? '9+' : unread || '';
     b.title = b.title.replace(/ · \d+ unread$/, '') + (unread > 0 ? ` · ${unread} unread` : '');
@@ -162,8 +162,10 @@ function drawRail() {
 }
 
 // ---- talking to the server ----
+// a conversation belongs to an agent AND to the application that is open
+const appId = () => document.documentElement.dataset.application ?? '';
 const post = (action, body = {}) =>
-  fetch(`/__chat/${action}`, { method: 'POST', headers: HEAD, body: JSON.stringify({ agent: current?.id, ...body }) }).then(r => r.json());
+  fetch(`/__chat/${action}`, { method: 'POST', headers: HEAD, body: JSON.stringify({ app: appId(), agent: current?.id, ...body }) }).then(r => r.json());
 
 // what the agent cannot see for itself: which application and step are up, and how the last run ended
 const context = () => {
@@ -285,7 +287,7 @@ async function follow(agent, signal) {
   let epoch = -1, next = 0;
   while (!signal.aborted) {
     try {
-      const resp = await pollFetch(`/__chat/events?agent=${encodeURIComponent(agent.id)}&epoch=${epoch}&since=${next}`, { headers: HEAD, signal });
+      const resp = await pollFetch(`/__chat/events?app=${encodeURIComponent(appId())}&agent=${encodeURIComponent(agent.id)}&epoch=${epoch}&since=${next}`, { headers: HEAD, signal });
       if (!resp) continue;            // the tab was hidden, or another agent was picked
       const r = await resp.json();
       if (signal.aborted) return;
@@ -319,6 +321,8 @@ async function follow(agent, signal) {
     await new Promise(res => setTimeout(res, 2000));
   }
   if (!agents.length) { hint('No agents: add Markdown files to agents/ (see AGENTS.md).'); return; }
+  // conversations are per application: wait until the page knows which one is open
+  while (!appId()) await new Promise(res => setTimeout(res, 150));
   drawRail();
   pick(localStorage.getItem('chat.agent'));
 })();

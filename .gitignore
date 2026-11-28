@@ -11,3 +11,8 @@ applications/*/materials/
 
 # applications replaced by an import are kept here, not deleted
 .backups/
+
+# conversations with the agents: kept with the application on this machine
+applications/*/chats/
+# the agents' CLI sessions: local to this machine
+.chat-sessions.json

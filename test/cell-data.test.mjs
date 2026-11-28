@@ -234,7 +234,7 @@ test('an application has ONE loop, naming steps that exist, each once', async ()
 
 test('an application holds nothing of the robot: joint values only in robots/, no arm, no IO', () => {
   const walk = d => readdirSync(new URL(d, ROOT), { withFileTypes: true }).flatMap(e =>
-    e.isDirectory() ? (['print', 'materials', 'notes'].includes(e.name) ? [] : walk(`${d}${e.name}/`)) : e.name.endsWith('.json') ? [`${d}${e.name}`] : []);
+    e.isDirectory() ? (['print', 'materials', 'notes', 'chats'].includes(e.name) ? [] : walk(`${d}${e.name}/`)) : e.name.endsWith('.json') ? [`${d}${e.name}`] : []);
   for (const f of walk(`applications/${APP}/`)) {
     const text = readFileSync(new URL(f, ROOT), 'utf8');
     if (!f.includes('/robots/')) assert.ok(!/_deg"/.test(text), `${f}: a joint-space value outside robots/`);

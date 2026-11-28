@@ -27,7 +27,8 @@ PORT = int(_args[0]) if _args else 8742
 OPEN_BROWSER = "--no-open" not in sys.argv   # a restart need not open one more tab
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
-SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups"}
+SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups", "chats"}
+SKIP_FILES = {".chat-sessions.json"}      # written while an agent works: not a reason to reload
 
 CHATS = Chats(ROOT)
 
@@ -48,7 +49,7 @@ def _scan():
     for dirpath, dirnames, filenames in os.walk(ROOT):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for f in filenames:
-            if os.path.splitext(f)[1] in WATCH_EXT:
+            if os.path.splitext(f)[1] in WATCH_EXT and f not in SKIP_FILES:
                 p = os.path.join(dirpath, f)
                 try:
                     state[p] = os.stat(p).st_mtime_ns
@@ -97,11 +98,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._json({"error": "forbidden"}, 403)
             q = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
             try:
-                chat = CHATS.get(q.get("agent", ""))
+                app = q.get("app", "")
+                chat = CHATS.get(app, q.get("agent", ""))
                 if chat is None:
-                    return self._json({"error": "no such agent"}, 404)
+                    return self._json({"error": "no such agent or application"}, 404)
                 r = chat.poll(int(q.get("epoch", -1)), int(q.get("since", 0)))
-                return self._json({**r, "busy": CHATS.busy(), "answers": CHATS.answers(), "available": CHATS.available()})
+                return self._json({**r, "busy": CHATS.busy(app), "answers": CHATS.answers(app), "available": CHATS.available()})
             except ValueError:
                 return self._json({"error": "bad request"}, 400)
         super().do_GET()
@@ -148,9 +150,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if self.path.startswith("/__loop/save"):
             return self._save_loop(data)
         action = self.path[len("/__chat/"):]
-        chat = CHATS.get(str(data.get("agent", "")))
+        chat = CHATS.get(str(data.get("app", "")), str(data.get("agent", "")))
         if chat is None:
-            return self._json({"error": "no such agent"}, 404)
+            return self._json({"error": "no such agent or application"}, 404)
         if action == "send":
             # attachments: only files that really are in an application's materials/
             files = []
