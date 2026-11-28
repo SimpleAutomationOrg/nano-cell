@@ -51,7 +51,9 @@ How you work:
   finished until you have run it and it ended `DONE` with the parts where
   they should be. When it fails, read the error and the positions, fix,
   and run again — the steps guide says how to debug. If the command says
-  the application is not open in the viewer, ask the user to open it.
+  the application is not open in the viewer, run with `--headless` (no
+  window needed, no pictures). When the user reports a failed run, read
+  its record first: `node scripts/run-step.mjs <application> --last-failure`.
   To look at a part's geometry on its own, draw it (`scripts/look.mjs`,
   in the geometry guide).
 - When something is unclear and it matters, ask instead of guessing.

@@ -7,15 +7,17 @@ watches it happen — and posts back what came of it. This module is the
 hand-over between the two: a request waits until a page takes it and
 answers, or until its time is up.
 
-One job at a time per application. A job that a page took but did not
-finish (the page was reloaded under it, e.g. after a file changed) is
-given again to the next page that asks.
+One job at a time per application. A page that takes a job keeps saying
+so while it works on it (`alive`); a job nobody is vouching for — the
+page was reloaded under it, or the answer that carried it went to a
+connection the browser had already dropped — is given out again.
 """
 import threading
 import time
 import uuid
 
 LISTEN_FOR = 40          # a page that asked within this many seconds is "open"
+VOUCH_FOR = 8            # a job is its taker's for this long after the taker last said so
 
 
 class Runs:
@@ -26,7 +28,7 @@ class Runs:
 
     def request(self, app, job, timeout=300):
         """Ask the open viewer of `app` to do `job`; returns its result (a dict)."""
-        me = {"id": uuid.uuid4().hex, "job": job, "page": None, "result": None}
+        me = {"id": uuid.uuid4().hex, "job": job, "page": None, "alive": 0.0, "result": None}
         end = time.time() + timeout
         with self.cond:
             if app in self.jobs:
@@ -55,14 +57,23 @@ class Runs:
             while True:
                 self.seen[app] = time.time()
                 j = self.jobs.get(app)
-                if j and j["result"] is None and j["page"] != page:
-                    j["page"] = page
+                if j and j["result"] is None and time.time() - j["alive"] > VOUCH_FOR:
+                    j["page"], j["alive"] = page, time.time()
                     self.cond.notify_all()
                     return {"id": j["id"], **j["job"]}
                 left = end - time.time()
                 if left <= 0:
                     return None
                 self.cond.wait(timeout=min(5, left))
+
+    def alive(self, job_id, page):
+        """The page that took the job is still working on it."""
+        with self.cond:
+            for j in self.jobs.values():
+                if j["id"] == job_id and j["page"] == page and j["result"] is None:
+                    j["alive"] = time.time()
+                    return True
+        return False
 
     def result(self, job_id, data):
         with self.cond:

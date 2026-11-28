@@ -16,7 +16,7 @@ const HEAD = { 'Content-Type': 'application/json', 'X-Microfactory': 'chat' };
  * @param {{ app: string, run: (job: { steps: string[], loop: boolean, reset: boolean, shot: boolean, fast: boolean }) => Promise<object> }} o
  */
 export function startAgentRuns({ app, run }) {
-  // names this load of the page: a job the page took before a reload is given again to the next load
+  // names this load of the page, so the server knows whose job a job is
   const page = Math.random().toString(36).slice(2) + Date.now().toString(36);
   (async () => {
     for (;;) {
@@ -26,9 +26,14 @@ export function startAgentRuns({ app, run }) {
         if (!r.ok) { await new Promise(res => setTimeout(res, 5000)); continue; }
         const { job } = await r.json();
         if (!job) continue;
+        // say that the job is in hand, and keep saying so: a job nobody vouches for is given out again
+        const vouch = () => fetch('/__run/alive', { method: 'POST', headers: HEAD, body: JSON.stringify({ id: job.id, page }) }).catch(() => {});
+        vouch();
+        const beat = setInterval(vouch, 3000);
         let result;
         try { result = await run(job); }
         catch (e) { result = { ok: false, error: `the viewer could not run it: ${e?.message ?? e}` }; }
+        finally { clearInterval(beat); }
         await fetch('/__run/result', { method: 'POST', headers: HEAD, body: JSON.stringify({ id: job.id, result }) });
       } catch { await new Promise(res => setTimeout(res, 2000)); }
     }

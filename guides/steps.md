@@ -42,6 +42,19 @@ node scripts/run-step.mjs <application> <step> [<step> …]   # these, back to b
 node scripts/run-step.mjs <application> --loop              # the whole loop
 ```
 
+- **When the user says a run failed, start from the record of it:**
+  `node scripts/run-step.mjs <application> --last-failure` prints the last
+  run that failed in their viewer — the error, the log, where every part
+  was, and the paths of two pictures taken at that moment. Read it (and
+  open the pictures) before asking them anything or trying to reproduce.
+- `--headless` runs with no window: nothing has to be open, nobody sees
+  it, and it takes a second. Same planner, physics and steps as the
+  viewer, same result. Use it to iterate quickly, to run when the
+  command says the application is not open in the viewer, and to repeat a
+  step (`<step> <step>` runs it twice back to back). It takes no
+  pictures; when you need to SEE, run in the viewer with `--shot`.
+  `./scripts/check.sh` runs every application's loop this way, so a
+  change that breaks a loop fails the check.
 - By default the scene is reset first, so every run starts the same way;
   `--keep` carries on from how the last run left the parts (use it to see
   what a SECOND run of the same step does — e.g. the second part landing

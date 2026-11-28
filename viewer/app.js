@@ -352,10 +352,10 @@ let reloadWaiting = false;      // files changed, and the page has not reloaded 
 let running = false;
 
 // one line in the panel; full history in the browser console
-let stepLogTo = null;            // while the agent's run is going: its lines are collected here too
+let runLog = [];                 // the lines of the run going on (or the last one): its report carries them
 function stepLog(msg) {
   console.log('[step]', msg);
-  stepLogTo?.push(msg.trim());
+  if (runLog.length < 2000) runLog.push(msg.trim());
   const el = document.getElementById('stepline');
   el.textContent = msg.trim();
   el.title = msg.trim();
@@ -384,6 +384,7 @@ async function runSteps(appId, list, mountToolFn, what = 'step') {
   if (running) { stepLog('already running'); return { ok: false, error: 'a run is already in progress in the viewer' }; }
   if (!list.length) { status(`${what}: nothing to run`); return { ok: false, error: 'nothing to run' }; }
   running = true;
+  runLog = [];
   host.reset();
   list.forEach(s => stepsPanel?.setState(s.id, 'idle'));
   let now = null;
@@ -407,7 +408,11 @@ async function runSteps(appId, list, mountToolFn, what = 'step') {
     if (stopped) { status(`${what} stopped`); stepLog('■ stopped'); }
     else { status(`${what} failed: ${e.message}`); stepLog('✗ ' + e.message); console.error(e); }
     if (now) stepsPanel?.setState(now, stopped ? 'stopped' : 'failed');
-    return { ok: false, step: now, error: stopped ? 'stopped by the user' : e.message };
+    const out = { ok: false, step: now, error: stopped ? 'stopped by the user' : e.message };
+    // a failure is kept with the application — what was run, the log, where everything is, pictures —
+    // so that whoever is asked about it later (the agent) can open what the user saw
+    if (!stopped) agentHooks.recordFailure?.({ ...out, ran: list.map(s => s.id) });
+    return out;
   } finally {
     running = false;
   }
@@ -874,7 +879,7 @@ async function main() {
     return [p.x, p.y, p.z];
   };
   agentHooks.state = () => ({
-    held: host.state.held?.id ?? null,
+    held: host.state.held ?? null,
     io: { ...(host.state.io ?? {}) },
     tool: sel.value,
     joints_deg: spins.map(sp => Math.round(THREE.MathUtils.radToDeg(sp.rotation.z) * 100) / 100),
@@ -978,6 +983,53 @@ async function main() {
 
   await buildStepUI(cell, mountToolTracked);
 
+  // ---------- what a run reports: the log, the parts that moved, the arm, and pictures ----------
+  // The pictures are taken with cameras of their own (the user's view is not touched): the whole
+  // cell, and a close-up of what the run was about — the parts that moved and the tool.
+  const look = (box, dirTable) => {
+    const cam = camera.clone();
+    const c = box.getCenter(new THREE.Vector3());
+    const r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 0.04);
+    const half = Math.min(THREE.MathUtils.degToRad(cam.fov / 2), Math.atan(Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect));
+    const dist = r / Math.sin(half) * 1.1;
+    const d = new THREE.Vector3(...dirTable).normalize().transformDirection(world.matrixWorld);
+    cam.position.copy(c).addScaledVector(d, dist);
+    cam.up.copy(new THREE.Vector3(0, 0, 1).transformDirection(world.matrixWorld));
+    cam.lookAt(c);
+    cam.near = dist / 200; cam.far = dist * 4 + 5;
+    cam.updateProjectionMatrix(); cam.updateMatrixWorld();
+    renderer.render(scene, cam);
+    return renderer.domElement.toDataURL('image/png');
+  };
+  const sceneReport = pictures => {
+    const parts = (cell.parts ?? []).map(it => { const to = agentHooks.partNow(it.id); return to && partReport(it.id, it.pose_table.xyz_m, to); })
+      .filter(p => p && p.moved_mm >= 0.5);
+    let shot, shot_close;
+    if (pictures) {
+      world.updateMatrixWorld(true);
+      const t = cell.table;
+      const corner = (x, y, z) => world.localToWorld(new THREE.Vector3(x, y, z));
+      const whole = new THREE.Box3().setFromPoints(t?.min_table_m
+        ? [corner(t.min_table_m[0], t.min_table_m[1], 0), corner(t.max_table_m[0], t.max_table_m[1], 0.35)]
+        : [corner(0, 0, 0), corner(1.2, 0.6, 0.35)]);
+      shot = look(whole, [0.35, -1, 0.8]);                 // from the front, a little to the right, above
+      const near = new THREE.Box3();
+      for (const p of parts) { const n = partNodes.get(p.id); if (n) near.expandByObject(n); }
+      if (flangeGroup) near.expandByObject(flangeGroup);
+      if (!near.isEmpty()) shot_close = look(near, [0.35, -1, 0.7]);
+      renderer.render(scene, camera);                      // the user's own view back at once
+    }
+    return { log: runLog.slice(-200), parts_moved: parts, ...agentHooks.state(), stale: reloadWaiting, shot, shot_close };
+  };
+  agentHooks.recordFailure = failure => {
+    try {
+      fetch('/__run/record', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microfactory': 'chat' },
+        body: JSON.stringify({ app: cell.application, record: { ...failure, when: new Date().toISOString(), ...sceneReport(true) } }),
+      }).catch(() => {});
+    } catch (e) { console.warn('the failed run could not be recorded', e); }
+  };
+
   // ---------- runs the agent asks for (agent-run.js, scripts/run-step.mjs) ----------
   startAgentRuns({
     app: cell.application,
@@ -991,50 +1043,11 @@ async function main() {
       if (job.reset) agentHooks.resetScene();
       const speedSel = document.getElementById('speedSel'), speed0 = speedSel.value;
       if (job.fast) { speedSel.value = speedSel.options[speedSel.options.length - 1].value; speedSel.dispatchEvent(new Event('change')); }
-      const log = stepLogTo = [];
       const t0 = performance.now();
       let out;
       try { out = await runSteps(cell.application, list, mountToolTracked, job.loop ? 'loop' : list.length > 1 ? 'steps' : 'step'); }
-      finally {
-        stepLogTo = null;
-        if (job.fast) { speedSel.value = speed0; speedSel.dispatchEvent(new Event('change')); }
-      }
-      const parts = (cell.parts ?? []).map(it => { const to = agentHooks.partNow(it.id); return to && partReport(it.id, it.pose_table.xyz_m, to); })
-        .filter(p => p && p.moved_mm >= 0.5);
-      // pictures for the agent, from cameras of their own (the user's view is not touched):
-      // the whole cell, and a close-up of what the run was about — the parts that moved and the tool
-      let shot, shot_close;
-      if (job.shot) {
-        const look = (box, dirTable) => {
-          const cam = camera.clone();
-          const c = box.getCenter(new THREE.Vector3());
-          const r = Math.max(box.getSize(new THREE.Vector3()).length() / 2, 0.04);
-          const half = Math.min(THREE.MathUtils.degToRad(cam.fov / 2), Math.atan(Math.tan(THREE.MathUtils.degToRad(cam.fov / 2)) * cam.aspect));
-          const dist = r / Math.sin(half) * 1.1;
-          const d = new THREE.Vector3(...dirTable).normalize().transformDirection(world.matrixWorld);
-          cam.position.copy(c).addScaledVector(d, dist);
-          cam.up.copy(new THREE.Vector3(0, 0, 1).transformDirection(world.matrixWorld));
-          cam.lookAt(c);
-          cam.near = dist / 200; cam.far = dist * 4 + 5;
-          cam.updateProjectionMatrix(); cam.updateMatrixWorld();
-          renderer.render(scene, cam);
-          return renderer.domElement.toDataURL('image/png');
-        };
-        world.updateMatrixWorld(true);
-        const t = cell.table;
-        const corner = (x, y, z) => world.localToWorld(new THREE.Vector3(x, y, z));
-        const whole = new THREE.Box3().setFromPoints(t?.min_table_m
-          ? [corner(t.min_table_m[0], t.min_table_m[1], 0), corner(t.max_table_m[0], t.max_table_m[1], 0.35)]
-          : [corner(0, 0, 0), corner(1.2, 0.6, 0.35)]);
-        shot = look(whole, [0.35, -1, 0.8]);                 // from the front, a little to the right, above
-        const near = new THREE.Box3();
-        for (const p of parts) { const n = partNodes.get(p.id); if (n) near.expandByObject(n); }
-        if (flangeGroup) near.expandByObject(flangeGroup);
-        if (!near.isEmpty()) shot_close = look(near, [0.35, -1, 0.7]);
-        renderer.render(scene, camera);                      // the user's own view back at once
-      }
-      return { ...out, ran: list.map(s => s.id), seconds: Math.round((performance.now() - t0) / 100) / 10, log: log.slice(-200),
-        parts_moved: parts, ...agentHooks.state(), stale: reloadWaiting, shot, shot_close };
+      finally { if (job.fast) { speedSel.value = speed0; speedSel.dispatchEvent(new Event('change')); } }
+      return { ...out, ran: list.map(s => s.id), seconds: Math.round((performance.now() - t0) / 100) / 10, ...sceneReport(job.shot) };
     },
   });
 

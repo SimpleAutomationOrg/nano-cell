@@ -171,33 +171,45 @@ print(json.dumps({'models': chat.Chats(tmp).agent()['models'], 'default': ask('o
   assert.ok(!out.back.startsWith('['), 'the earlier choice must not stick to the next message');
 });
 
-test('a run the agent asks for is handed to the open viewer, and its result comes back; no viewer, no run', () => {
+test('a run the agent asks for is handed to the open viewer, and its result comes back; no viewer, no run; a job nobody vouches for is given out again', () => {
   const out = py(`
 import json, threading, time, runs
 r = runs.Runs()
 runs.LISTEN_FOR = 0.5
+runs.VOUCH_FOR = 0.6
 got = {}
 # nobody has the application open: the request says so instead of waiting its whole time
 t0 = time.time(); got['closed'] = r.request('demo', {'steps': ['a']}, timeout=11); got['closed_s'] = time.time() - t0
 # a page is listening: it takes the job, runs it, answers
-def page(name, answer):
+def page(name, answer, key=None):
     job = r.next('demo', name, timeout=5)
-    got['job_' + name] = job
+    got[key or 'job_' + name] = job
     if job and answer: r.result(job['id'], {'ok': True, 'ran': job['steps']})
+    return job
 threading.Thread(target=page, args=('p1', True)).start()
 time.sleep(0.2)
 got['done'] = r.request('demo', {'steps': ['a', 'b'], 'loop': False}, timeout=10)
-# a page that took a job and was reloaded under it: the next load of the page gets the same job
-threading.Thread(target=page, args=('p2', False)).start()
-time.sleep(0.2)
+
+# a job that went to a dropped connection (taken, never vouched for): given again — even to the same page
 box = {}
 threading.Thread(target=lambda: box.update(res=r.request('demo', {'steps': ['c']}, timeout=10))).start()
-time.sleep(0.5)
+time.sleep(0.2)
+lost = page('p2', False, 'lost')
+time.sleep(0.2)
 got['second_asked_meanwhile'] = r.request('demo', {'steps': ['d']}, timeout=10)
-page('p3', True)
+got['too_soon'] = r.next('demo', 'p9', timeout=0.1)          # p2 is still vouched for
+time.sleep(0.6)
+again = page('p2', False, 'again')
+
+# a page that is working on it keeps it: another page of the same application gets nothing
+for _ in range(4):
+    time.sleep(0.3); r.alive(again['id'], 'p2')
+got['other_tab'] = r.next('demo', 'p3', timeout=0.2)
+got['not_its_job'] = r.alive(again['id'], 'p3')
+r.result(again['id'], {'ok': True, 'ran': ['c']})
 time.sleep(0.3)
 got['redelivered'] = box.get('res')
-got['same_page_again'] = r.next('demo', 'p3', timeout=0.3)
+got['finished_is_gone'] = r.next('demo', 'p3', timeout=0.3)
 print(json.dumps(got))`);
   assert.equal(out.closed.ok, false);
   assert.match(out.closed.error, /not open in the viewer/);
@@ -205,8 +217,11 @@ print(json.dumps(got))`);
   assert.deepEqual(out.job_p1.steps, ['a', 'b']);
   assert.deepEqual(out.done, { ok: true, ran: ['a', 'b'] });
   assert.match(out.second_asked_meanwhile.error, /another run/);
-  assert.deepEqual([out.job_p2.steps, out.job_p3.steps], [['c'], ['c']], 'the job a reloaded page left unfinished goes to the next load');
-  assert.equal(out.job_p2.id, out.job_p3.id);
+  assert.equal(out.too_soon, null, 'a job just taken is not handed to someone else at once');
+  assert.deepEqual([out.lost.steps, out.again.steps], [['c'], ['c']]);
+  assert.equal(out.lost.id, out.again.id, 'the job that went nowhere is the one given again');
+  assert.equal(out.other_tab, null, 'a second tab must not run the job the first is working on');
+  assert.equal(out.not_its_job, false);
   assert.deepEqual(out.redelivered, { ok: true, ran: ['c'] });
-  assert.equal(out.same_page_again, null, 'a finished job is not handed out again');
+  assert.equal(out.finished_is_gone, null, 'a finished job is not handed out again');
 });

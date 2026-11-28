@@ -380,7 +380,8 @@ STEP a part is really made from belongs in `print/`, not there.
 
 The chat's agent (or anyone in a terminal) runs steps in the real
 simulation with `node scripts/run-step.mjs <application> <step> […]`
-(`--loop`, `--keep`, `--shot`, `--slow`, `--timeout N`, `--json`). The
+(`--loop`, `--headless`, `--last-failure`, `--keep`, `--shot`, `--slow`,
+`--timeout N`, `--json`). The
 run happens in the viewer that is open on that application, so the user
 watches it; the command prints the outcome, the log, the parts that moved
 and where they are, what is held, the IO, the joints, and with `--shot`
@@ -388,13 +389,33 @@ the paths of two pictures (`.runs/<application>.png`, the whole cell, and
 `.runs/<application>-close.png`, framed on the tool and the parts that
 moved — taken with cameras of their own, not the user's view).
 
+Three more ways to use it:
+
+- `--headless` runs the steps in node, with no window
+  (`scripts/headless-cell.mjs`: the same `planner.js`, `mj-world.js` and
+  `cell-host.js`, on the same scene objects, built without a picture —
+  `three` is a dev dependency for this). Same result as the viewer, in
+  about a second; no pictures. `test/loops.test.mjs` runs every
+  application's loop this way in `./scripts/check.sh`, and pins one step
+  to the numbers the viewer gives for it. `headless-cell.mjs` mirrors
+  `main()` in `viewer/app.js` (arm chain, capsules, tool mounting): when
+  one changes, change the other.
+- `--last-failure` prints the record of the last run that failed in the
+  viewer, whoever started it. The page posts it (`/__run/record`) and the
+  server keeps it with the application:
+  `applications/<app>/runs/last-failure.json` and two pictures beside it
+  (the folder is git-ignored; one record, replaced by the next failure).
+- A job belongs to the page that took it only while that page keeps
+  saying so (`/__run/alive`, every 3 s): a job that went to a connection
+  the browser had dropped, or whose page was reloaded, is given out again
+  after 8 s, and a second tab never runs a job the first is working on.
+
 How it travels: the script reads the server's port from `.server.json`
 (written by `serve.py` at start) and posts to `/__run/request`;
 `viewer/runs.py` holds the job until the page takes it
 (`/__run/next`, a long poll from `viewer/agent-run.js`), the page runs it
 (`runSteps` in `app.js`) and posts `/__run/result`. One job at a time per
-application; a job whose page was reloaded under it goes to the next load
-of the page; no open page means an error, not a wait. The viewer must be
+application; no open page means an error, not a wait. The viewer must be
 on screen (a hidden tab drops its polls). In the installed app the page
 does not reload while the agent works, so a run after a change to the
 layout or items says it used the old files (`stale`).

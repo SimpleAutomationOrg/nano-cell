@@ -60,7 +60,9 @@ AGENTS.md, "The installable app".
 Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
 Run a step without clicking: `node scripts/run-step.mjs <application> <step>`
 (runs in the open viewer, prints the outcome and where the parts ended up;
-`--shot` saves a picture). The chat's agent debugs steps with it.
+`--shot` saves pictures; `--headless` runs with no window; `--last-failure`
+prints the record of the last run that failed in the viewer). The chat's
+agent debugs steps with it.
 Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
 
 ## Layout
@@ -168,8 +170,11 @@ make such a fit settle.
 
 ## After any change to viewer/, a robot or an application
 
-Run `./scripts/check.sh` (types + `test/motion.test.mjs`) and rerun the
-pick-place step in the viewer before calling the change done. The motion
+Run `./scripts/check.sh` (types, the motion tests, and every
+application's loop run without the viewer — `test/loops.test.mjs`) and
+rerun the pick-place step in the viewer before calling the change done
+(`node scripts/run-step.mjs <application> <step> --shot` does that and
+shows the result). The motion
 tests encode the rules above plus the regressions already caught once
 (J6 reversals, yaw dumped into a final move, camera level, cup parallel) —
 when a new motion bug is fixed, ADD AN ASSERTION for it there. New motion

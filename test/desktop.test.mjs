@@ -16,6 +16,8 @@ import { installWorkspace, MARKER } from '../viewer/workspace-install.js';
 import { startEngine, engineFetch, repoPath, toBase64, fromBase64, absolutePath, chmodCommand, toolsCommand } from '../viewer/desktop-bridge.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
+// the engines started here must not take over the port file of a server the developer is running
+process.env.MICROFACTORY_NO_PORT_FILE = '1';
 
 // node's child process, in the shape the desktop API gives one
 const kids = [];

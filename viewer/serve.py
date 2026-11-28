@@ -30,7 +30,7 @@ OPEN_BROWSER = "--no-open" not in sys.argv   # a restart need not open one more 
 STDIO = "--stdio" in sys.argv             # serve a parent process through pipes (the desktop app)
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
-SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups", "chats", ".runs"}
+SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups", "chats", ".runs", "runs"}
 SKIP_FILES = {".chat-sessions.json", ".server.json"}      # written while an agent works: not a reason to reload
 
 CHATS = Chats(ROOT)
@@ -151,7 +151,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._import()
         try:
             n = int(self.headers.get("Content-Length") or 0)
-            big = 8_000_000 if self.path.startswith("/__run/result") else 200_000      # a result may carry a picture
+            big = 8_000_000 if self.path.startswith(("/__run/result", "/__run/record")) else 200_000      # a result may carry a picture
             data = json.loads(self.rfile.read(n) or b"{}") if n < big else None
         except ValueError:
             data = None
@@ -163,6 +163,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._run_request(data)
         if self.path.startswith("/__run/result"):
             return self._run_result(data)
+        if self.path.startswith("/__run/record"):
+            return self._run_record(data)
+        if self.path.startswith("/__run/alive"):
+            return self._json({"ok": RUNS.alive(str(data.get("id", "")), str(data.get("page", ""))[:40])})
         if self.path.startswith("/__loop/save"):
             return self._save_loop(data)
         action = self.path[len("/__chat/"):]
@@ -347,22 +351,50 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except (TypeError, ValueError):
             timeout = 300
         res = dict(RUNS.request(app, job, timeout))
-        # the pictures of the scene, if any came back, become files the agent can open
+        self._save_pictures(res, os.path.join(ROOT, ".runs"), app)
+        return self._json(res)
+
+    def _save_pictures(self, res, folder, stem):
+        """The pictures a run carries (data URLs under shot / shot_close) become
+        files <folder>/<stem>.png and <stem>-close.png; `res` then names them."""
         import base64
         for key, name, suffix in (("shot", "picture", ""), ("shot_close", "picture_close", "-close")):
             shot = res.pop(key, None)
             if not (isinstance(shot, str) and shot.startswith("data:image/png;base64,")):
                 continue
-            d = os.path.join(ROOT, ".runs")
-            os.makedirs(d, exist_ok=True)
-            path = os.path.join(d, f"{app}{suffix}.png")
+            os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, f"{stem}{suffix}.png")
             try:
                 with open(path, "wb") as f:
                     f.write(base64.b64decode(shot.split(",", 1)[1]))
                 res[name] = os.path.relpath(path, ROOT)
             except (OSError, ValueError):
                 pass
-        return self._json(res)
+
+    def _run_record(self, data):
+        # the page: a run failed. Its record is kept with the application
+        # (applications/<app>/runs/last-failure.json + pictures), replacing the
+        # one before — `node scripts/run-step.mjs <app> --last-failure` prints it
+        import json
+        d = self._app_dir(str(data.get("app", "")))
+        rec = data.get("record")
+        if not d or not isinstance(rec, dict):
+            return self._json({"error": "bad request"}, 400)
+        folder = os.path.join(d, "runs")
+        rec = dict(rec)
+        for stale in ("last-failure.png", "last-failure-close.png"):
+            try:
+                os.remove(os.path.join(folder, stale))
+            except OSError:
+                pass
+        self._save_pictures(rec, folder, "last-failure")
+        try:
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, "last-failure.json"), "w", encoding="utf-8") as f:
+                json.dump(rec, f, indent=1)
+        except OSError as e:
+            return self._json({"error": str(e)}, 500)
+        return self._json({"ok": True})
 
     def _run_result(self, data):
         # the page: what came of the run it was given
@@ -499,23 +531,53 @@ def _stdio(httpd):
 
 
 def _say_where():
-    """Leave the port in .server.json, for the tools that talk to this server (scripts/run-step.mjs)."""
+    """Leave the port in .server.json, for the tools that talk to this server
+    (scripts/run-step.mjs). Kept true while the server lives: if the file
+    goes missing, or names a server that is no longer running, it is written
+    again. MICROFACTORY_NO_PORT_FILE=1 (the tests' own servers) leaves it alone."""
     import atexit
     import json
-    path = os.path.join(ROOT, ".server.json")
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump({"port": PORT, "pid": os.getpid()}, f)
-    except OSError:
+    if os.environ.get("MICROFACTORY_NO_PORT_FILE"):
         return
+    path = os.path.join(ROOT, ".server.json")
+    me = os.getpid()
 
-    def gone():
+    def named():
         try:
             with open(path, encoding="utf-8") as f:
-                if json.load(f).get("pid") == os.getpid():
-                    os.remove(path)
-        except (OSError, ValueError):
+                return int(json.load(f).get("pid"))
+        except (OSError, ValueError, TypeError):
+            return None
+
+    def alive(pid):
+        try:
+            os.kill(pid, 0)
+            return True
+        except OSError:
+            return False
+
+    def write():
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump({"port": PORT, "pid": me}, f)
+        except OSError:
             pass
+
+    def keep():
+        while True:
+            pid = named()
+            if pid != me and (pid is None or not alive(pid)):
+                write()
+            time.sleep(3)
+
+    def gone():
+        if named() == me:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    write()
+    threading.Thread(target=keep, daemon=True).start()
     atexit.register(gone)
 
 
