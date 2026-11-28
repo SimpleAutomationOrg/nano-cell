@@ -188,6 +188,24 @@ An application must stay movable to another robot. So:
   a new robot is a new such folder with its `robot.json`.
   `test/cell-data.test.mjs` holds these rules.
 
+### The kit: what a new application starts with
+
+The **New** button makes an application that already has the robot's
+basic grippers standing in the tool rack. They come from the robot's kit,
+`cell_fr3/kit/`: `kit.json` (which grippers and items, the rack stands'
+placements and the `tool_rack` stands) with `grippers/<id>/` and
+`items/<id>/` beside it, in the same shape as in an application.
+`new_application` (`viewer/appfiles.py`) copies them into the new folder
+and lists them in its manifest and layout — a copy, so the application
+stays one folder that exports whole and can change or drop any of them.
+
+- To add a gripper to the basic set: put its folder in `kit/grippers/`,
+  add its id to `kit.json` `grippers`, and give it a stand (a `rack_stand`
+  placement in `fixtures` and an entry in `tool_rack.stands`).
+- A kit gripper carries no `mesh_source`: the new application has no CAD
+  for it.
+- Applications that exist already are not changed by editing the kit.
+
 ## Geometry comes from the print files
 
 The STEP files in `applications/<name>/print/` (what the parts are actually printed or

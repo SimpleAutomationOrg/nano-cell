@@ -1,0 +1,23 @@
+{
+ "id": "bigcup_p0",
+ "name": "big cup: 40 mm suction cup (DP40) for large flat parts",
+ "kind": "vacuum_cup",
+ "mesh": "bigcup_p0.glb",
+ "collision_mesh": "bigcup_p0.collision.stl",
+ "collision_detail": "coarse",
+ "pose_flange": {
+  "xyz_m": [0.0, 0.0, 0.0],
+  "rpy": [0.0, 0.0, 0.0]
+ },
+ "tip_flange_m": [0.028884, 5.6e-05, 0.165404],
+ "tip_name": "cup_tip",
+ "catalog_index": 6,
+ "vacuum": {
+  "output": "vacuum",
+  "held_input": "vacuum-held",
+  "cup_radius_m": 0.02,
+  "lip_centre_flange_m": [0.028884, 5.6e-05, 0.165404],
+  "lip_normal_flange": [0.421982, 0.00047, 0.906604],
+  "lip_inner_radius_m": 0.01935
+ }
+}

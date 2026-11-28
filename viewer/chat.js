@@ -9,6 +9,7 @@
 // was.
 import { pollFetch } from './poll.js';
 import { splitQuestions, answerText, allAnswered } from './ask.js';
+import { rich } from './md.js';
 
 const HEAD = { 'X-Microfactory': 'chat', 'Content-Type': 'application/json' };
 
@@ -56,13 +57,6 @@ const draftKey = () => `chat.draft.${document.documentElement.dataset.applicatio
 input.addEventListener('input', () => sessionStorage.setItem(draftKey(), input.value));
 
 // ---- drawing ----
-const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-// just enough markdown for an agent's replies: code blocks, `code`, **bold**
-function rich(text) {
-  return text.split(/```/).map((part, i) => i % 2
-    ? `<pre><code>${esc(part.replace(/^[a-z]*\n/, ''))}</code></pre>`
-    : esc(part).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')).join('');
-}
 const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
 function draw(ev) {
   if (ev.type === 'done') return;

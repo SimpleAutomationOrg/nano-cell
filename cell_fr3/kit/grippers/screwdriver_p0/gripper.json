@@ -1,0 +1,31 @@
+{
+ "id": "screwdriver_p0",
+ "name": "vacuum screwdriver (STS3032 servo drive)",
+ "kind": "screwdriver",
+ "mesh": "screwdriver_p0.glb",
+ "collision_mesh": "screwdriver_p0.collision.stl",
+ "pose_flange": {
+  "xyz_m": [0.0, 0.0, 0.0],
+  "rpy": [0.0, 0.0, 0.0]
+ },
+ "tip_flange_m": [-0.0001024, -0.0001557, 0.1559695],
+ "tip_name": "nose_face",
+ "catalog_index": 5,
+ "vacuum": {
+  "output": "screwdriver-vacuum",
+  "held_input": null,
+  "cup_radius_m": 0.00211,
+  "note": "the screw is held in the nose bore by pump B; the vacuum-held switch is on the cup line"
+ },
+ "nose": {
+  "face_z_flange_m": 0.1556,
+  "bore_radius_m": 0.00211,
+  "outer_radius_m": 0.00419,
+  "centre_xy_flange_m": [9e-05, 0.000166]
+ },
+ "drive": {
+  "role": "gripper-right",
+  "screw_in_value": -1.0,
+  "actuator": "Feetech STS3032"
+ }
+}

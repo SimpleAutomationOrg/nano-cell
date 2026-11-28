@@ -58,8 +58,13 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   settling all derive from the one MuJoCo model.
 - `cell_fr3/` — the design of the cell, i.e. the robot an application runs
   on: `robot.json` (arm + mount, table, guard, flange stack, cameras, IO),
-  `meshes/` (flange stack) and `arm/` (FR3 link meshes; the kinematic
-  chain constants live in `ik.js`). Knows nothing about the job.
+  `meshes/` (flange stack), `arm/` (FR3 link meshes; the kinematic
+  chain constants live in `ik.js`) and `kit/` — the robot's standard
+  equipment, COPIED into every new application made on it: the basic
+  grippers and the tool rack they stand in (`kit.json` lists them and
+  where the stands are). To change what new applications start with,
+  change `kit/`; an existing application is not affected. Knows nothing
+  about the job.
 - `applications/<name>/` — an application: one job and its environment, one
   folder that can be copied, saved and shared. `application.json` is the
   small manifest (format, name, description, robot, its `grippers` and

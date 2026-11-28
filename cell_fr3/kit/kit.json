@@ -1,0 +1,107 @@
+{
+ "about": "The standard equipment of this robot, given to every new application made on it: the basic grippers and the tool rack they stand in. A new application gets a COPY of these (viewer/appfiles.py, new_application) and is free to change or remove them; to change what new applications start with, change this folder. Poses are in the table frame of this robot. The rack stands in a column along the east edge of the breadboard, beside the robot, so that the working area in front of it stays free: stand centres at x 1.1375 m (the tools reach to 15 mm from the edge), 62.5 mm apart, all within 0.45 m of the robot's base.",
+ "grippers": ["rcup6_p0", "rcup16_p0", "bigcup_p0", "screwdriver_p0"],
+ "items": ["rack_stand"],
+ "fixtures": [
+  {
+   "id": "rack_stand0",
+   "item": "rack_stand",
+   "name": "tool rack stand 0",
+   "pose_table": {
+    "xyz_m": [1.1375, 0.5625, 0.0],
+    "rpy": [0.0, 0.0, 3.141593]
+   }
+  },
+  {
+   "id": "rack_stand1",
+   "item": "rack_stand",
+   "name": "tool rack stand 1",
+   "pose_table": {
+    "xyz_m": [1.1375, 0.5, 0.0],
+    "rpy": [0.0, 0.0, 3.141593]
+   }
+  },
+  {
+   "id": "rack_stand2",
+   "item": "rack_stand",
+   "name": "tool rack stand 2",
+   "pose_table": {
+    "xyz_m": [1.1375, 0.4375, 0.0],
+    "rpy": [0.0, 0.0, 3.141593]
+   }
+  },
+  {
+   "id": "rack_stand3",
+   "item": "rack_stand",
+   "name": "tool rack stand 3",
+   "pose_table": {
+    "xyz_m": [1.1375, 0.375, 0.0],
+    "rpy": [0.0, 0.0, 3.141593]
+   }
+  }
+ ],
+ "tool_rack": {
+  "stands": [
+   {
+    "index": 0,
+    "name": "stand0",
+    "fixture_id": "rack_stand0",
+    "tool_id": "rcup6_p0",
+    "profile_tool": "rcup6_p0",
+    "pose_table": {
+     "xyz_m": [1.1375, 0.5625, 0.1765],
+     "rpy": [3.141593, 0.0, 0.0]
+    },
+    "pick_pose_table": {
+     "xyz_m": [1.1375, 0.5625, 0.1815],
+     "rpy": [3.141593, 0.0, 0.0]
+    }
+   },
+   {
+    "index": 1,
+    "name": "stand1",
+    "fixture_id": "rack_stand1",
+    "tool_id": "rcup16_p0",
+    "profile_tool": "rcup16_p0",
+    "pose_table": {
+     "xyz_m": [1.1375, 0.5, 0.1765],
+     "rpy": [3.141593, 0.0, 0.0]
+    },
+    "pick_pose_table": {
+     "xyz_m": [1.1375, 0.5, 0.1815],
+     "rpy": [3.141593, 0.0, 0.0]
+    }
+   },
+   {
+    "index": 2,
+    "name": "stand2",
+    "fixture_id": "rack_stand2",
+    "tool_id": "bigcup_p0",
+    "profile_tool": "bigcup_p0",
+    "pose_table": {
+     "xyz_m": [1.1375, 0.4375, 0.1765],
+     "rpy": [3.141593, 0.0, 0.0]
+    },
+    "pick_pose_table": {
+     "xyz_m": [1.1375, 0.4375, 0.1815],
+     "rpy": [3.141593, 0.0, 0.0]
+    }
+   },
+   {
+    "index": 3,
+    "name": "stand3",
+    "fixture_id": "rack_stand3",
+    "tool_id": "screwdriver_p0",
+    "profile_tool": "screwdriver_p0",
+    "pose_table": {
+     "xyz_m": [1.1375, 0.375, 0.1765],
+     "rpy": [3.141593, 0.0, 0.0]
+    },
+    "pick_pose_table": {
+     "xyz_m": [1.1375, 0.375, 0.1815],
+     "rpy": [3.141593, 0.0, 0.0]
+    }
+   }
+  ]
+ }
+}

@@ -130,7 +130,8 @@ same = appfiles.write_loop_steps(copy, was['steps'])
 appfiles.write_loop_steps(copy, was['steps'][::-1])
 after = json.load(open(os.path.join(copy, 'application.json')))
 rest = {k: v for k, v in after.items() if k != 'loop'} == {k: v for k, v in json.loads(before).items() if k != 'loop'}
-appfiles.new_application(os.path.join(tmp, 'applications', 'fresh'), 'Fresh one', src)
+appfiles.new_application(os.path.join(tmp, 'applications', 'fresh'), 'Fresh one', src, '')   # on a robot without a kit
+appfiles.new_application(os.path.join(tmp, 'applications', 'kitted'), 'Kitted one', src)       # the robot's own kit, found beside the applications
 print(json.dumps({'was': was, 'same': same is None, 'rev': appfiles.read_loop(copy), 'rest': rest,
   'flat': appfiles.dumps({'p': [1.5, 2, 3], 'q': [[1, 2], [3, 4]], 'e': []})}))`,
       new URL(`applications/${APP}`, ROOT).pathname, tmp], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' }));
@@ -145,6 +146,34 @@ print(json.dumps({'was': was, 'same': same is None, 'rev': appfiles.read_loop(co
     assert.deepEqual([fresh.name, fresh.robot, fresh.tools, fresh.fixtures, fresh.loop.steps], ['Fresh one', application.robot, [], [], []]);
     const cell = composeCell(robot, fresh);
     assert.equal(cell.mounted_tool, robot.changer.bare_tool_id, 'an application with no gripper leaves the changer bare');
+    // with the robot's kit, a new application starts with the basic grippers standing in the tool rack
+    const kit = JSON.parse(readFileSync(new URL('cell_fr3/kit/kit.json', ROOT)));
+    const kitted = await loadApplication(async p => JSON.parse(readFileSync(join(tmp, p))), 'kitted');
+    assert.deepEqual(kitted.tools.map(t => t.id), kit.grippers);
+    assert.ok(kit.grippers.length >= 3 && kit.tool_rack.stands.length === kit.grippers.length, 'every kit gripper has a stand');
+    for (const s of kit.tool_rack.stands) {
+      assert.ok(kit.grippers.includes(s.tool_id), `stand of ${s.tool_id}, which is not in the kit`);
+      assert.ok(kit.fixtures.some(f => f.id === s.fixture_id), `${s.fixture_id} is not placed`);
+    }
+    // the rack stands at the edge of the breadboard, on it, and within the arm's easy reach
+    const [x0, y0] = robot.table.min_table_m, [x1, y1] = robot.table.max_table_m;
+    const HALF = 0.0312, TOOL = 0.047;          // the stand's half width; how far a docked tool reaches past its centre (measured meshes)
+    const [bx, by] = robot.arm.mount_table.xyz_m;
+    for (const f of kit.fixtures) {
+      const [x, y] = f.pose_table.xyz_m;
+      assert.ok(x - HALF >= x0 && x + TOOL <= x1 && y - HALF >= y0 && y + HALF <= y1, `${f.id} is not wholly on the breadboard`);
+      assert.ok(Math.min(x - x0, x1 - x, y - y0, y1 - y) < 0.07, `${f.id} is not at an edge of the breadboard`);
+      assert.ok(Math.hypot(x - bx, y - by) < 0.5, `${f.id} is too far from the robot's base to dock a tool comfortably`);
+    }
+    const kcell = composeCell(robot, kitted);
+    assert.deepEqual(kcell.changer.stands.map(s => s.tool_id), kit.tool_rack.stands.map(s => s.tool_id));
+    assert.equal(kcell.fixtures.filter(f => /^rack_stand/.test(f.id)).length, kit.fixtures.length);
+    // the copies are whole: the meshes each description names are in the application
+    for (const id of kit.grippers) {
+      const g = JSON.parse(readFileSync(join(tmp, 'applications/kitted/grippers', id, 'gripper.json')));
+      for (const m of [g.mesh, g.collision_mesh]) assert.ok(readFileSync(join(tmp, 'applications/kitted/grippers', id, m)).length > 1000, `${id}/${m}`);
+      assert.ok(!g.mesh_source, 'a kit gripper must not point at CAD the new application does not have');
+    }
   } finally { rmSync(tmp, { recursive: true }); }
 });
 

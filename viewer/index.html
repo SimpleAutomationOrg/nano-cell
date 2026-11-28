@@ -128,6 +128,31 @@
   #chatLog code { font-family: ui-monospace, monospace; font-size: 11.5px; background: #0c0f13; border-radius: 4px; padding: 1px 4px; }
   #chatLog pre { margin: 4px 0; padding: 7px 9px; background: #0c0f13; border-radius: 6px; overflow-x: auto; white-space: pre; }
   #chatLog pre code { padding: 0; background: none; }
+  /* an agent's reply is markdown (md.js): paragraphs, headings, lists, tables, links */
+  #chatLog .text { white-space: normal; }
+  #chatLog .text > :first-child { margin-top: 0; }
+  #chatLog .text > :last-child { margin-bottom: 0; }
+  #chatLog .text p { margin: 0 0 7px; }
+  #chatLog .text h1, #chatLog .text h2, #chatLog .text h3, #chatLog .text h4, #chatLog .text h5, #chatLog .text h6 {
+    margin: 10px 0 5px; color: #fff; font-weight: 600; font-size: 13px; line-height: 1.3; }
+  #chatLog .text h1 { font-size: 15px; }
+  #chatLog .text h2 { font-size: 14px; }
+  #chatLog .text ul, #chatLog .text ol { margin: 0 0 7px; padding-left: 20px; }
+  #chatLog .text li { margin: 2px 0; }
+  #chatLog .text li > ul, #chatLog .text li > ol { margin: 2px 0 0; }
+  #chatLog .text a { color: #6db3ff; text-decoration: none; }
+  #chatLog .text a:hover { text-decoration: underline; }
+  #chatLog .text b { color: #f2f5f8; font-weight: 600; }
+  #chatLog .text hr { border: 0; border-top: 1px solid #263040; margin: 9px 0; }
+  #chatLog .text blockquote { margin: 0 0 7px; padding: 1px 0 1px 9px; border-left: 2px solid #35557a; color: #9fb0c0; }
+  /* a table scrolls sideways inside its own frame instead of squeezing its columns to letters */
+  #chatLog .md-table { margin: 4px 0 8px; overflow-x: auto; border: 1px solid #263040; border-radius: 7px; }
+  #chatLog .md-table table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  #chatLog .md-table th, #chatLog .md-table td { padding: 5px 8px; text-align: left; vertical-align: top;
+    border-bottom: 1px solid #1c232c; overflow-wrap: break-word; }
+  #chatLog .md-table th { background: #10161d; color: #9fb0c0; font-weight: 600; white-space: nowrap; }
+  #chatLog .md-table tr:last-child td { border-bottom: 0; }
+  #chatLog .md-table td + td, #chatLog .md-table th + th { border-left: 1px solid #1c232c; }
   #chat form { padding: 10px; border-top: 1px solid #263040; }
   /* the message box: attached files, the text, then Attach and Send — one frame */
   #chatBox { background: #0c0f13; border: 1px solid #2f3b4a; border-radius: 10px; padding: 8px; }

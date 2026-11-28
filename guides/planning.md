@@ -13,6 +13,10 @@ into a short, ordered list of concrete tasks.
 
 - Read first: `application.json` (with the loop), `layout.json`, `items/`,
   `grippers/`, `steps/`, and the notes in `notes/`.
+- A new application already has the robot's basic grippers standing in
+  the tool rack (small, medium and big suction cups, a screwdriver — see
+  its `grippers/`). Plan with those first; design or buy another gripper
+  only when none of them can do the job, and say why.
 - Keep the plan in `applications/<application>/notes/plan.md`: the goal,
   the tasks in order (each with whether it is done), the technical
   decisions taken and why, and the questions only the user can answer.

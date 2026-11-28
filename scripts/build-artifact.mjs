@@ -91,6 +91,7 @@ const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 const pack = { version: '', files: [] };
 const report = [];
 let bins = 0;
+const carried = new Map();      // sha -> the file that carries it
 for (const f of tracked) {
   const bytes = readFileSync(join(ROOT, f.path));
   const entry = { path: f.path, sha: sha(bytes), size: bytes.length };
@@ -98,8 +99,12 @@ for (const f of tracked) {
   if (/\.(glb|stl)$/.test(f.path)) {
     let info;
     try { info = checkMesh(f.path, new Uint8Array(bytes)); } catch (e) { fail(`${f.path}: ${e.message} — a mesh must be geometry only (scripts/clean-mesh.mjs strips a GLB)`); }
-    entry.bin = `ws/b/${bins++}.txt`;
-    writeFileSync(join(OUT, entry.bin), bytes.toString('base64'));
+    // the same mesh in two places (a kit gripper and its copy in an application) is carried once
+    if (!carried.has(entry.sha)) {
+      carried.set(entry.sha, `ws/b/${bins++}.txt`);
+      writeFileSync(join(OUT, carried.get(entry.sha)), bytes.toString('base64'));
+    }
+    entry.bin = carried.get(entry.sha);
     const mm = info.bounds[1].map((h, k) => Math.round((h - info.bounds[0][k]) * 1000));
     report.push(`mesh  ${f.path}  ${info.triangles} triangles, ${mm.join(' x ')} mm${info.text.length ? '  text: ' + JSON.stringify(info.text) : ''}`);
   } else if (PACK_TEXT.test(f.path)) {

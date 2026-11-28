@@ -17,6 +17,7 @@ lists applications, creates an empty one, and saves the loop's order.
 import json
 import os
 import re
+import shutil
 import uuid
 
 FORMAT = 1
@@ -73,12 +74,29 @@ LAYOUT_ABOUT = ("What stands where: each fixture and part is a placement of an i
                 "the table frame.")
 
 
-def new_application(app_dir, name, like_dir):
-    """An empty application on the same robot as the one in `like_dir`."""
+def new_application(app_dir, name, like_dir, kit_dir=None):
+    """A new application on the same robot as the one in `like_dir`.
+
+    It starts with the robot's KIT, if the robot has one (`<robot>/kit/`:
+    kit.json, grippers/, items/): the basic grippers and the tool rack they
+    stand in are COPIED into the application, so that it stays one folder
+    that can be exported whole and changed freely. Without a kit it starts
+    empty."""
     old = read_manifest(like_dir)
+    if kit_dir is None and old.get("robot"):
+        kit_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(like_dir))), old["robot"], "kit")
+    kit = {}
+    if kit_dir and os.path.isfile(os.path.join(kit_dir, "kit.json")):
+        with open(os.path.join(kit_dir, "kit.json"), encoding="utf-8") as f:
+            kit = json.load(f)
     os.makedirs(app_dir)
     for sub in ("steps", "grippers", "items"):
         os.makedirs(os.path.join(app_dir, sub))
+    for sub, key in (("grippers", "grippers"), ("items", "items")):
+        for ident in kit.get(key, []):
+            if not re.fullmatch(r"[A-Za-z0-9_.-]+", str(ident)) or ident in (".", ".."):
+                raise ValueError(f"kit: bad id {ident!r}")
+            shutil.copytree(os.path.join(kit_dir, sub, ident), os.path.join(app_dir, sub, ident))
     manifest = {
         "format": FORMAT,
         "uid": str(uuid.uuid4()),
@@ -89,12 +107,13 @@ def new_application(app_dir, name, like_dir):
         "robot": old.get("robot"),
         "units": old.get("units"),
         "conventions": old.get("conventions", {}),
-        "grippers": [],
-        "items": [],
+        "grippers": list(kit.get("grippers", [])),
+        "items": list(kit.get("items", [])),
         "mounted_tool": None,
         "loop": {"name": name, "steps": []},
     }
-    layout = {"about": LAYOUT_ABOUT, "fixtures": [], "parts": [], "tool_rack": {"stands": []}, "unplaced_parts": []}
+    layout = {"about": LAYOUT_ABOUT, "fixtures": list(kit.get("fixtures", [])), "parts": [],
+              "tool_rack": kit.get("tool_rack") or {"stands": []}, "unplaced_parts": []}
     for fn, obj in (("application.json", manifest), ("layout.json", layout)):
         with open(os.path.join(app_dir, fn), "w", encoding="utf-8") as f:
             f.write(dumps(obj))
