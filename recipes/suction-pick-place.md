@@ -71,6 +71,11 @@ await cell.moveTipBy([0, 0, 0.1], { speed: 0.2 });   // departure allowance
                                                      // covers the fresh contact
 ```
 
+The descent stops on whatever is below: a fixture, another part, or the
+bare breadboard — the table is a solid, and `touch.item` is then
+`'table'`. Small parts are fine too (a chip stops on a chip): the rim
+that is ignored under the held part scales with its size.
+
 For placement into a pocket (alignment, centring), use the
 **holder-insertion** recipe instead of this step.
 

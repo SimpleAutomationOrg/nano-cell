@@ -338,7 +338,14 @@ export function createPlanner(opts) {
         const a = worldAABB(heldPose, b);
         H = H ? { x0: Math.min(H.x0, a.x0), x1: Math.max(H.x1, a.x1), y0: Math.min(H.y0, a.y0), y1: Math.max(H.y1, a.y1) } : a;
       }
-      H = { x0: H.x0 + edgeShrink, x1: H.x1 - edgeShrink, y0: H.y0 + edgeShrink, y1: H.y1 - edgeShrink };
+      // the rim that is ignored scales down with the part: 6 mm off each
+      // edge of a 7 mm wide chip would leave no interior at all, and the
+      // chip would be lowered through whatever lies below it
+      const shrink = Math.min(edgeShrink, 0.25 * Math.min(H.x1 - H.x0, H.y1 - H.y0));
+      H = { x0: H.x0 + shrink, x1: H.x1 - shrink, y0: H.y0 + shrink, y1: H.y1 - shrink };
+      // ...and so does the overlap that counts as support: 100 mm², or a
+      // third of the interior of a part that has less than that to offer
+      const needArea = Math.min(1e-4, (H.x1 - H.x0) * (H.y1 - H.y0) / 3);
       // the touched box: the one whose AABB contains the contact point
       for (const b of ob) {
         const a = worldAABB(om, b);
@@ -347,7 +354,7 @@ export function createPlanner(opts) {
             pos[2] > a.z1 + 6e-3) continue;
         const ox = Math.min(H.x1, a.x1) - Math.max(H.x0, a.x0);
         const oy = Math.min(H.y1, a.y1) - Math.max(H.y0, a.y0);
-        if (ox > 0 && oy > 0 && ox * oy > 1e-4) return true;   // ≥ 100 mm²
+        if (ox > 0 && oy > 0 && ox * oy > needArea) return true;
       }
       return false;
     };

@@ -152,6 +152,50 @@ test('touch: a held part stops on ANOTHER PART lying below it, not on the floor 
     `released part rests with its underside at ${(under * 1000).toFixed(2)} mm — the part below tops out at 56.00`);
 });
 
+test('touch: a part can be set down on the bare breadboard, and a SMALL part stops on another small part', { skip: !mj }, async () => {
+  const { createMjWorld } = await import('../viewer/mj-world.js');
+  // regressions: (1) the breadboard was not a solid, so a set-down on the
+  // clear table "found nothing to land on" and a released part fell out of
+  // the world; (2) the rim ignored under a held part was a fixed 6 mm, which
+  // left a 7 mm wide chip no interior — it was lowered into a chip below it
+  const mount = cell.arm.mount_table;
+  const HOME = [-95.8, -109.03, -35.38, -125.69, 89.91, 61.48].map(d2r);
+  const rel = IK.translate([0, 0, 0.16]);
+  const mountMat = IK.fromXyzRpy(mount.xyz_m, mount.rpy);
+  const pm0 = IK.mul(IK.mul(mountMat, IK.fkFlange(HOME)), rel);
+  const chip = [{ center: [0, 0, 0], size: [0.0193, 0.0064, 0.0034] }];      // a DIP-16 body
+  const build = async parts => {
+    const synth = { arm: cell.arm, tools: cell.tools, cameras: [], table: cell.table, fixtures: [], parts };
+    const world = await createMjWorld({ mj, cellData: synth, armCapsules: [], toolCapsules: [], loadStlBuffer: async () => { throw new Error('no meshes'); } });
+    return { world, planner: createPlanner({ cellData: synth, mountMat, getToolId: () => 'rcup16_p0', mjWorld: () => world }) };
+  };
+  const underside = (res) => IK.mul(IK.mul(mountMat, IK.fkFlange(res.path[res.path.length - 1])), rel)[11] - 0.0017;
+  assert.ok(pm0[3] > cell.table.min_table_m[0] && pm0[3] < cell.table.max_table_m[0], 'the test spot is over the breadboard');
+
+  // (1) nothing below but the table
+  let { world, planner } = await build([{ id: 'held', pose_table: { xyz_m: [0.4, 0.5, 0.05], rpy: [0, 0, 0] }, boxes: chip }]);
+  let res = planner.planUntilTouch(HOME, [0, 0, -1], { maxDist: 0.4, held: { id: 'held', rel } });
+  assert.equal(res.item, 'table', `stopped on '${res.item}' — the breadboard must stop a set-down`);
+  let gap = underside(res);
+  assert.ok(gap > 0 && gap < 0.005, `the part's underside ended ${(gap * 1000).toFixed(1)} mm above the table`);
+  world.setPartPose('held', IK.mul(IK.mul(mountMat, IK.fkFlange(res.path[res.path.length - 1])), rel));
+  const settled = world.settlePart('held');
+  const rest = (settled?.pose ?? world.readPartPose('held'))[11] - 0.0017;
+  assert.ok(Math.abs(rest) < 1e-3, `released on the table, the part rests with its underside at ${(rest * 1000).toFixed(2)} mm`);
+  // the arm does not go through the table either: a tool tip below z 0 is a contact with it
+  assert.ok(world.contacts(0).every(c => c.a !== 'table' && c.b !== 'table'), 'the home pose must not touch the table');
+
+  // (2) a chip already lying on the table under the held one, a little off
+  ({ world, planner } = await build([
+    { id: 'held', pose_table: { xyz_m: [0.4, 0.5, 0.05], rpy: [0, 0, 0] }, boxes: chip },
+    { id: 'lying', pose_table: { xyz_m: [pm0[3] + 0.001, pm0[7] - 0.0005, 0.0017], rpy: [0, 0, 0] }, boxes: chip },
+  ]));
+  res = planner.planUntilTouch(HOME, [0, 0, -1], { maxDist: 0.4, held: { id: 'held', rel } });
+  assert.equal(res.item, 'lying', `stopped on '${res.item}' — a small part must stop on the small part below it`);
+  gap = underside(res) - 0.0034;
+  assert.ok(gap > 0 && gap < 0.005, `ended ${(gap * 1000).toFixed(1)} mm above the chip below`);
+});
+
 test('drop test: a released case falls INTO the pocket and seats on its floor', { skip: !mj }, async () => {
   const { createMjWorld } = await import('../viewer/mj-world.js');
   const world = await createMjWorld({

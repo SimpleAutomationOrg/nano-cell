@@ -47,8 +47,20 @@ export async function createMjWorld({ mj, cellData, armCapsules, toolCapsules, l
   // everything that stands still: the fixtures, plus the tools resting in
   // the rack (all but the one on the arm — recomputed on a tool change)
   let statics = [];
+  // The breadboard itself is a solid: a part can be set down on the bare
+  // table by touch, a released one comes to rest on it, and the arm cannot
+  // pass through it. One slab, its top at z 0 of the table frame, under
+  // the id 'table' (what `ignore` and the messages call it).
+  const TABLE_ID = 'table', TABLE_THICK = 0.02;
+  const tableBody = (() => {
+    const t = cellData.table;
+    if (!t?.min_table_m || !t?.max_table_m) return [];
+    const [x0, y0] = t.min_table_m, [x1, y1] = t.max_table_m;
+    return [{ id: TABLE_ID, name: 'the breadboard', pose_table: { xyz_m: [0, 0, 0], rpy: [0, 0, 0] },
+      boxes: [{ center: [(x0 + x1) / 2, (y0 + y1) / 2, -TABLE_THICK / 2], size: [x1 - x0, y1 - y0, TABLE_THICK] }] }];
+  })();
   const refreshStatics = () => {
-    statics = [...(cellData.fixtures ?? []), ...dockedTools(cellData, getToolId ? getToolId() : cellData.mounted_tool)];
+    statics = [...tableBody, ...(cellData.fixtures ?? []), ...dockedTools(cellData, getToolId ? getToolId() : cellData.mounted_tool)];
   };
   refreshStatics();
   const probeCache = new Map();   // id -> measurement points
