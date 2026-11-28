@@ -6,6 +6,21 @@ rack, fixtures, parts, steps), both as data; a three.js viewer in the
 browser that executes steps with IK and collision checking; and a local
 server behind it for the agent, files and tools. No build step.
 
+## Who it is for
+
+An average robotics engineer, and the one measure of a decision is whether
+it makes their work more CONVENIENT: less to set up, less to learn, fewer
+steps to a running cell.
+
+There is NO requirement to work offline, to be self-contained, or to do
+without accounts. Online services, sign-ins, cloud storage, hosted APIs
+and downloads are all fine — and are the right choice whenever they make
+the thing easier to use. Never argue against a feature, or steer the user
+away from one, on the grounds that it needs the network, an account or a
+service; weigh only what it costs the engineer in effort against what it
+gives them. That the installed app happens to carry its own files is a way
+of making installation easy, not a principle to defend.
+
 ## Goal
 
 This project is delivered as an APPLICATION INSTALLED ON THE USER'S
@@ -31,11 +46,11 @@ The installable form is a Claude artifact with the `desktop` capability
 step, the project skill **`/publish-app`**
 (`.claude/skills/publish-app/SKILL.md`): check, `node
 scripts/build-artifact.mjs`, publish — a new version of the artifact named
-in `artifact.json`. The app is self-contained: besides the page it carries a
+in `artifact.json`. To make installing easy, besides the page the app carries a
 PACK of the files a workspace is made of (the local programs, the guides,
 the robot, the starter application named in `artifact.json`), and makes
-the workspace folder from it on first start — nobody needs access to the
-repository. Only tracked files go in, meshes only when every byte is
+the workspace folder from it on first start, so installing takes no
+access to the repository. Only tracked files go in, meshes only when every byte is
 accounted for as geometry (`scripts/mesh-check.mjs`), never attachments,
 conversations or uncommitted CAD. A checkout of this repository works as
 a workspace too. The page reaches the folder through `viewer/desktop.js`
