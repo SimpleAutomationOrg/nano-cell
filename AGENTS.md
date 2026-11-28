@@ -1,7 +1,8 @@
 # Agent guide
 
 You are a coding agent working in (or asked to install) **nano-cell**, a
-browser-only simulated robot cell. This file is your contract: how to
+simulated robot cell installed on the user's computer: a viewer in the
+browser with a local server behind it for the agents, files and tools. This file is your contract: how to
 install it, how to verify it, and how to add or edit steps without
 re-learning this project's hard-won rules.
 
@@ -142,6 +143,25 @@ file and body (path relative to the application). Never hand-edit or simplify a 
 says a part does not fit, compare the mesh with its STEP before
 believing it.
 
+**A part that is designed here** (a nest, a tray, a stand — nobody handed
+over CAD for it) is modelled in code: `print/<part>.model.mjs` builds the
+solids with the replicad API (Open CASCADE as WebAssembly: cylinders,
+bores, fillets, booleans) and `node scripts/model-step.mjs
+applications/<name>/print/<part>.model.mjs` writes `print/<part>.step`
+beside it, printing each body's size and volume to check. The model stays
+next to its STEP; change the model and rebuild, never edit the STEP. From
+there it is a print file like any other. Two more tools read exact
+geometry (`scripts/cad-kernel.mjs` is what the three share):
+`scripts/inspect-step.mjs <file.step> [--fit <other.step>]` measures a
+STEP — sizes, bores and bosses, flat faces, and the gap or interference
+between two files as placed — and `scripts/look.mjs <file.step ...|
+applications/<name>> <out.png>` draws a part, or an application's whole
+layout, as four shaded views at one scale, so a design can be looked at
+(an agent opens the PNG with Read). `scripts/poly-step.mjs` is an
+earlier, simpler writer for solids with flat faces only; `dippackage`'s
+generic parts are drawn with it (`print/make-prints.mjs`). New parts
+use `model-step.mjs`.
+
 **A new suction-cup gripper** is built with `scripts/cup-tool.mjs
 <cup.step> <reference gripper folder> <new gripper folder>`: the cup comes from its print file,
 the body (changer half, arm, nozzle) from an existing cup tool, and the
@@ -258,7 +278,8 @@ background with the next message, so it carries on from where it ends. **New** f
 are git-ignored. Every agent
 may read, search and edit files and run `./scripts/check.sh`; `tools:`
 in its header can add only what `EXTRA_TOOLS` in `chat.py` lists (web
-search for the buyer, `step-to-mesh` for the CAD designer). Agents
+search for the buyer; `Bash(node:*)`, the whole geometry pipeline, for
+the CAD designer only). Agents
 cannot see or drive the viewer.
 The endpoints answer only to the page's own origin.
 

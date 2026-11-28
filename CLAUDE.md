@@ -1,9 +1,30 @@
 # sa-demo-nano-cell
 
-A browser-only robot cell: a ROBOT (arm, mount, table, guard, IO) with an
-APPLICATION set up on it (grippers, tool rack, fixtures, parts, steps),
-both as data, plus a three.js viewer that executes steps with IK
-and collision checking. No build step.
+A simulated robot cell that runs on the user's computer: a ROBOT (arm,
+mount, table, guard, IO) with an APPLICATION set up on it (grippers, tool
+rack, fixtures, parts, steps), both as data; a three.js viewer in the
+browser that executes steps with IK and collision checking; and a local
+server behind it for the agents, files and tools. No build step.
+
+## Goal
+
+This project is delivered as an APPLICATION INSTALLED ON THE USER'S
+COMPUTER, not as a hosted page. Installed, it can do what a page alone
+cannot, and it is meant to:
+
+- **run local tools through the terminal** — the agents' CLI, the node
+  scripts of the geometry pipeline (STEP to mesh, modelling), git;
+- **make requests** — to the network (looking up components, saving and
+  sharing applications) and to its own local server.
+
+So the local server (`viewer/serve.py`) is part of the product, not only
+the way to develop it: the chat agents, saving and loading, import and
+export, attachments and building meshes all live behind it. When choosing
+how to build something, it is fine — and often right — to rely on local
+tools, the file system and requests; do not hold a feature back to keep it
+working as a static page. The page stays the interface, and the core that
+has to feel immediate (scene, planning, physics, running steps) stays in
+it, with no build step.
 
 Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
 Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
@@ -31,7 +52,8 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   the table frame, z up, metres); `grippers/<id>/` and `items/<id>/` hold a
   description (`gripper.json` / `item.json`) with its meshes beside it;
   `robots/<robot>.json` what was taught on one robot; `print/` the STEP
-  sources; `notes/` the agents' notes; `materials/` chat attachments.
+  sources (and, for parts designed here, the `<part>.model.mjs` that
+  `scripts/model-step.mjs` builds the STEP from); `notes/` the agents' notes; `materials/` chat attachments.
   An item is described ONCE in `items/` and placed as often as needed in
   the layout — never repeat a mesh, mass or `mesh_source` in a placement.
   It names the robot it is set up on and can be moved to another: keep

@@ -30,8 +30,13 @@ import threading
 
 ALLOWED_TOOLS = ["Read", "Glob", "Grep", "Edit", "Write",
                  "Bash(./scripts/check.sh)", "Bash(./scripts/check.sh:*)"]
-# what an agent's file may add with its `tools:` line — nothing else
-EXTRA_TOOLS = {"WebSearch", "WebFetch", "Bash(node scripts/step-to-mesh.mjs:*)"}
+# what an agent's file may add with its `tools:` line — nothing else.
+# Bash(node:*) is the whole geometry pipeline: the repo's own scripts in
+# scripts/ (model, inspect, look, mesh) and the per-application generators
+# in applications/*/print/. It is running programs on this machine — the
+# installed application is meant to (CLAUDE.md, Goal) — so give it only to
+# the agent whose job needs it: the CAD designer.
+EXTRA_TOOLS = {"WebSearch", "WebFetch", "Bash(node:*)"}
 
 BRIEF = """You are answering from the chat inside the nano-cell viewer, as \
 one of the project's agents: %(name)s. The user is looking at the 3D cell in \

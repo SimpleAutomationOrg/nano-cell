@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A browser-only simulated robot cell: a 6-axis arm, collision-checked motion planning, and steps written in TypeScript — no build step, no physics engine.",
+  "description": "A simulated robot cell that runs on your computer: a 6-axis arm, collision-checked motion planning with physics, steps written in TypeScript, and agents that design and program the work — a browser viewer with a local server behind it, no build step.",
   "scripts": {
     "serve": "python3 viewer/serve.py",
     "test": "node --test",
@@ -14,6 +14,8 @@
     "@mujoco/mujoco": "^4.0.1"
   },
   "devDependencies": {
-    "occt-import-js": "^0.0.23"
+    "occt-import-js": "^0.0.23",
+    "replicad": "^1.2.1",
+    "replicad-opencascadejs": "^1.2.1"
   }
 }

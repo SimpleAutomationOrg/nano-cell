@@ -1,9 +1,11 @@
 # nano-cell
 
-A simulated robot work cell that runs entirely in the browser: a 6-axis
-arm inside a guarded enclosure, collision-checked motion planning, and
-steps written as small TypeScript files. No build step, no physics
-engine, no dependencies to install — one Python server, one page.
+A simulated robot work cell that runs on your computer: a 6-axis arm
+inside a guarded enclosure, collision-checked motion planning with real
+physics, steps written as small TypeScript files, and a chat with agents
+that design, program and cost the work. The viewer is a page in the
+browser; a small local server behind it runs the agents and tools and
+keeps the files. No build step.
 
 ![viewer](docs/viewer.jpg)
 
