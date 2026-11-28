@@ -12,14 +12,64 @@ it holds the same working rules in condensed form.
 ## Install (what to do when the user says "install")
 
 The user's whole request may be one line — `install <this repository's
-URL>`. That is enough: do every step below without asking, and stop only
-where a step says to.
+URL>`. That is enough. There are two things it can mean; unless the user
+asked for the second in words, do the FIRST.
 
-1. Clone the repository and enter it. Where: the folder the user named;
-   otherwise `microfactory` in the current folder if that is a place for
-   projects, else `~/microfactory`. If the folder already holds a clone,
-   `git pull` it instead of cloning again. Run every later step from
-   inside the clone.
+### 1. The page (the default): the user's own Microfactory in Claude
+
+What the user gets: a link to a page in their own Claude account — the
+simulation and an assistant that answers on their account — which asks
+for no access to their computer and needs nothing installed on it. It
+has to be their own copy: on someone else's public link the assistant
+does not answer.
+
+What you need: the **Artifact** tool, `git` and Node 18+ in your session.
+It makes no difference whether the session runs on the user's computer
+or in the cloud; nothing is left running and nothing is put on the
+user's computer. Do every step without asking:
+
+1. `git clone --depth 1 <the URL>` into a folder of your session (a
+   scratch or project folder; if a clone is already there, `git pull`
+   it), and work inside it.
+2. `npm ci --omit=dev --no-audit --no-fund` — one package, MuJoCo, whose
+   compiled physics the page carries. (In a checkout that is also used
+   for development use `npm install` instead: `ci` would remove its
+   other tools.)
+3. `node scripts/build-artifact.mjs --share` — writes `dist/share/` and
+   `dist/share-report.txt`. It refuses a tree that differs from its
+   commit; a fresh clone does not.
+4. Publish it: read `.claude/skills/publish-app/SKILL.md` and follow its
+   section **The shareable edition** from step 3 (Publish). For someone
+   who is not the project's author this is a FIRST publish — a new,
+   private artifact in the user's own account; the ones named in
+   `artifact.json` are the author's and cannot be written to. Record the
+   link in `artifact.local.json` as the skill says.
+5. Tell the user, in a few lines: the link; that it opens in Claude as
+   it is and is private to them; that what they change is kept in the
+   browser they use (Export saves it as a file); that the assistant in
+   its chat asks once to use Claude on their account. And one line on
+   what else exists: served from a clone on their computer, or installed
+   as an app with full access to it, Microfactory also has the CAD
+   pipeline, web lookups and their files on disk — they can ask for
+   that.
+
+Do NOT, for this: check for python, run `./scripts/check.sh`, start
+`viewer/serve.py`, copy the project to the user's computer, or write
+scripts for them to run. If you have no Artifact tool, say so in one
+line — the page is made by Claude Code or the Claude desktop app's Code
+tab, signed in to a Claude account on a paid plan — and offer the second
+kind of install if your session is on the user's computer.
+
+### 2. On the user's computer: for development, or the app with full access
+
+Only when the user asks for it ("install it locally", "for development",
+"the installable app", "with the CAD tools"), and only in a session that
+runs on their computer.
+
+1. Clone the repository (the whole history) and enter it. Where: the
+   folder the user named; otherwise `microfactory` in the current folder
+   if that is a place for projects, else `~/microfactory`. If the folder
+   already holds a clone, `git pull` it. Run every later step inside it.
 2. Check prerequisites: `python3 --version` (3.8+) and Node 18+. If one
    is missing, say which and how to get it, and stop — do not install
    system software yourself.
@@ -34,33 +84,22 @@ where a step says to.
    steps dock under the 3D view — it must end with **step done** in the
    status line: the arm picks a case from the 45° stack and inserts it
    into the holder pocket. If you cannot, ask the user to press it.
-6. Make the user their own Microfactory page in Claude, if you are Claude
-   and have the **Artifact** tool (skip this step otherwise, and say that
-   the browser is the way to use it): read
-   `.claude/skills/publish-app/SKILL.md` in the clone and follow its
-   section **The shareable edition**. This is the edition that asks for
-   NO access to the computer: the simulation and an assistant that
-   answers on the user's own Claude account, all in the page. On a
-   computer that did not publish it before, this makes a NEW private
-   artifact in the user's own account — the ones named in `artifact.json`
-   belong to the project's author and cannot be written to, which the
-   skill handles. Nothing is shared with anyone. It has to be the user's
-   own: on the author's public link the assistant does not answer.
-   Do NOT make the installable app with full access to the computer in
-   this step. It exists (the same skill, its first part) and adds what
-   the page cannot do — the CAD pipeline, web lookups, files on disk —
-   but it is made only when the user asks for it.
+6. If the user asked for the installable app: follow
+   `.claude/skills/publish-app/SKILL.md` from its first step (the
+   installable edition). It makes a new private artifact in the user's
+   own account; the app asks for full access to the computer (it runs
+   the local server, the agent and the geometry tools), which the user
+   allows themselves, in the app's own dialog, when it first starts.
 7. Report to the user, briefly: where the clone is; the viewer's URL and
-   that editing any file hot-reloads the page; the check result; and, if
-   step 6 ran, the page's link — it opens in Claude as it is, nothing to
-   install, and what they change there is kept in that browser (Export
-   saves it as a file). Say in one line that an installed app with full
-   access to the computer can be made too, if they want the CAD tools and
-   their files on disk, and that the assistant in the viewer served from
-   the clone needs the `claude` CLI installed and signed in.
+   that editing any file hot-reloads the page; the check result; if step
+   6 ran, the artifact's link and how to install it (open it in the
+   Claude desktop app → the artifact's menu → **Install as app**; on
+   first start choose the clone as the workspace folder). The chat
+   assistant of this edition needs the `claude` CLI installed and signed
+   in on this computer.
 
-There is no build step. Do not add bundlers, package installs, or
-frameworks during installation.
+There is no build step for the viewer itself. Do not add bundlers,
+package installs, or frameworks during installation.
 
 ## The installable app
 

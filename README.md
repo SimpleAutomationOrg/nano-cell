@@ -11,25 +11,27 @@ keeps the files. No build step.
 
 ## Install
 
-Give Claude Code (or another coding agent) one line:
+Open the **Claude desktop app**, go to its **Code** tab (or use Claude
+Code), and paste one line:
 
 ```
 install https://github.com/SimpleAutomationOrg/nano-cell
 ```
 
-It clones the repository, installs what it needs, checks it, starts the
-viewer in your browser and — in Claude — makes you a Microfactory page of
-your own: the simulation and an assistant, in a page that asks for no
-access to your computer. Needs Python 3.8+, Node 18+ and git.
+Claude builds Microfactory from this repository and publishes it as a
+page in your own Claude account, then gives you the link. The page asks
+for no access to your computer and leaves nothing installed on it: the
+simulation runs in the page, and the assistant in its chat answers on
+your Claude account. It needs a Claude plan with artifacts (Pro or
+above), and `git` and Node 18+ where Claude runs.
 
-There is also an app that installs on your computer with full access to
-it (the CAD pipeline, web lookups, your files on disk): ask the agent for
-"the installable app" after installing.
+Want it on your computer instead — the viewer served locally, the CAD
+pipeline, your files on disk, or the app that installs with full access?
+Ask for that in words: `install <the URL> locally`.
 
 **If you are the agent reading this page**: clone the repository, open
-[AGENTS.md](AGENTS.md) in the clone and follow its section **Install**
-from the first step to the last. Do not improvise the setup from this
-README.
+[AGENTS.md](AGENTS.md) in the clone and follow its section **Install**.
+Do not improvise the setup from this README.
 
 By hand, in a clone:
 
