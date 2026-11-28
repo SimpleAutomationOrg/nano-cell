@@ -113,7 +113,7 @@
   @keyframes workdot { 0%, 70%, 100% { opacity: .25; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
   #chat.working #chatBox { border-color: #35557a; }
   #chat header { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; user-select: none; }
-  #chat header .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #chat header .who { flex: 1; min-width: 0; display: flex; flex-direction: row; align-items: baseline; gap: 5px; white-space: nowrap; overflow: hidden; }
   #chat header b { color: #fff; font-weight: 600; font-size: 13px; }
   #chat header b::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #3b4756; margin-right: 6px; vertical-align: middle; }
   #chat.working header b::before { background: #4da3ff; animation: chatpulse 1s infinite alternate; }
@@ -161,7 +161,8 @@
   #chat form .tip { flex: 1; min-width: 0; color: #55606d; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #chatAttach { flex: none; }
   /* which model answers: a quiet picker beside Send, as in a chat app */
-  #chatModel { flex: none; max-width: 96px; background: transparent; color: #9fb0c0; border: 1px solid transparent; border-radius: 7px; padding: 4px 2px; font-size: 11.5px; cursor: pointer; }
+  #chatModelNow { color: #7d8a99; font-weight: 400; font-size: 11.5px; }
+  #chatModel { flex: none; max-width: 150px; background: transparent; color: #9fb0c0; border: 1px solid transparent; border-radius: 7px; padding: 4px 2px; font-size: 11.5px; cursor: pointer; }
   #chatModel:hover, #chatModel:focus { color: #e8eef4; border-color: #2f3b4a; outline: none; }
   #chatSend { flex: none; background: #1f4f8a; border-color: #2f6cb5; color: #fff; font-weight: 600; }
   #chatSend:hover { background: #2a62a8; }

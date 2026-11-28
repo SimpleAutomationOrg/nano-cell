@@ -31,7 +31,7 @@ STDIO = "--stdio" in sys.argv             # serve a parent process through pipes
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
 SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups", "chats", ".runs", "runs"}
-SKIP_FILES = {".chat-sessions.json", ".server.json"}      # written while an agent works: not a reason to reload
+SKIP_FILES = {".chat-sessions.json", ".server.json", ".chat-models.json"}      # written while an agent works: not a reason to reload
 
 CHATS = Chats(ROOT)
 RUNS = Runs()            # steps the agent asks the open viewer to run (runs.py)

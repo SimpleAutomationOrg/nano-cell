@@ -38,15 +38,144 @@ EXTRA_TOOLS = {"WebSearch", "WebFetch", "Bash(node:*)"}
 AGENT = "assistant"
 
 # The models the chat offers, as the CLI names them (an alias is always the
-# latest model of its family). "" leaves the choice to the CLI's own setting.
-# The page sends an id with each message; only these are passed on.
+# latest model of its family that this Claude Code offers). "" leaves the
+# choice to the CLI's own setting. The page sends an id with each message;
+# only these are passed on. `family` is what is shown until the exact model
+# behind the alias is known (see Models).
 MODELS = [
-    {"id": "", "label": "Default", "note": "the model Claude Code is set to use"},
-    {"id": "fable", "label": "Fable", "note": "most capable, for hard problems"},
-    {"id": "opus", "label": "Opus", "note": "strong at long, careful work"},
-    {"id": "sonnet", "label": "Sonnet", "note": "fast, for everyday tasks"},
-    {"id": "haiku", "label": "Haiku", "note": "fastest, for quick answers"},
+    {"id": "", "family": "Default", "note": "the model Claude Code is set to use"},
+    {"id": "fable", "family": "Fable", "note": "most capable, for hard problems"},
+    {"id": "opus", "family": "Opus", "note": "strong at long, careful work"},
+    {"id": "sonnet", "family": "Sonnet", "note": "fast, for everyday tasks"},
+    {"id": "haiku", "family": "Haiku", "note": "fastest, for quick answers"},
 ]
+
+
+def model_label(model_id):
+    """'claude-haiku-4-5-20251001' -> 'Haiku 4.5'; 'claude-fable-5' -> 'Fable 5';
+    'claude-3-5-sonnet-20241022' -> 'Sonnet 3.5'. A name that does not look
+    like a model's comes back as it is."""
+    core = re.sub(r"\[.*?\]", "", str(model_id or "")).strip()
+    parts = [p for p in core.split("-") if p and p != "claude"]
+    words = [p for p in parts if not p.isdigit()]
+    nums = [p for p in parts if p.isdigit() and len(p) < 6]        # a date (20251001) is not a version
+    if not str(model_id or "").startswith("claude-") or len(words) != 1:
+        return str(model_id or "")
+    return (words[0].capitalize() + " " + ".".join(nums)).strip()
+
+
+class Models:
+    """Which exact model stands behind each alias, on this computer.
+
+    The CLI says which model it runs in the first line it prints, before
+    any answer. So each alias is started once with a one-word message and
+    stopped as soon as that line arrives. The answers are kept in
+    .chat-models.json, for the CLI version they were read from: a new
+    version of Claude Code is asked again."""
+
+    def __init__(self, root):
+        self.path = os.path.join(root, ".chat-models.json")
+        self.lock = threading.Lock()
+        self.known = {}           # alias -> model id
+        self.started = False
+        self.done = False
+
+    def _cli_version(self):
+        try:
+            return subprocess.run([shutil.which("claude"), "--version"], stdin=subprocess.DEVNULL,
+                                  capture_output=True, text=True, timeout=20).stdout.strip()
+        except (OSError, subprocess.SubprocessError, TypeError):
+            return ""
+
+    def _ask(self, alias):
+        cmd = [shutil.which("claude"), "-p", "--output-format", "stream-json", "--verbose"]
+        if alias:
+            cmd += ["--model", alias]
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("CLAUDECODE", "CLAUDE_CODE_ENTRYPOINT", "CLAUDE_CODE_SSE_PORT")}
+        proc = None
+        try:
+            proc = subprocess.Popen(cmd, env=env, text=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            killer = threading.Timer(20, proc.kill)
+            killer.start()
+            proc.stdin.write("ok")
+            proc.stdin.close()
+            for line in proc.stdout:
+                try:
+                    msg = json.loads(line)
+                except ValueError:
+                    continue
+                if msg.get("type") == "system" and msg.get("model"):
+                    return str(msg["model"])
+                if msg.get("type") in ("assistant", "result"):
+                    break
+        except OSError:
+            pass
+        finally:
+            if proc is not None:
+                proc.kill()
+                try:
+                    killer.cancel()
+                except NameError:
+                    pass
+        return None
+
+    def learn(self, alias, model_id):
+        """A real turn said which model it ran on: remember it."""
+        if not model_id or not any(m["id"] == alias for m in MODELS):
+            return
+        with self.lock:
+            if self.known.get(alias) == model_id:
+                return
+            self.known[alias] = model_id
+        self._save()
+
+    def _save(self):
+        try:
+            with open(self.path, "w", encoding="utf-8") as f:
+                json.dump({"cli": getattr(self, "cli", ""), "models": self.known}, f)
+        except OSError:
+            pass
+
+    def _resolve(self):
+        self.cli = self._cli_version()
+        try:
+            with open(self.path, encoding="utf-8") as f:
+                saved = json.load(f)
+            if saved.get("cli") == self.cli and isinstance(saved.get("models"), dict):
+                with self.lock:
+                    self.known = {**saved["models"], **self.known}
+        except (OSError, ValueError):
+            pass
+        todo = [m["id"] for m in MODELS if m["id"] not in self.known]
+
+        def one(alias):
+            got = self._ask(alias)
+            if got:
+                with self.lock:
+                    self.known[alias] = got
+        threads = [threading.Thread(target=one, args=(a,), daemon=True) for a in todo]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        if todo:
+            self._save()
+        self.done = True
+
+    def offer(self):
+        """The list for the page: every option with the model's name and number."""
+        with self.lock:
+            if not self.started and shutil.which("claude"):
+                self.started = True
+                threading.Thread(target=self._resolve, daemon=True).start()
+            known = dict(self.known)
+        out = []
+        for m in MODELS:
+            exact = model_label(known.get(m["id"], ""))
+            label = (f"Default ({exact})" if exact else "Default") if m["id"] == "" else (exact or m["family"])
+            out.append({"id": m["id"], "label": label, "model": exact, "note": m["note"]})
+        return {"models": out, "models_ready": self.done or not shutil.which("claude")}
 
 BRIEF = """You are answering from the chat inside the microfactory viewer: the \
 one assistant of this project. The user is looking at the 3D cell in \
@@ -160,11 +289,12 @@ class Chats:
         self.chats = {}
         self.lock = threading.Lock()
         self.sessions_path = os.path.join(root, ".chat-sessions.json")
+        self.models = Models(root)
 
     def agent(self):
         """What the page needs to draw the chat (no instructions)."""
         a = load_agent(self.root)
-        return {"name": a["name"], "hint": a["hint"], "guides": a["guides"], "models": MODELS}
+        return {"name": a["name"], "hint": a["hint"], "guides": a["guides"], **self.models.offer()}
 
     def get(self, app):
         """The conversation about the application `app` (its folder name), or None if there is none such."""
@@ -179,6 +309,7 @@ class Chats:
                 self.chats[app] = Chat(self.root, store=store, sessions=(self.sessions_path, f"{app}/{AGENT}"))
             chat = self.chats[app]
         chat.agent = load_agent(self.root)
+        chat.learn = self.models.learn
         return chat
 
     def available(self):
@@ -448,6 +579,8 @@ class Chat:
                 continue
             if epoch != self.epoch:
                 continue                      # chat was cleared: drop the rest
+            if msg.get("type") == "system" and msg.get("model") and getattr(self, "learn", None):
+                self.learn(getattr(self, "model", ""), str(msg["model"]))     # which model this option really is
             if msg.get("session_id") and msg["session_id"] != self.session and msg.get("type") != "result":
                 self.session = msg["session_id"]
                 self._save_session()

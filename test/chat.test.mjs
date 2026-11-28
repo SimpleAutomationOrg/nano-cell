@@ -17,10 +17,13 @@ fake = os.path.join(tmp, 'bin', 'claude'); os.makedirs(os.path.dirname(fake))
 open(fake, 'w').write('''#!/usr/bin/env python3
 import json, sys
 a = sys.argv
+if "--version" in a:
+    print("9.9.9 (fake)"); sys.exit(0)
 if "--resume" in a and a[a.index("--resume") + 1] != "live":
     sys.stderr.write("No conversation found with session ID\\\\n"); sys.exit(1)
 p = sys.stdin.read()
-print(json.dumps({"type": "system", "session_id": "live"}))
+which = {"fable": "claude-fable-5", "opus": "claude-opus-4-8", "sonnet": "claude-sonnet-4-6", "haiku": "claude-haiku-4-5-20251001"}
+print(json.dumps({"type": "system", "session_id": "live", "model": which.get(a[a.index("--model") + 1] if "--model" in a else "", "claude-fable-5")}), flush=True)
 m = ("[" + a[a.index("--model") + 1] + "] ") if "--model" in a else ""
 print(json.dumps({"type": "assistant", "session_id": "live", "message": {"content": [{"type": "text", "text": m + ("RESUMED " if "--resume" in a else "FRESH ") + p}]}}))
 print(json.dumps({"type": "result", "is_error": False, "session_id": "live"}))
@@ -108,7 +111,7 @@ print(json.dumps({'fresh': fresh, 'first': first['text'], 'second': second['text
   assert.deepEqual(out.cut, ['user', 'tool', 'error', 'done'], 'a conversation cut off by a restart must say so and end');
   assert.deepEqual(out.cleared, { file: false, events: [], session: null }, 'New forgets the conversation on disk as well');
   assert.deepEqual(out.unknown, [true, true, true], 'an unknown application has no conversation');
-  assert.deepEqual(Object.keys(out.info).sort(), ['guides', 'hint', 'models', 'name'], 'the page is told who answers, never the instructions');
+  assert.deepEqual(Object.keys(out.info).sort(), ['guides', 'hint', 'models', 'models_ready', 'name'], 'the page is told who answers, never the instructions');
 });
 
 test('without a session of its own the agent gets the saved conversation as background — after an import, or when its session is gone', () => {
@@ -161,10 +164,25 @@ def ask(text, model):
         if not c.running(): break
         time.sleep(0.05)
     return [e for e in c.events if e['type'] == 'text'][-1]['text']
-print(json.dumps({'models': chat.Chats(tmp).agent()['models'], 'default': ask('one', ''), 'sonnet': ask('two', 'sonnet'),
-                  'bad': ask('three', 'sonnet; rm -rf'), 'back': ask('four', '')}))`);
+all = chat.Chats(tmp)
+first = all.agent()
+for _ in range(200):
+    offer = all.agent()
+    if offer['models_ready']: break
+    time.sleep(0.05)
+print(json.dumps({'first': first['models'], 'models': offer['models'], 'kept': json.load(open(os.path.join(tmp, '.chat-models.json'))),
+                  'default': ask('one', ''), 'sonnet': ask('two', 'sonnet'),
+                  'bad': ask('three', 'sonnet; rm -rf'), 'back': ask('four', ''),
+                  'names': [chat.model_label(m) for m in ['claude-haiku-4-5-20251001', 'claude-fable-5', 'claude-sonnet-4-6[1m]', 'claude-3-5-sonnet-20241022', 'some-other-name', '']]}))`);
   assert.deepEqual(out.models.map(m => m.id), ['', 'fable', 'opus', 'sonnet', 'haiku']);
   assert.ok(out.models.every(m => m.label && m.note));
+  // before the exact models are known the options carry the family's name; then the model's name and number
+  assert.deepEqual(out.first.map(m => m.label), ['Default', 'Fable', 'Opus', 'Sonnet', 'Haiku']);
+  assert.deepEqual(out.models.map(m => m.label), ['Default (Fable 5)', 'Fable 5', 'Opus 4.8', 'Sonnet 4.6', 'Haiku 4.5']);
+  assert.deepEqual(out.models.map(m => m.model), ['Fable 5', 'Fable 5', 'Opus 4.8', 'Sonnet 4.6', 'Haiku 4.5']);
+  assert.equal(out.kept.cli, '9.9.9 (fake)', 'what was found out is kept for this version of the CLI');
+  assert.equal(out.kept.models.sonnet, 'claude-sonnet-4-6');
+  assert.deepEqual(out.names, ['Haiku 4.5', 'Fable 5', 'Sonnet 4.6', 'Sonnet 3.5', 'some-other-name', '']);
   assert.ok(!out.default.startsWith('['), 'no model chosen: the CLI decides');
   assert.ok(out.sonnet.startsWith('[sonnet] '), out.sonnet.slice(0, 40));
   assert.ok(!out.bad.startsWith('['), 'a model the server does not offer was passed to the CLI');

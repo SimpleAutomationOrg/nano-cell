@@ -17,7 +17,7 @@ const box = document.createElement('div');
 box.id = 'chat';
 box.innerHTML = `
   <div id="chatMain">
-    <header title="show / hide the conversation"><div class="who"><b id="chatName">Assistant</b></div></header>
+    <header title="show / hide the conversation"><div class="who"><b id="chatName">Assistant</b><span id="chatModelNow" title="the model that answers the next message"></span></div></header>
     <div id="chatBody">
       <div id="chatLog"></div>
       <div id="chatWork" hidden><span class="dots"><i></i><i></i><i></i></span><span id="chatWorkText"></span></div>
@@ -234,21 +234,30 @@ box.querySelector('#chatAttach').addEventListener('click', () => picker.click())
 // ---- which model answers: chosen here, remembered on this computer, sent with each message ----
 const MODEL_KEY = 'microfactory.chat.model';
 const modelPick = box.querySelector('#chatModel');
+let offered = [];
+// the header says which model answers: the exact one behind the option chosen
+function showModel() {
+  const m = offered.find(x => x.id === modelPick.value);
+  box.querySelector('#chatModelNow').textContent = m?.model ? `· ${m.model}` : '';
+  modelPick.title = m ? `${m.model || m.label} — ${m.note ?? ''}` : 'the model that answers the next message';
+}
 function offerModels(models) {
   if (!models?.length) return;
+  offered = models;
+  const chosen = modelPick.hidden ? (localStorage.getItem(MODEL_KEY) ?? '') : modelPick.value;
   modelPick.innerHTML = '';
   for (const m of models) {
     const o = document.createElement('option');
     o.value = m.id; o.textContent = m.label; o.title = m.note ?? '';
     modelPick.appendChild(o);
   }
-  const saved = localStorage.getItem(MODEL_KEY) ?? '';
-  modelPick.value = models.some(m => m.id === saved) ? saved : models[0].id;
+  modelPick.value = models.some(m => m.id === chosen) ? chosen : models[0].id;
   modelPick.hidden = false;
+  showModel();
 }
 modelPick.addEventListener('change', () => {
   localStorage.setItem(MODEL_KEY, modelPick.value);
-  modelPick.title = modelPick.selectedOptions[0]?.title || 'the model that answers the next message';
+  showModel();
 });
 picker.addEventListener('change', () => { attach(picker.files); picker.value = ''; });
 input.addEventListener('paste', ev => {
@@ -332,8 +341,18 @@ async function follow() {
 (async () => {
   for (;;) {
     try {
-      const a = await (await fetch('/__chat/agent', { headers: HEAD })).json();
-      if (a && typeof a.name === 'string') { agent = a; offerModels(a.models); break; }
+      let a = await (await fetch('/__chat/agent', { headers: HEAD })).json();
+      if (a && typeof a.name === 'string') {
+        agent = a; offerModels(a.models);
+        // the exact models behind the options are found out in the background: ask again until they are known
+        (async () => {
+          for (let n = 0; n < 15 && !a.models_ready; n++) {
+            await new Promise(res => setTimeout(res, 2000));
+            try { a = await (await fetch('/__chat/agent', { headers: HEAD })).json(); offerModels(a.models); } catch { /* next round */ }
+          }
+        })();
+        break;
+      }
     } catch { /* server not up yet */ }
     await new Promise(res => setTimeout(res, 2000));
   }
