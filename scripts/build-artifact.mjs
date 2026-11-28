@@ -36,7 +36,7 @@ const fail = msg => { console.error(`build-artifact: ${msg}`); process.exit(1); 
 // what the publish call may carry (the Artifact tool's limits)
 const LIMITS = { files: 255, text: 16e6, binary: 15e6, total: 64e6 };
 const TITLE = 'Nano Cell';
-const DESCRIPTION = 'A robot cell on your computer: simulate it, program its steps and work with agents — installs as a desktop app.';
+const DESCRIPTION = 'A robot cell on your computer: simulate it, program its steps and work on it with an assistant — installs as a desktop app.';
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, 'viewer'), { recursive: true });
