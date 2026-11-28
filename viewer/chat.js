@@ -10,7 +10,7 @@
 import { pollFetch } from './poll.js';
 import { splitQuestions, answerText, allAnswered } from './ask.js';
 
-const HEAD = { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/json' };
+const HEAD = { 'X-Microfactory': 'chat', 'Content-Type': 'application/json' };
 
 const box = document.createElement('div');
 box.id = 'chat';
@@ -256,7 +256,7 @@ async function upload(p) {
   const app = document.documentElement.dataset.application;
   if (!app) throw new Error('no application is open');
   const r = await (await fetch(`/__chat/upload?app=${encodeURIComponent(app)}&name=${encodeURIComponent(p.name)}`, {
-    method: 'POST', headers: { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/octet-stream' }, body: p.file,
+    method: 'POST', headers: { 'X-Microfactory': 'chat', 'Content-Type': 'application/octet-stream' }, body: p.file,
   })).json();
   if (r.error) throw new Error(`${p.name}: ${r.error}`);
   return r.path;

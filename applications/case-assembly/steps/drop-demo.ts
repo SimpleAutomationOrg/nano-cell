@@ -5,7 +5,7 @@
 // of a degree off-square; the settle squares the case up as it goes in,
 // the way the chamfers guide a real one.
 
-import type { CellAPI, Ctx, Entry } from 'nano-cell';
+import type { CellAPI, Ctx, Entry } from 'microfactory';
 
 // what the viewer's step list shows, and the gripper the step works with
 export const name = 'Drop demo: gravity places the case';

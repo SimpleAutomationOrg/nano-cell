@@ -117,7 +117,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         ours = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
         origin = self.headers.get("Origin")
         return (self.headers.get("Host") in ours
-                and self.headers.get("X-Nano-Cell") == "chat"
+                and self.headers.get("X-Microfactory") == "chat"
                 and (origin is None or origin.split("://", 1)[-1] in ours))
 
     def _json(self, obj, code=200):

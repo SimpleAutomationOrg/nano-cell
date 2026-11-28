@@ -10,7 +10,7 @@ What you work with:
 
 - `applications/<application>/steps/<name>.ts` — one file per step: it
   exports `name`, `tool`, `entry` and the default async function, and
-  imports the cell API as `from 'nano-cell'`.
+  imports the cell API as `from 'microfactory'`.
 - `"loop"` in `applications/<application>/application.json` — the
   application's loop: the steps of one cycle, in order. A step in the loop
   starts where the one before it left the arm and the parts, not at its

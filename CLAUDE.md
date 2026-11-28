@@ -1,4 +1,4 @@
-# sa-demo-nano-cell
+# microfactory
 
 A simulated robot cell that runs on the user's computer: a ROBOT (arm,
 mount, table, guard, IO) with an APPLICATION set up on it (grippers, tool
@@ -31,9 +31,15 @@ The installable form is a Claude artifact with the `desktop` capability
 step, the project skill **`/publish-app`**
 (`.claude/skills/publish-app/SKILL.md`): check, `node
 scripts/build-artifact.mjs`, publish — a new version of the artifact named
-in `artifact.json`. The artifact carries the page only; the installed app
-works on a workspace folder (a checkout of this repository) through
-`viewer/desktop.js` and `python3 viewer/serve.py --stdio`. Details:
+in `artifact.json`. The app is self-contained: besides the page it carries a
+PACK of the files a workspace is made of (the local programs, the guides,
+the robot, the starter application named in `artifact.json`), and makes
+the workspace folder from it on first start — nobody needs access to the
+repository. Only tracked files go in, meshes only when every byte is
+accounted for as geometry (`scripts/mesh-check.mjs`), never attachments,
+conversations or uncommitted CAD. A checkout of this repository works as
+a workspace too. The page reaches the folder through `viewer/desktop.js`
+and `python3 viewer/serve.py --stdio`. Details:
 AGENTS.md, "The installable app".
 
 Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
@@ -80,7 +86,7 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   Format details: AGENTS.md, "The application folder".
 - `applications/<name>/steps/<step>.ts` — a step is ONE file: it exports
   `name`, `tool`, `entry` and the default async function, and imports the
-  cell API as `from 'nano-cell'` (never by a relative path).
+  cell API as `from 'microfactory'` (never by a relative path).
 - `guides/` — the chat has ONE agent (`guides/agent.md`: who it is, how it
   works) and a guide for each kind of work it does (`planning.md`,
   `geometry.md`, `steps.md`, `buying.md`, `costing.md`), which it reads

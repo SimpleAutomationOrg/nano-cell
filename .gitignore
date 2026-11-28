@@ -18,4 +18,4 @@ applications/*/chats/
 .chat-sessions.json
 
 # scratch output of the artifact build test
-dist-test-*/
+dist-test-*

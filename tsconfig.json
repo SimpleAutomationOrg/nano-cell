@@ -8,7 +8,7 @@
     "skipLibCheck": true,
     "allowJs": true,
     "baseUrl": ".",
-    "paths": { "nano-cell": ["viewer/cell.d.ts"] }
+    "paths": { "microfactory": ["viewer/cell.d.ts"] }
   },
   "include": ["applications/*/steps/*.ts", "viewer/*.d.ts", "viewer/*.js"]
 }

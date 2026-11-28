@@ -1,6 +1,6 @@
 // The entry point of the INSTALLED APP.
 //
-// nano-cell is published as an artifact with the `desktop` capability
+// microfactory is published as an artifact with the `desktop` capability
 // (scripts/build-artifact.mjs, the /publish-app step) and installed from
 // the Claude desktop app with "Install as app". There the page gets the
 // person's files, child processes and a terminal — and no network access
@@ -8,10 +8,10 @@
 // app.js and chat.js, does three things before handing over to them:
 //
 //  1. finds the WORKSPACE: the folder on disk that holds the engine and
-//     the applications (a checkout of this repository) — or makes one, by
-//     downloading the repository into a folder the person names. Nothing
-//     of the project is inside the artifact but the page's own code — the
-//     cell, the applications, the CAD and the conversations stay on disk;
+//     the applications — or makes one in a folder the person names, from
+//     the pack of files the app carries (workspace-install.js), and brings
+//     it up to date when the app itself is newer. A checkout of the
+//     repository works as a workspace too, and is left as it is;
 //  2. starts the engine there (`python3 viewer/serve.py --stdio`) and
 //     turns every request the page makes into a message through its pipes
 //     — so the viewer and the chat run exactly as they do in a browser;
@@ -19,9 +19,10 @@
 //
 // In a browser, served by serve.py, this file is not loaded at all.
 
-import { startEngine, engineFetch, absolutePath, setupSteps } from './desktop-bridge.js';
+import { startEngine, engineFetch, absolutePath, chmodCommand, toolsCommand } from './desktop-bridge.js';
+import { installWorkspace, readMarker } from './workspace-install.js';
 
-const WS_KEY = 'nano.workspace';
+const WS_KEY = 'microfactory.workspace';
 const ui = document.createElement('div');
 ui.id = 'setup';
 ui.innerHTML = `
@@ -112,14 +113,14 @@ async function main() {
     const state = await desktop?.install?.state().catch(() => 'unavailable') ?? 'unavailable';
     if (state === 'available') {
       for (;;) {
-        await screen('Nano Cell', ['This page is the Nano Cell application. Install it to run it: it works with the files and tools on this computer.'], { buttons: ['Install as app'] });
+        await screen('Microfactory', ['This page is the Microfactory application. Install it to run it: it works with the files and tools on this computer.'], { buttons: ['Install as app'] });
         // (asked straight from the click above)
         const r = await desktop.install.request().catch(() => 'failed');
-        if (r === 'installed') { busy('Nano Cell', 'Installing — open Nano Cell from your applications when it is ready.'); return; }
+        if (r === 'installed') { busy('Microfactory', 'Installing — open Microfactory from your applications when it is ready.'); return; }
       }
     }
-    busy('Nano Cell', state === 'installed'
-      ? 'Nano Cell is installed on this computer: open it from your applications.'
+    busy('Microfactory', state === 'installed'
+      ? 'Microfactory is installed on this computer: open it from your applications.'
       : 'This page works only as its desktop app, which can be installed from the Claude desktop app (open this artifact there and choose "Install as app").');
     return;
   }
@@ -132,22 +133,22 @@ async function main() {
     const access = await desktop.permissions.state('full-access').catch(() => 'unavailable');
     if (access === 'granted') break;
     if (access === 'prompt') {
-      await screen('Nano Cell needs this computer', [
-        'This window is only the screen. The work is done by programs on this computer, in one folder: saving your applications, running the assistant, converting CAD files. Nano Cell needs access to read and write that folder and to run those programs.',
+      await screen('Microfactory needs this computer', [
+        'This window is only the screen. The work is done by programs on this computer, in one folder: saving your applications, running the assistant, converting CAD files. Microfactory needs access to read and write that folder and to run those programs.',
       ], { buttons: ['Continue'] });
       await desktop.permissions.request(['full-access']).catch(() => {});
     } else if (access === 'denied') {
-      await screen('Nano Cell cannot work without access', ['Access to files and programs was refused. Turn it on in the app\'s permissions to continue.'], { buttons: ['Open permissions'] });
+      await screen('Microfactory cannot work without access', ['Access to files and programs was refused. Turn it on in the app\'s permissions to continue.'], { buttons: ['Open permissions'] });
       await desktop.permissions.manage().catch(() => {});
     } else {
-      await screen('Nano Cell cannot get access here', ['Access to files and programs is not available in this window (it is allowed only for an artifact of your own organization, in its installed app). Try again once that is sorted.'], { buttons: ['Try again'] });
+      await screen('Microfactory cannot get access here', ['Access to files and programs is not available in this window (it is allowed only for an artifact of your own organization, in its installed app). Try again once that is sorted.'], { buttons: ['Try again'] });
     }
   }
 
   const platform = await desktop.os.platform().catch(() => 'darwin');
   const home = await desktop.os.homedir().catch(() => '~');
-  const source = window.NANO_BUILD?.source ?? '';
   const isWorkspace = async dir => !!dir && await desktop.fs.exists(`${dir}/viewer/serve.py`).catch(() => false);
+  const realFetch = window.fetch.bind(window);
 
   // ---- the workspace, then the engine in it ----
   // look under the home folder for workspaces (a folder with viewer/serve.py and the viewer's code)
@@ -161,35 +162,62 @@ async function main() {
     for (const d of dirs) if (await desktop.fs.exists(`${d}/viewer/cell-data.js`).catch(() => false)) ours.push(d);
     return ours;
   };
-  // put a new workspace into `dir`; resolves with '' or with what went wrong
+  // the pack of files a workspace is made of, carried by the app itself
+  let pack = null;
+  const loadPack = async () => pack ??= await (await realFetch(new URL('./ws/files.json', document.baseURI))).json();
+  const run = async command => {
+    const r = await desktop.childProcess.exec(command, { timeout: 900000 }).catch(e => ({ code: 1, stderr: String(e?.message ?? e), stdout: '' }));
+    return r.code === 0 ? '' : (`${r.stderr}\n${r.stdout}`.trim().split('\n').slice(-12).join('\n') || 'it failed without saying why');
+  };
+  // write the pack into `dir` (a new workspace, or one this app made earlier) and finish it;
+  // resolves with {} or with what went wrong
+  const install = async (dir, title) => {
+    try {
+      const r = await installWorkspace({
+        fs: desktop.fs, dir, pack: await loadPack(),
+        load: async e => new Uint8Array(await (await realFetch(new URL('./' + e.bin, document.baseURI))).arrayBuffer()),
+        say: progress => busy(title, `Writing Microfactory's files into ${dir} — ${progress} …`),
+      });
+      if (r.upToDate) return {};
+      if (r.exec.length) await run(chmodCommand(dir, r.exec));
+      if (r.tools) {
+        busy(title, 'Installing the tools it uses — a minute or two …');
+        const failed = await run(toolsCommand(dir));
+        if (failed) {
+          const hint = /command not found/.test(failed) ? 'Node.js is missing on this computer: install it (nodejs.org), then press Open.' : 'The detail below says what went wrong.';
+          return { problem: `The files are in “${dir}”, but the tools could not be installed. ${hint}`, detail: failed };
+        }
+      }
+      if (r.kept.length) console.info('kept as you changed them:', r.kept);
+      return { kept: r.kept };
+    } catch (e) {
+      return { problem: `The workspace could not be written into “${dir}”.`, detail: String(e?.message ?? e) };
+    }
+  };
   const createWorkspace = async dir => {
     if (platform === 'win32') return { problem: 'Making a workspace is not supported on Windows yet.' };
-    if (!source) return { problem: 'This build does not know where to download Nano Cell from.' };
     if (await desktop.fs.exists(dir).catch(() => false)) {
       const entries = await desktop.fs.readdir(dir).catch(() => null);
       if (!entries) return { problem: `“${dir}” is not a folder.` };
-      if (entries.some(e => (e.name ?? e) !== '.DS_Store')) return { problem: `“${dir}” already has other things in it. Choose a new or empty folder for the workspace.` };
+      if (entries.some(e => e.name !== '.DS_Store')) return { problem: `“${dir}” already has other things in it. Choose a new or empty folder for the workspace.` };
     }
-    for (const step of setupSteps(source, dir)) {
-      busy('Making the workspace', `${step.say}  (${dir})`);
-      const r = await desktop.childProcess.exec(step.command, { timeout: 900000 }).catch(e => ({ code: 1, stderr: String(e?.message ?? e), stdout: '' }));
-      if (r.code !== 0) {
-        const out = `${r.stderr}\n${r.stdout}`.trim().split('\n').slice(-12).join('\n');
-        const hint = /command not found/.test(out) ? 'A program it needs is missing on this computer: git, and node (with npm), must be installed.'
-          : /Authentication|could not read Username|Repository not found|403|denied/i.test(out) ? 'This computer has no access to the Nano Cell repository: sign in to GitHub in git with an account that was given access, then try again.'
-          : 'The detail below says what went wrong.';
-        return { problem: `The workspace could not be made in “${dir}”. ${hint}`, detail: out };
-      }
-    }
-    return {};
+    return install(dir, 'Making the workspace');
   };
   let workspace = localStorage.getItem(WS_KEY) ?? '';
-  let problem = '', detail = '', found = null, checked = false;
+  let problem = '', detail = '', found = null, checked = false, kept = [];
   for (;;) {
     if (workspace && !checked) {
       checked = true;
       if (await isWorkspace(workspace)) {
-        busy('Nano Cell', `Starting in ${workspace} …`);
+        // a workspace this app made is brought up to date with the app; a checkout is left alone
+        if (platform !== 'win32' && await readMarker(desktop.fs, workspace)) {
+          const up = await install(workspace, 'Updating Microfactory');
+          if (up.problem) { problem = up.problem; detail = up.detail ?? ''; }
+          else if (up.kept?.length) kept = up.kept;
+        }
+      }
+      if (problem) { /* shown below */ } else if (await isWorkspace(workspace)) {
+        busy('Microfactory', `Starting in ${workspace} …`);
         const engine = startEngine(desktop.childProcess.spawn, workspace, platform);
         try {
           await Promise.race([engine.ready, new Promise((_, rej) => setTimeout(() => rej(new Error('no answer within 30 s')), 30000))]);
@@ -198,25 +226,25 @@ async function main() {
           window.fetch = engineFetch(engine, window.fetch.bind(window), { pageUrl: document.baseURI });
           break;
         } catch (e) {
-          problem = `Nano Cell's local programs did not start in ${workspace}.`;
+          problem = `Microfactory's local programs did not start in ${workspace}.`;
           detail = `${e.message}\n${engine.errors()}`.trim() + '\n\nThey need python3 and node on this computer, and `npm install` run once in the folder.';
         }
       } else {
         const there = await desktop.fs.exists(workspace).catch(() => false);
         problem = there
-          ? `“${workspace}” exists, but it is not a Nano Cell workspace. Press Create new to make one there (if the folder is empty), or type another folder.`
+          ? `“${workspace}” exists, but it is not a Microfactory workspace. Press Create new to make one there (if the folder is empty), or type another folder.`
           : `There is no folder “${workspace}” yet. Press Create new to make a workspace there.`;
       }
     }
-    const r = await screen('Where should Nano Cell work?', [
-      'Nano Cell keeps everything in one folder on this computer, its workspace: your applications, and the programs this window runs for you (saving files, the assistant, the CAD tools).',
-      'First time here? Type where the folder should be and press Create new — Nano Cell is downloaded into it.',
+    const r = await screen('Where should Microfactory work?', [
+      'Microfactory keeps everything in one folder on this computer, its workspace: your applications, and the programs this window runs for you (saving files, the assistant, the CAD tools).',
+      'First time here? Type where the folder should be and press Create new.',
       'Already have one? Type its path and press Open, or press Find it.',
       ...(found ? [found.length ? 'Found — pick one:' : 'No workspace was found under your home folder. Press Create new to make one.'] : []),
-    ], { field: { value: workspace || '~/nano-cell', placeholder: '~/nano-cell' }, buttons: ['Find it', 'Create new', 'Open'], warn: problem, detail, choices: found });
+    ], { field: { value: workspace || '~/microfactory', placeholder: '~/microfactory' }, buttons: ['Find it', 'Create new', 'Open'], warn: problem, detail, choices: found });
     problem = ''; detail = '';
     if (r.button === 'Find it') {
-      busy('Nano Cell', 'Looking for a workspace under your home folder …');
+      busy('Microfactory', 'Looking for a workspace under your home folder …');
       found = await findWorkspaces();
       if (found.length === 1) { workspace = found[0]; found = null; checked = false; }
       continue;
@@ -232,8 +260,9 @@ async function main() {
   }
 
   // ---- what the viewer needs to know, then the viewer itself ----
-  window.nanoDesktop = {
+  window.microfactoryDesktop = {
     workspace,
+    keptFiles: kept,          // files of the workspace the person changed, which an update of the app left as they are
     // a file for the person: into Downloads, then shown there
     async saveFile(name, blob) {
       const path = `~/Downloads/${name}`;
@@ -247,7 +276,7 @@ async function main() {
     { role: 'editMenu' },                       // keeps copy, cut and paste working
     { label: 'Workspace', submenu: [
       { label: 'Show in Finder', click: () => desktop.shell.openPath(workspace).catch(() => {}) },
-      { label: 'Choose Another Folder…', click: () => window.nanoDesktop.changeWorkspace() },
+      { label: 'Choose Another Folder…', click: () => window.microfactoryDesktop.changeWorkspace() },
       { type: 'separator' },
       { label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => location.reload() },
     ] },
@@ -260,5 +289,5 @@ async function main() {
 
 main().catch(e => {
   console.error(e);
-  screen('Nano Cell could not start', ['Something failed while starting. The detail below says what.'], { detail: String(e?.stack ?? e) });
+  screen('Microfactory could not start', ['Something failed while starting. The detail below says what.'], { detail: String(e?.stack ?? e) });
 });

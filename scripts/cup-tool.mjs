@@ -70,7 +70,7 @@ function writeGlb(path, prims, name) {
     primitives.push({ attributes: { POSITION: ap, NORMAL: an }, indices: ai, material: mi, mode: 4 });
   }
   const bin = Buffer.concat(chunks);
-  const json = { asset: { version: '2.0', generator: 'nano-cell cup-tool' }, scene: 0, scenes: [{ nodes: [0] }],
+  const json = { asset: { version: '2.0', generator: 'microfactory cup-tool' }, scene: 0, scenes: [{ nodes: [0] }],
     nodes: [{ name, mesh: 0 }], materials, meshes: [{ primitives }], buffers: [{ byteLength: bin.length }], bufferViews: views, accessors };
   const pad = (b, fill) => Buffer.concat([b, Buffer.alloc((4 - b.length % 4) % 4, fill)]);
   const jb = pad(Buffer.from(JSON.stringify(json)), 0x20), bb = pad(bin, 0);

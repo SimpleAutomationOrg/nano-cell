@@ -37,7 +37,7 @@ EXTRA_TOOLS = {"WebSearch", "WebFetch", "Bash(node:*)"}
 # the one agent's conversation is kept under this name (chats/<AGENT>.json)
 AGENT = "assistant"
 
-BRIEF = """You are answering from the chat inside the nano-cell viewer: the \
+BRIEF = """You are answering from the chat inside the microfactory viewer: the \
 one assistant of this project. The user is looking at the 3D cell in \
 their browser while they talk to you; the page reloads by itself whenever \
 you save a file. Follow the rules in CLAUDE.md and AGENTS.md. You cannot see \

@@ -11,7 +11,9 @@ import { readFileSync, existsSync, mkdtempSync, rmSync, readdirSync, statSync } 
 import { tmpdir, homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startEngine, engineFetch, repoPath, toBase64, fromBase64, absolutePath, setupSteps } from '../viewer/desktop-bridge.js';
+import * as nodeFs from 'node:fs/promises';
+import { installWorkspace, MARKER } from '../viewer/workspace-install.js';
+import { startEngine, engineFetch, repoPath, toBase64, fromBase64, absolutePath, chmodCommand, toolsCommand } from '../viewer/desktop-bridge.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -79,9 +81,9 @@ test('the page talks to the real engine through its pipes: files, the API, binar
 
     // the chat's endpoints need its header, as in a browser
     assert.equal((await fetch2('/__chat/agent')).status, 403);
-    const agent = await (await fetch2('/__chat/agent', { headers: { 'X-Nano-Cell': 'chat' } })).json();
+    const agent = await (await fetch2('/__chat/agent', { headers: { 'X-Microfactory': 'chat' } })).json();
     assert.ok(agent.name && agent.hint);
-    const bad = await fetch2('/__loop/save', { method: 'POST', headers: { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/json' }, body: JSON.stringify({ app: 'no-such-app', steps: [] }) });
+    const bad = await fetch2('/__loop/save', { method: 'POST', headers: { 'X-Microfactory': 'chat', 'Content-Type': 'application/json' }, body: JSON.stringify({ app: 'no-such-app', steps: [] }) });
     assert.equal(bad.status, 400, 'a POST with a body reaches the engine');
     assert.equal((await fetch2('/no/such/file.json')).status, 404);
 
@@ -116,7 +118,19 @@ test('an engine that cannot start says why, and requests then fail with that ins
   } finally { rmSync(dir, { recursive: true, force: true }); for (const k of kids) k.kill(); }
 });
 
-test('the build puts the page and its code in the artifact — and nothing of the project', () => {
+// The build and the pack are made from the repository (git says what is
+// tracked): in a workspace the app installed there is nothing to build.
+const CHECKOUT = existsSync(join(ROOT, '.git'));
+
+// node's fs in the shape the desktop API gives one
+const desktopFs = {
+  exists: async p => existsSync(p),
+  readFile: async (p, enc) => (enc ? nodeFs.readFile(p, enc) : new Uint8Array(await nodeFs.readFile(p))),
+  writeFile: (p, data) => nodeFs.writeFile(p, data),
+  mkdir: (p, o) => nodeFs.mkdir(p, o),
+};
+
+test('the build puts the page and a workspace pack in the artifact — tracked files of the starter only, meshes that are geometry and nothing else', { skip: !CHECKOUT }, () => {
   const out = mkdtempSync(join(ROOT, 'dist-test-'));
   try {
     const rel = out.slice(ROOT.length);
@@ -124,7 +138,7 @@ test('the build puts the page and its code in the artifact — and nothing of th
     assert.match(said, /the page \+ \d+ files/);
     const page = readFileSync(join(out, 'index.html'), 'utf8');
     // the Artifact tool wraps the page itself: no document tags of our own, the title first
-    assert.ok(page.startsWith('<title>Nano Cell</title>'), 'the title comes first');
+    assert.ok(page.startsWith('<title>Microfactory</title>'), 'the title comes first');
     assert.ok(!/<!doctype|<html|<head|<body/i.test(page), 'the page must not carry its own document tags');
     assert.match(page, /<script type="application\/json" id="claude-artifacts-manifest">\{"permissions": \["full-access"\]\}<\/script>/, 'the desktop manifest');
     assert.ok(page.indexOf('type="importmap"') < page.indexOf('type="module"'), 'the import map must come before the first module');
@@ -133,22 +147,119 @@ test('the build puts the page and its code in the artifact — and nothing of th
     // what the publish call carries
     const publish = JSON.parse(readFileSync(join(out, 'publish.json'), 'utf8'));
     assert.deepEqual(publish.capabilities, { desktop: {} });
-    assert.equal(publish.title, 'Nano Cell');
+    assert.equal(publish.title, 'Microfactory');
     const names = Object.keys(publish.files).sort();
-    assert.ok(names.includes('viewer/desktop.js') && names.includes('viewer/app.js') && names.includes('viewer/desktop-bridge.js'));
+    assert.ok(names.includes('viewer/desktop.js') && names.includes('viewer/app.js') && names.includes('ws/files.json'));
     for (const [name, from] of Object.entries(publish.files)) {
-      assert.match(name, /^viewer\/[\w.-]+\.js$/, `${name} is not page code written here`);
-      assert.ok(existsSync(join(ROOT, from)), `${from} was not built`);
+      assert.match(name, /^(viewer\/[\w.-]+\.js|ws\/files\.json|ws\/b\/\d+\.bin)$/, `${name} is not something the app carries`);
+      assert.ok(existsSync(join(ROOT, from.from ?? from)), `${name} was not built`);
     }
-    // nothing of the project or of this machine: no cell, no applications, no agents, no engine, no paths
+    // the pack: only what git tracks, only the starter application, nothing local
+    const pack = JSON.parse(readFileSync(join(out, 'ws/files.json'), 'utf8'));
+    const tracked = new Set(execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' }).split('\n'));
+    const starter = JSON.parse(readFileSync(join(ROOT, 'artifact.json'), 'utf8')).starter;
+    for (const f of pack.files) {
+      assert.ok(tracked.has(f.path), `${f.path} is not tracked`);
+      assert.ok(!/(^|\/)(materials|chats|print|\.backups|\.claude|node_modules)\//.test(f.path) && !/\.(step|stp|wasm)$/i.test(f.path), `${f.path} must not be given away`);
+      if (f.path.startsWith('applications/')) assert.ok(starter.includes(f.path.split('/')[1]), `${f.path}: not a starter application`);
+      assert.ok(('text' in f) !== ('bin' in f), f.path);
+      if (f.text) assert.ok(!f.text.includes(homedir()), `${f.path} names this computer's home folder`);
+    }
+    for (const need of ['viewer/serve.py', 'viewer/chat.py', 'guides/agent.md', 'cell_fr3/robot.json', 'cell_fr3/arm/meshes/base_link.glb', 'package.json', 'scripts/check.sh', 'applications/case-assembly/application.json'])
+      assert.ok(pack.files.some(f => f.path === need), `${need} is missing from the pack`);
+    assert.ok(pack.files.find(f => f.path === 'scripts/check.sh').exec, 'check.sh must stay runnable');
     const all = [];
     const walk = d => { for (const e of readdirSync(d, { withFileTypes: true })) e.isDirectory() ? walk(join(d, e.name)) : all.push(join(d, e.name)); };
     walk(out);
-    assert.ok(all.every(f => !/\.(py|glb|stl|step|md|ts|wasm)$/i.test(f)), 'engine code, meshes, CAD, notes or third-party binaries got into the artifact');
-    for (const f of all.filter(f => /\.(js|html|json)$/.test(f))) assert.ok(!readFileSync(f, 'utf8').includes(homedir()), `${f} names this computer's home folder`);
     const total = all.reduce((s, f) => s + statSync(f).size, 0);
     assert.ok(total < 64e6 && all.length <= 255, 'over the publish limits');
-  } finally { rmSync(out, { recursive: true, force: true }); }
+  } finally { rmSync(out, { recursive: true, force: true }); rmSync(out + '-report.txt', { force: true }); }
+});
+
+test('a mesh with anything but geometry in it is refused; cleaning a GLB keeps its shape', async () => {
+  const { checkGlb, checkStl } = await import('../scripts/mesh-check.mjs');
+  const { cleanGlb } = await import('../scripts/clean-mesh.mjs');
+  const glb = new Uint8Array(readFileSync(join(ROOT, 'cell_fr3/arm/meshes/base_link.glb')));
+  const ok = checkGlb(glb);
+  assert.ok(ok.triangles > 100);
+  // the same file with a note slipped into it
+  const n = new DataView(glb.buffer).getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + n)));
+  json.meshes[0].extras = { note: 'hello' }; json.nodes[0].name = 'secret part';
+  const text = new TextEncoder().encode(JSON.stringify(json) + '   '.slice(0, (4 - JSON.stringify(json).length % 4) % 4));
+  const noted = new Uint8Array(20 + text.length + glb.length - 20 - n);
+  noted.set(glb.subarray(0, 20)); noted.set(text, 20); noted.set(glb.subarray(20 + n), 20 + text.length);
+  const dv = new DataView(noted.buffer); dv.setUint32(8, noted.length, true); dv.setUint32(12, text.length, true);
+  assert.throws(() => checkGlb(noted), /extras/);
+  const cleaned = checkGlb(cleanGlb(noted));
+  assert.deepEqual([cleaned.triangles, cleaned.bounds, cleaned.text], [ok.triangles, ok.bounds, ['microfactory']]);
+  // bytes after the end, and an STL with bytes attached to a triangle
+  const longer = new Uint8Array(glb.length + 4); longer.set(glb);
+  assert.throws(() => checkGlb(longer));
+  const stl = new Uint8Array(readFileSync(join(ROOT, 'cell_fr3/meshes/adapter.collision.stl')));
+  assert.ok(checkStl(stl).triangles > 10);
+  const marked = stl.slice(); marked[84 + 48] = 7;
+  assert.throws(() => checkStl(marked), /extra bytes/);
+});
+
+test('the app makes its workspace from the pack, the engine starts in it, and an update keeps what the person changed', { skip: !CHECKOUT }, async () => {
+  const out = mkdtempSync(join(ROOT, 'dist-test-'));
+  const tmp = mkdtempSync(join(tmpdir(), 'mf-ws-'));
+  try {
+    execFileSync('node', ['scripts/build-artifact.mjs', '--out', out.slice(ROOT.length)], { cwd: ROOT, encoding: 'utf8' });
+    const pack = JSON.parse(readFileSync(join(out, 'ws/files.json'), 'utf8'));
+    const load = async e => new Uint8Array(readFileSync(join(out, e.bin)));
+    const dir = join(tmp, "my cell's place");
+    const first = await installWorkspace({ fs: desktopFs, load, dir, pack });
+    assert.ok(first.fresh && first.tools && first.written.length === pack.files.length);
+    assert.deepEqual(first.exec, ['scripts/check.sh']);
+    // every file arrived as it is in the repository
+    for (const f of pack.files) assert.ok(readFileSync(join(dir, f.path)).equals(readFileSync(join(ROOT, f.path))), f.path);
+    execFileSync('/bin/sh', ['-c', chmodCommand(dir, first.exec)]);
+    assert.ok(statSync(join(dir, 'scripts/check.sh')).mode & 0o100);
+    assert.match(toolsCommand(dir), /npm install/);
+
+    // the engine runs there and serves the starter application
+    const engine = startEngine(desktopSpawn, dir, process.platform);
+    await engine.ready;
+    const fetchIt = engineFetch(engine, fetch, { pageUrl: 'https://abc.example/' });
+    const apps = await (await fetchIt('/__applications')).json();
+    assert.deepEqual(apps.map(a => a.id), ['case-assembly']);
+    assert.equal((await fetchIt('../cell_fr3/arm/meshes/base_link.glb')).status, 200);
+    engine.stop?.();
+
+    // the same version again: nothing to do
+    assert.ok((await installWorkspace({ fs: desktopFs, load, dir, pack })).upToDate);
+
+    // a newer app: one guide and one program changed, a file added. The person had edited the guide
+    // of buying, made an application of their own, and deleted nothing.
+    await nodeFs.writeFile(join(dir, 'guides/buying.md'), 'my own way of buying\n');
+    await nodeFs.mkdir(join(dir, 'applications/mine'), { recursive: true });
+    await nodeFs.writeFile(join(dir, 'applications/mine/application.json'), '{}');
+    const enc = new TextEncoder();
+    const { sha256 } = await import('../viewer/workspace-install.js');
+    const change = async (f, text) => ({ ...f, text, sha: await sha256(enc.encode(text)) });
+    const next = { version: 'next', files: await Promise.all(pack.files.map(f =>
+      f.path === 'guides/buying.md' ? change(f, 'the new guide of buying\n')
+        : f.path === 'viewer/serve.py' ? change(f, f.text + '\n# newer\n') : f)) };
+    next.files.push(await change({ path: 'guides/welding.md' }, 'a new guide\n'));
+    const up = await installWorkspace({ fs: desktopFs, load, dir, pack: next });
+    assert.deepEqual(up.written.sort(), ['guides/welding.md', 'viewer/serve.py']);
+    assert.deepEqual(up.kept, ['guides/buying.md']);
+    assert.ok(!up.tools, 'the tools did not change');
+    assert.equal(readFileSync(join(dir, 'guides/buying.md'), 'utf8'), 'my own way of buying\n');
+    assert.ok(readFileSync(join(dir, 'viewer/serve.py'), 'utf8').endsWith('# newer\n'));
+    assert.ok(existsSync(join(dir, 'applications/mine/application.json')));
+    assert.equal(JSON.parse(readFileSync(join(dir, MARKER), 'utf8')).version, 'next');
+
+    // the starter application, deleted by the person, is not brought back by the next update
+    rmSync(join(dir, 'applications/case-assembly'), { recursive: true });
+    const later = await installWorkspace({ fs: desktopFs, load, dir, pack: { ...next, version: 'later' } });
+    assert.ok(!existsSync(join(dir, 'applications/case-assembly')) && later.written.length === 0);
+  } finally {
+    for (const k of kids) k.kill();
+    rmSync(out, { recursive: true, force: true }); rmSync(out + '-report.txt', { force: true }); rmSync(tmp, { recursive: true, force: true });
+  }
 });
 
 test('the viewer opens no browser dialogs: they do nothing in the installed app', () => {
@@ -158,21 +269,9 @@ test('the viewer opens no browser dialogs: they do nothing in the installed app'
   }
 });
 
-test('a workspace is made where there is none: the typed path becomes absolute, and the download puts the engine there', () => {
+test('the folder the person types becomes an absolute path', () => {
   assert.equal(absolutePath('~/microfactory', '/Users/x'), '/Users/x/microfactory');
   assert.equal(absolutePath('~', '/Users/x/'), '/Users/x');
   assert.equal(absolutePath('work/cell/', '/Users/x'), '/Users/x/work/cell');
   assert.equal(absolutePath('/opt/cell//', '/Users/x'), '/opt/cell');
-
-  // the real first step, from this checkout standing in for the remote, into a folder with a space and a quote in its name
-  const tmp = mkdtempSync(join(tmpdir(), 'nano-ws-'));
-  try {
-    const dir = join(tmp, "my cell's place");
-    const steps = setupSteps('file://' + ROOT.replace(/\/$/, ''), dir);
-    assert.equal(steps.length, 2);
-    execFileSync('/bin/sh', ['-c', steps[0].command], { stdio: 'pipe' });
-    for (const f of ['viewer/serve.py', 'viewer/cell-data.js', 'cell_fr3/robot.json', 'guides/agent.md', 'package.json'])
-      assert.ok(existsSync(join(dir, f)), f);
-    assert.match(steps[1].command, /npm install/);
-  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });

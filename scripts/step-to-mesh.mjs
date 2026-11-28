@@ -126,7 +126,7 @@ for (const p of prims) {
 const bin = Buffer.concat(chunks);
 const name = body === '--all' ? (res.root.children[0]?.name || 'part') : body;
 const json = {
-  asset: { version: '2.0', generator: 'nano-cell step-to-mesh' },
+  asset: { version: '2.0', generator: 'microfactory step-to-mesh' },
   scene: 0, scenes: [{ nodes: [0] }], nodes: [{ name, mesh: 0 }],
   materials, meshes: [{ primitives }],
   buffers: [{ byteLength: bin.length }], bufferViews: views, accessors,

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build nano-cell as an ARTIFACT that installs as a desktop app.
+// Build microfactory as an ARTIFACT that installs as a desktop app.
 //
 //   node scripts/build-artifact.mjs [--out dist/artifact]
 //
@@ -10,36 +10,51 @@
 //                             the desktop manifest, the installed app's
 //                             entry (viewer/desktop.js)
 //   <out>/viewer/*.js         the viewer's modules, as they are
+//   <out>/ws/files.json       the WORKSPACE PACK: every file a new workspace
+//                             is made of — the local programs, the guides,
+//                             the robot, the starter application(s) — text
+//                             inline, meshes by reference
+//   <out>/ws/b/<n>.bin        the meshes of the pack
 //   <out>/publish.json        the arguments of the publish call: file_path,
 //                             files, capabilities, title, description, icon
+//   <out>-report.txt          what went in, for a person to read
 //
-// The artifact holds the PAGE ONLY — code written in this repository.
-// Nothing third-party is copied in (three.js and MuJoCo's module come from
-// the CDN, MuJoCo's compiled physics from the workspace), and the engine,
-// the cell, the applications, their CAD and the conversations are never
-// put in it: the installed app
-// reads them from the workspace folder on the person's computer, through
-// the engine it starts there (viewer/desktop.js). The build fails rather
-// than let anything else in.
+// The app is self-contained: installed, it makes its workspace from the
+// pack (viewer/workspace-install.js) and needs no access to the
+// repository. What may go in is decided here and nowhere else:
+//
+//  - only files TRACKED by git, so nothing local rides along (attachments,
+//    conversations, backups, CAD that was never committed);
+//  - of applications/, only the starter ones named in artifact.json
+//    ("starter") — an application is somebody's work and is not given
+//    away by being committed;
+//  - text files as text; meshes only when scripts/mesh-check.mjs accounts
+//    for every byte as geometry; anything else stops the build;
+//  - nothing third-party as code: three.js and MuJoCo's module come from
+//    the CDN, the tools from npm when the workspace is made.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, copyFileSync, statSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, relative, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { checkMesh } from './mesh-check.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
 const oi = args.indexOf('--out');
 const OUT = join(ROOT, oi >= 0 ? args[oi + 1] : 'dist/artifact');
+const REPORT = OUT.replace(/[\\/]+$/, '') + '-report.txt';
 const fail = msg => { console.error(`build-artifact: ${msg}`); process.exit(1); };
 
 // what the publish call may carry (the Artifact tool's limits)
 const LIMITS = { files: 255, text: 16e6, binary: 15e6, total: 64e6 };
-const TITLE = 'Nano Cell';
+const TITLE = 'Microfactory';
 const DESCRIPTION = 'A robot cell on your computer: simulate it, program its steps and work on it with an assistant — installs as a desktop app.';
 
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(join(OUT, 'viewer'), { recursive: true });
+mkdirSync(join(OUT, 'ws/b'), { recursive: true });
 
 // ---- the viewer's modules, unchanged ----
 const modules = readdirSync(join(ROOT, 'viewer')).filter(f => f.endsWith('.js')).sort();
@@ -57,10 +72,45 @@ if (/<script/.test(body)) fail('viewer/index.html: a script in <body> that the b
 
 let commit = 'unknown';
 try { commit = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).trim(); } catch { /* not a checkout */ }
-// where a new workspace is downloaded from (artifact.json, "source")
-let source = '';
-try { source = JSON.parse(readFileSync(join(ROOT, 'artifact.json'), 'utf8')).source ?? ''; } catch { /* none */ }
 const built = new Date().toISOString().slice(0, 16).replace('T', ' ');
+
+// ---- the workspace pack ----
+let starter = [];
+try { starter = JSON.parse(readFileSync(join(ROOT, 'artifact.json'), 'utf8')).starter ?? []; } catch { /* none */ }
+const LEFT_OUT = [/^\.claude\//, /^docs\//, /^artifact\.json$/, /^README\.md$/];
+const PACK_TEXT = /(\.(js|mjs|ts|py|json|md|sh|html|txt)|^LICENSE|^\.gitignore)$/;
+const tracked = execFileSync('git', ['ls-files', '-s'], { cwd: ROOT, encoding: 'utf8' }).trim().split('\n')
+  .map(l => { const [mode, , , ...path] = l.split(/\s+/); return { mode, path: path.join(' ') }; })
+  .filter(f => !LEFT_OUT.some(re => re.test(f.path)))
+  .filter(f => !f.path.startsWith('applications/') || starter.includes(f.path.split('/')[1]))
+  .filter(f => existsSync(join(ROOT, f.path)));
+for (const id of starter) if (!tracked.some(f => f.path === `applications/${id}/application.json`)) fail(`starter application '${id}' is not in the repository`);
+const sha = bytes => createHash('sha256').update(bytes).digest('hex');
+const pack = { version: '', files: [] };
+const report = [];
+let bins = 0;
+for (const f of tracked) {
+  const bytes = readFileSync(join(ROOT, f.path));
+  const entry = { path: f.path, sha: sha(bytes), size: bytes.length };
+  if (f.mode === '100755') entry.exec = true;
+  if (/\.(glb|stl)$/.test(f.path)) {
+    let info;
+    try { info = checkMesh(f.path, new Uint8Array(bytes)); } catch (e) { fail(`${f.path}: ${e.message} — a mesh must be geometry only (scripts/clean-mesh.mjs strips a GLB)`); }
+    entry.bin = `ws/b/${bins++}.bin`;
+    writeFileSync(join(OUT, entry.bin), bytes);
+    const mm = info.bounds[1].map((h, k) => Math.round((h - info.bounds[0][k]) * 1000));
+    report.push(`mesh  ${f.path}  ${info.triangles} triangles, ${mm.join(' x ')} mm${info.text.length ? '  text: ' + JSON.stringify(info.text) : ''}`);
+  } else if (PACK_TEXT.test(f.path)) {
+    try { entry.text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { fail(`${f.path} is not text`); }
+    if (entry.text.includes(homedir())) fail(`${f.path} contains this computer's home folder path`);
+    report.push(`text  ${f.path}  ${bytes.length} bytes`);
+  } else fail(`${f.path} is neither text nor a mesh: the app may not carry it`);
+  pack.files.push(entry);
+}
+// the pack's version is its content: two builds of the same files are the same version
+pack.version = sha(pack.files.map(f => `${f.path} ${f.sha}`).join('\n')).slice(0, 12);
+writeFileSync(join(OUT, 'ws/files.json'), JSON.stringify(pack));
+writeFileSync(REPORT, `workspace pack ${pack.version} — ${pack.files.length} files\n` + report.join('\n') + '\n');
 
 // The Artifact tool wraps this in its own <!doctype html>…<body>: no html,
 // head or body tags here; the title and the styles come first.
@@ -71,7 +121,7 @@ const page = `<title>${TITLE}</title>
 ${style.trim()}
 </style>
 <script type="application/json" id="claude-artifacts-manifest">{"permissions": ["full-access"]}</script>
-<script>window.NANO_BUILD = ${JSON.stringify({ commit, built, source })};</script>
+<script>window.MICROFACTORY_BUILD = ${JSON.stringify({ commit, built, pack: pack.version })};</script>
 <script type="importmap">${importmap.trim()}</script>
 ${body.trim()}
 <script type="module" src="./viewer/desktop.js"></script>
@@ -84,11 +134,12 @@ const walk = d => { for (const e of readdirSync(d, { withFileTypes: true })) e.i
 walk(OUT);
 const supporting = all.filter(f => f !== join(OUT, 'index.html')).sort();
 const TEXT = /\.(js|html|json|css|md|txt)$/;
+const MAY_CARRY = /^(index\.html|viewer\/[\w.-]+\.js|ws\/files\.json|ws\/b\/\d+\.bin)$/;
 let total = 0;
 for (const f of all) {
   const size = statSync(f).size, rel = relative(OUT, f);
   total += size;
-  if (!/^(index\.html|viewer\/[\w.-]+\.js)$/.test(rel)) fail(`${rel} is not something the artifact may carry`);
+  if (!MAY_CARRY.test(rel)) fail(`${rel} is not something the artifact may carry`);
   if (size > (TEXT.test(f) ? LIMITS.text : LIMITS.binary)) fail(`${rel} is ${(size / 1e6).toFixed(1)} MB: over the limit for one file`);
   if (TEXT.test(f)) {
     const text = readFileSync(f, 'utf8');
@@ -117,14 +168,15 @@ for (const f of modules) {
 const rel = f => relative(ROOT, f).split('\\').join('/');
 const publish = {
   file_path: rel(join(OUT, 'index.html')),
-  files: Object.fromEntries(supporting.map(f => [relative(OUT, f).split('\\').join('/'), rel(f)])),
+  files: Object.fromEntries(supporting.map(f => [relative(OUT, f).split('\\').join('/'),
+    f.endsWith('.bin') ? { from: rel(f), contentType: 'application/octet-stream' } : rel(f)])),
   capabilities: { desktop: {} },
   title: TITLE,
   description: DESCRIPTION,
   icon: 'robot',
-  build: { commit, built },
+  build: { commit, built, pack: pack.version },
 };
 writeFileSync(join(OUT, 'publish.json'), JSON.stringify(publish, null, 1) + '\n');
 
-console.log(`built ${rel(OUT)}: the page + ${supporting.length} files, ${(total / 1e6).toFixed(1)} MB (commit ${commit})`);
+console.log(`built ${rel(OUT)}: the page + ${supporting.length} files, ${(total / 1e6).toFixed(1)} MB (commit ${commit}); workspace pack ${pack.version}, ${pack.files.length} files — listed in ${rel(REPORT)}`);
 console.log(`publish with the arguments in ${rel(join(OUT, 'publish.json'))}`);

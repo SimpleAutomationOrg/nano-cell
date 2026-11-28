@@ -41,7 +41,7 @@ test('every application composes onto its robot, and every mesh it names exists'
       assert.ok(cell.tools.some(x => x.id === said('tool')), `${name}/steps/${t}: tool '${said('tool')}' is not a gripper of the application`);
       assert.match(src, /^export const entry\b/m, `${name}/steps/${t}: no entry pose`);
       assert.match(src, /^export default async function/m, `${name}/steps/${t}: no default function`);
-      assert.match(src, /from 'nano-cell'/, `${name}/steps/${t}: import the cell API from 'nano-cell'`);
+      assert.match(src, /from 'microfactory'/, `${name}/steps/${t}: import the cell API from 'microfactory'`);
       assert.ok(!/from '\.\.\//.test(src), `${name}/steps/${t}: imports by a relative path out of the application`);
     }
   }
@@ -116,7 +116,7 @@ test('putting an application together: a placement is its item plus where it sta
 });
 
 test('the server side: the loop is saved into the manifest and nothing else changes; a new application loads', async () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'nano-app-'));
+  const tmp = mkdtempSync(join(tmpdir(), 'mf-app-'));
   try {
     const out = JSON.parse(execFileSync('python3', ['-c', `
 import json, os, shutil, sys, appfiles
@@ -149,7 +149,7 @@ print(json.dumps({'was': was, 'same': same is None, 'rev': appfiles.read_loop(co
 });
 
 test('one file to share: export then import gives the same application; nothing is overwritten unasked; unsafe files are refused', () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'nano-file-'));
+  const tmp = mkdtempSync(join(tmpdir(), 'mf-file-'));
   try {
     const out = JSON.parse(execFileSync('python3', ['-c', `
 import io, json, os, sys, zipfile, appfiles

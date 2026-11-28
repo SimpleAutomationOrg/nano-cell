@@ -150,8 +150,8 @@ export function writeStep(path, solids) {
   const stamp = new Date().toISOString().slice(0, 19);
   writeFileSync(path, `ISO-10303-21;
 HEADER;
-FILE_DESCRIPTION(('nano-cell generic part'),'2;1');
-FILE_NAME('${path.split('/').pop()}','${stamp}',('nano-cell'),('nano-cell'),
+FILE_DESCRIPTION(('microfactory generic part'),'2;1');
+FILE_NAME('${path.split('/').pop()}','${stamp}',('microfactory'),('microfactory'),
   'scripts/poly-step.mjs','scripts/poly-step.mjs','');
 FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
 ENDSEC;

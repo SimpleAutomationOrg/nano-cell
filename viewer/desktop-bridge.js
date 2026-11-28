@@ -74,7 +74,7 @@ export function startEngine(spawn, workspace, platform) {
 export function repoPath(input, pageUrl) {
   const s = typeof input === 'string' ? input : (input?.url ?? String(input));
   if (!/^[a-z][a-z0-9+.-]*:/i.test(s)) {                           // a relative address, as written in the viewer
-    const u = new URL(s, 'http://nano.local/viewer/');
+    const u = new URL(s, 'http://microfactory.local/viewer/');
     return u.pathname + u.search;
   }
   const u = new URL(s), page = new URL(pageUrl);
@@ -140,14 +140,10 @@ export function absolutePath(path, home) {
 
 export const shellQuote = s => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
-// What it takes to put a workspace into `dir` (absolute; missing or empty):
-// download the project from `source` (a git address), then install the
-// tools it runs. Each step is one shell command, run in a login shell so
-// that git, node and npm are found as they are in the person's terminal.
-export function setupSteps(source, dir) {
-  const login = cmd => `/bin/zsh -lc ${shellQuote(cmd)}`;
-  return [
-    { say: 'Downloading Nano Cell …', command: login(`GIT_TERMINAL_PROMPT=0 git clone --depth 1 ${shellQuote(source)} ${shellQuote(dir)}`) },
-    { say: 'Installing its tools — a minute or two …', command: login(`cd ${shellQuote(dir)} && npm install --no-audit --no-fund`) },
-  ];
-}
+// The shell commands that finish a workspace written into `dir` (absolute):
+// make its scripts runnable, and install the tools it runs (from npm).
+// Run in a login shell so that node and npm are found as they are in the
+// person's terminal.
+const login = cmd => `/bin/zsh -lc ${shellQuote(cmd)}`;
+export const chmodCommand = (dir, paths) => `chmod +x ${paths.map(p => shellQuote(`${dir}/${p}`)).join(' ')}`;
+export const toolsCommand = dir => login(`cd ${shellQuote(dir)} && npm install --no-audit --no-fund`);

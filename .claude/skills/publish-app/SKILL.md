@@ -1,11 +1,11 @@
 ---
 name: publish-app
-description: Build nano-cell as an artifact that installs as a desktop app, and publish it (first time) or publish a new version to the same artifact (every time after). Use when the user asks to compile, build, package, publish, ship or update the installable app.
+description: Build microfactory as an artifact that installs as a desktop app, and publish it (first time) or publish a new version to the same artifact (every time after). Use when the user asks to compile, build, package, publish, ship or update the installable app.
 ---
 
 # Publish the installable app
 
-nano-cell is delivered as a Claude **artifact with the `desktop`
+microfactory is delivered as a Claude **artifact with the `desktop`
 capability**: opened in the Claude desktop app it offers "Install as app",
 and the installed app runs the viewer with access to the files and
 programs on that computer. This is the whole, repeatable procedure for
@@ -26,17 +26,29 @@ Run `node scripts/build-artifact.mjs`. It writes `dist/artifact/`:
 - `viewer/*.js` — the page's code;
 - `publish.json` — the arguments for the publish call.
 
-The build refuses to put anything else in. **The artifact carries the page
-only** — code written in this repository, nothing third-party: never add the engine, `cell_fr3/`, `applications/`, CAD, notes,
-chats or any path of this machine to it, whatever the reason. The installed
-app reads all of that from the workspace folder on the person's computer.
+- `ws/files.json` and `ws/b/*.bin` — the workspace pack: the files a new
+  workspace is made of (local programs, guides, robot, the starter
+  application named in `artifact.json`), meshes as separate files.
+
+Beside it, `dist/artifact-report.txt` lists every file that went in.
+**Read that report before publishing**: check that nothing is there that
+should not be given to other people, and that no mesh carries text other
+than the tool's own name.
+
+What may go in is decided by the build and nowhere else: only files
+tracked by git; of `applications/`, only the starter; a mesh only when
+every byte of it is accounted for as geometry. Never work around a
+refusal of the build to get a file in — attachments, conversations,
+uncommitted CAD, other applications and any path of this machine stay
+out, whatever the reason.
 
 ## 3. Publish
 
 Read `dist/artifact/publish.json` and call the **Artifact** tool with
 `action: "publish"` and, from that file:
 
-- `file_path` and `files` exactly as given;
+- `file_path` and `files` exactly as given (the `.bin` entries carry their
+  content type);
 - `title` and `description` as given.
 
 Then, depending on whether `artifact.json` exists in the repository root:

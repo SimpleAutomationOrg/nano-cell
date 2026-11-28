@@ -15,7 +15,7 @@ import { ask, choose, tell } from './dialogs.js';
 // When the page runs as the installed desktop app, viewer/desktop.js sets
 // this up before loading us: { saveFile(name, blob) -> where it was saved }.
 // In a browser, served by serve.py, it is undefined.
-const desktopApp = window.nanoDesktop ?? null;
+const desktopApp = window.microfactoryDesktop ?? null;
 import { physicalKey, shortcutKey, flyDirection, FLY_KEYS } from './keys.js';
 
 const status = m => document.getElementById('status').textContent = m;
@@ -425,7 +425,7 @@ function buildAppUI(apps, current) {
     const name = await ask('Name of the new application', { placeholder: 'for example: button assembly', ok: 'Create' });
     if (!name?.trim()) return;
     const r = await (await fetch('/__applications/new', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Nano-Cell': 'chat' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microfactory': 'chat' },
       body: JSON.stringify({ name: name.trim(), like: current }),
     })).json();
     if (r.error) { status('new application: ' + r.error); tell(r.error); return; }
@@ -433,7 +433,7 @@ function buildAppUI(apps, current) {
   };
 
   // One file to keep or to send: <name>.microfactory, the whole folder.
-  const HEAD = { 'X-Nano-Cell': 'chat' };
+  const HEAD = { 'X-Microfactory': 'chat' };
   document.getElementById('appExport').onclick = async () => {
     status(`exporting ${current}…`);
     const r = await fetch(`/__applications/export?app=${encodeURIComponent(current)}`, { headers: HEAD });
@@ -505,7 +505,7 @@ async function buildStepUI(cell, mountToolFn) {
     // a drag changed the loop: its order goes into the application's manifest
     onSave: async ids => {
       const r = await (await fetch('/__loop/save', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Nano-Cell': 'chat' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Microfactory': 'chat' },
         body: JSON.stringify({ app: cell.application, steps: ids }),
       })).json();
       if (r.error) { status('step order not saved: ' + r.error); throw new Error(r.error); }

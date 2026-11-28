@@ -1,6 +1,6 @@
 # Agent guide
 
-You are a coding agent working in (or asked to install) **nano-cell**, a
+You are a coding agent working in (or asked to install) **microfactory**, a
 simulated robot cell installed on the user's computer: a viewer in the
 browser with a local server behind it for the agent, files and tools. This file is your contract: how to
 install it, how to verify it, and how to add or edit steps without
@@ -31,7 +31,7 @@ frameworks during installation.
 
 ## The installable app
 
-nano-cell is delivered as a Claude artifact that **installs as a desktop
+microfactory is delivered as a Claude artifact that **installs as a desktop
 app** (the artifact declares the `desktop` capability; in the Claude
 desktop app its menu offers "Install as app"). The step that makes it is
 defined once, as the project skill **`/publish-app`**
@@ -42,16 +42,32 @@ version of the one named in `artifact.json`.
 
 How the installed app works:
 
-- **The artifact holds the page only** — `viewer/*.js` and the markup,
-  nothing third-party (three.js and MuJoCo's module load from the CDN;
-  MuJoCo's compiled physics is read from the workspace's `node_modules`). The engine, the robot, the applications, CAD and chats are
-  never in it; the build refuses anything else.
-- **Everything else is the workspace**: a folder on the person's
-  computer with a checkout of this repository. The first run asks where
-  it is, or makes one: **Create new** downloads the repository named in
-  `artifact.json` (`source`) into the folder the person types and runs
-  `npm install` there (`setupSteps` in `viewer/desktop-bridge.js`; needs
-  git, node and access to the repository).
+- **The artifact holds the page and a workspace pack.** The page is
+  `viewer/*.js` and the markup. The pack (`ws/files.json` + the meshes in
+  `ws/b/`) is every file a new workspace is made of: the local programs
+  (`viewer/*.py`), `guides/`, `recipes/`, `scripts/`, the robot
+  (`cell_fr3/`) and the starter application(s) named in `artifact.json`
+  (`"starter"`). What may go in is decided in
+  `scripts/build-artifact.mjs` and nowhere else: only files tracked by
+  git; of `applications/`, only the starter; text as text; a mesh only
+  when `scripts/mesh-check.mjs` accounts for every byte of it as geometry
+  (`scripts/clean-mesh.mjs` strips the notes tools leave in a GLB).
+  Attachments, conversations, uncommitted CAD and other applications
+  never go in. Nothing third-party is carried as code: three.js and
+  MuJoCo's module load from the CDN, the tools (MuJoCo's compiled
+  physics, the CAD kernel) come from npm when the workspace is made. The
+  build writes `dist/artifact-report.txt`, the list of what went in —
+  read it before publishing.
+- **The workspace** is a folder on the person's computer. On first start
+  the app asks where it should be; **Create new** writes the pack into a
+  new or empty folder and runs `npm install` there
+  (`viewer/workspace-install.js`; needs node and python3, no account
+  anywhere). It records what it wrote in `.microfactory.json`, and when a
+  newer version of the app opens the folder it updates the files the
+  person has not changed, keeps the ones they have, and does not bring
+  back a starter application they deleted. A checkout of this repository
+  (no `.microfactory.json`) also works as a workspace and is never
+  written to by the app.
 - **The page cannot open a network connection to the computer**, so
   `viewer/desktop.js` (the installed app's entry, in place of `app.js`
   and `chat.js`) starts the engine there as a child process —
@@ -63,11 +79,11 @@ How the installed app works:
   working.
 - **No browser dialogs**: `prompt()`, `confirm()` and `alert()` do
   nothing in an artifact; use `viewer/dialogs.js`. A file for the user is
-  written to their Downloads folder (`window.nanoDesktop.saveFile`), not
+  written to their Downloads folder (`window.microfactoryDesktop.saveFile`), not
   offered as a download link.
 
 Keep the viewer working BOTH ways: served by `serve.py` in a browser, and
-installed. Code that must differ asks `window.nanoDesktop`.
+installed. Code that must differ asks `window.microfactoryDesktop`.
 
 ## The architecture in one paragraph
 
@@ -135,7 +151,7 @@ applications/<name>/
   (`"xyz_m": [0.9, 0.087, 0.0]`) — a moved fixture is a one-line diff.
   Keep it that way when editing by hand.
 - **Steps import the cell API by name**: `import type { CellAPI, Ctx,
-  Entry } from 'nano-cell'` (mapped in `tsconfig.json`), never by a
+  Entry } from 'microfactory'` (mapped in `tsconfig.json`), never by a
   relative path into the engine — an application must work wherever
   its folder lives.
 

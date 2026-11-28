@@ -1,4 +1,4 @@
-# nano-cell
+# microfactory
 
 A simulated robot work cell that runs on your computer: a 6-axis arm
 inside a guarded enclosure, collision-checked motion planning with real
