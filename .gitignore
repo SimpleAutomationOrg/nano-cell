@@ -19,3 +19,7 @@ applications/*/chats/
 
 # scratch output of the artifact build test
 dist-test-*
+
+# the running server's port, and pictures of runs the agent asked for
+.server.json
+.runs/

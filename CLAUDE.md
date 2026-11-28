@@ -58,6 +58,9 @@ and `python3 viewer/serve.py --stdio`. Details:
 AGENTS.md, "The installable app".
 
 Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
+Run a step without clicking: `node scripts/run-step.mjs <application> <step>`
+(runs in the open viewer, prints the outcome and where the parts ended up;
+`--shot` saves a picture). The chat's agent debugs steps with it.
 Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
 
 ## Layout

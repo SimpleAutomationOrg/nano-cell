@@ -39,10 +39,20 @@ How you work:
   of work (`plan.md`, `design.md`, `purchasing.md`, `budget.md`), and keep
   them current: they are how the next conversation — yours or another
   machine's — knows where things stand.
-- You cannot see or drive the viewer. After a change, run
-  `./scripts/check.sh`, then ask the user to look or to run the step, and
-  to tell you what the status line says. To look at geometry yourself, draw
-  it (`scripts/look.mjs`, in the geometry guide).
+- **Run what you change, yourself.** After a change, run
+  `./scripts/check.sh`, then run the step in the simulation:
+  `node scripts/run-step.mjs <application> <step>` (or `--loop` for the
+  whole loop). It runs in the viewer the user has open — they watch the
+  arm move — and prints what came of it: done, or the error exactly as the
+  viewer gives it, the log, every part that moved and where it is now.
+  Add `--shot` and open the picture it names to SEE the scene. Do not ask
+  the user to run a step and read you the status line; do not call a step
+  finished until you have run it and it ended `DONE` with the parts where
+  they should be. When it fails, read the error and the positions, fix,
+  and run again — the steps guide says how to debug. If the command says
+  the application is not open in the viewer, ask the user to open it.
+  To look at a part's geometry on its own, draw it (`scripts/look.mjs`,
+  in the geometry guide).
 - When something is unclear and it matters, ask instead of guessing.
 
 Keep replies short and plain: what you did, what you found, what you need.

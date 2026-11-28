@@ -10,6 +10,7 @@ import { dockedTools } from './planner.js';
 import { loadCell } from './cell-data.js';
 import { createStepsPanel } from './steps-panel.js';
 import { pollFetch } from './poll.js';
+import { startAgentRuns, partReport } from './agent-run.js';
 import { ask, choose, tell } from './dialogs.js';
 
 // When the page runs as the installed desktop app, viewer/desktop.js sets
@@ -346,11 +347,15 @@ async function loadItems(list, base, parentGroup) {
 
 // ---------- step runner ----------
 let host = null;
+const agentHooks = {};          // what the agent's runs need of the scene, filled in by main()
+let reloadWaiting = false;      // files changed, and the page has not reloaded yet
 let running = false;
 
 // one line in the panel; full history in the browser console
+let stepLogTo = null;            // while the agent's run is going: its lines are collected here too
 function stepLog(msg) {
   console.log('[step]', msg);
+  stepLogTo?.push(msg.trim());
   const el = document.getElementById('stepline');
   el.textContent = msg.trim();
   el.title = msg.trim();
@@ -374,9 +379,10 @@ let stepsPanel = null;
 // arm starts at the first step's entry pose; every later step carries on
 // from where the one before it left the arm and the parts. A failure or
 // Stop ends the run there.
+// Resolves with what came of it: { ok, error?, step? } (the agent's runs report it).
 async function runSteps(appId, list, mountToolFn, what = 'step') {
-  if (running) { stepLog('already running'); return; }
-  if (!list.length) { status(`${what}: nothing to run`); return; }
+  if (running) { stepLog('already running'); return { ok: false, error: 'a run is already in progress in the viewer' }; }
+  if (!list.length) { status(`${what}: nothing to run`); return { ok: false, error: 'nothing to run' }; }
   running = true;
   host.reset();
   list.forEach(s => stepsPanel?.setState(s.id, 'idle'));
@@ -395,11 +401,13 @@ async function runSteps(appId, list, mountToolFn, what = 'step') {
       stepsPanel?.setState(s.id, 'done');
     }
     status(`${what} done`);
+    return { ok: true };
   } catch (e) {
     const stopped = e.message === 'aborted';
     if (stopped) { status(`${what} stopped`); stepLog('■ stopped'); }
     else { status(`${what} failed: ${e.message}`); stepLog('✗ ' + e.message); console.error(e); }
     if (now) stepsPanel?.setState(now, stopped ? 'stopped' : 'failed');
+    return { ok: false, step: now, error: stopped ? 'stopped by the user' : e.message };
   } finally {
     running = false;
   }
@@ -840,7 +848,7 @@ async function main() {
   // reset the SCENE in place (camera stays): parts back to their loaded
   // poses — including one riding the flange — collision world restored,
   // run state cleared, arm to the dock pose
-  document.getElementById('btnReset').onclick = () => {
+  const resetScene = () => {
     host.abort();
     host.reset();
     host.state.held = null;
@@ -856,6 +864,21 @@ async function main() {
     stepLog('scene reset');
     status('scene reset');
   };
+  document.getElementById('btnReset').onclick = resetScene;
+  agentHooks.resetScene = resetScene;
+  agentHooks.partNow = id => {
+    const node = partNodes.get(id);
+    if (!node) return null;
+    node.updateWorldMatrix(true, false);
+    const p = world.worldToLocal(node.getWorldPosition(new THREE.Vector3()));
+    return [p.x, p.y, p.z];
+  };
+  agentHooks.state = () => ({
+    held: host.state.held?.id ?? null,
+    io: { ...(host.state.io ?? {}) },
+    tool: sel.value,
+    joints_deg: spins.map(sp => Math.round(THREE.MathUtils.radToDeg(sp.rotation.z) * 100) / 100),
+  });
 
   // ---------- interactive part pushing ----------
   // click a part to select it, then push it with the keyboard. Each
@@ -955,6 +978,36 @@ async function main() {
 
   await buildStepUI(cell, mountToolTracked);
 
+  // ---------- runs the agent asks for (agent-run.js, scripts/run-step.mjs) ----------
+  startAgentRuns({
+    app: cell.application,
+    run: async job => {
+      if (running) return { ok: false, error: 'a run is already in progress in the viewer: wait for it or ask the user to stop it' };
+      const all = await (await fetch(`/__steps?app=${encodeURIComponent(cell.application)}`)).json();
+      const list = job.loop ? stepsPanel.loopSteps() : job.steps.map(id => all.find(s => s.id === id) ?? { missing: id });
+      const missing = list.filter(s => s.missing).map(s => s.missing);
+      if (missing.length) return { ok: false, error: `no such step: ${missing.join(', ')} — this application has: ${all.map(s => s.id).join(', ') || 'none'}` };
+      if (!list.length) return { ok: false, error: job.loop ? 'the loop is empty' : 'no step was named' };
+      if (job.reset) agentHooks.resetScene();
+      const speedSel = document.getElementById('speedSel'), speed0 = speedSel.value;
+      if (job.fast) { speedSel.value = speedSel.options[speedSel.options.length - 1].value; speedSel.dispatchEvent(new Event('change')); }
+      const log = stepLogTo = [];
+      const t0 = performance.now();
+      let out;
+      try { out = await runSteps(cell.application, list, mountToolTracked, job.loop ? 'loop' : list.length > 1 ? 'steps' : 'step'); }
+      finally {
+        stepLogTo = null;
+        if (job.fast) { speedSel.value = speed0; speedSel.dispatchEvent(new Event('change')); }
+      }
+      const parts = (cell.parts ?? []).map(it => { const to = agentHooks.partNow(it.id); return to && partReport(it.id, it.pose_table.xyz_m, to); })
+        .filter(p => p && p.moved_mm >= 0.5);
+      let shot;
+      if (job.shot) { renderer.render(scene, camera); shot = renderer.domElement.toDataURL('image/png'); }
+      return { ...out, ran: list.map(s => s.id), seconds: Math.round((performance.now() - t0) / 100) / 10, log: log.slice(-200),
+        parts_moved: parts, ...agentHooks.state(), stale: reloadWaiting, shot };
+    },
+  });
+
   status(`${cell.name} — ready`);
 }
 main().catch(e => { status('load failed: ' + e.message); console.error(e); });
@@ -1013,6 +1066,7 @@ renderer.setAnimationLoop(() => {
       if (gen !== -1 && g > gen) {
         // In the installed app a reload ends its helper process and the agent
         // run under it: wait until the agent is not working.
+        reloadWaiting = true;         // (a run the agent asks for meanwhile says that it used the old files)
         while (desktopApp && document.querySelector('#chat.working')) await new Promise(res => setTimeout(res, 1000));
         location.reload();
       }

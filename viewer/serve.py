@@ -21,6 +21,7 @@ import webbrowser
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from chat import Chats  # noqa: E402
 import appfiles  # noqa: E402
+from runs import Runs  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -29,10 +30,11 @@ OPEN_BROWSER = "--no-open" not in sys.argv   # a restart need not open one more 
 STDIO = "--stdio" in sys.argv             # serve a parent process through pipes (the desktop app)
 
 WATCH_EXT = {".html", ".js", ".ts", ".css", ".json", ".glb", ".stl", ".py"}
-SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups", "chats"}
-SKIP_FILES = {".chat-sessions.json"}      # written while an agent works: not a reason to reload
+SKIP_DIRS = {".git", "node_modules", "out", "dist", "__pycache__", ".DS_Store", ".backups", "chats", ".runs"}
+SKIP_FILES = {".chat-sessions.json", ".server.json"}      # written while an agent works: not a reason to reload
 
 CHATS = Chats(ROOT)
+RUNS = Runs()            # steps the agent asks the open viewer to run (runs.py)
 
 # what the user attaches in the chat lands in applications/<name>/materials/
 MATERIALS = "materials"
@@ -91,6 +93,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._applications()
         if self.path.startswith("/__steps"):
             return self._steps()
+        if self.path.startswith("/__run/next"):
+            # the page asks for a run to do (long poll)
+            if not self._same_origin():
+                return self._json({"error": "forbidden"}, 403)
+            q = dict(p.split("=", 1) for p in self.path.partition("?")[2].split("&") if "=" in p)
+            if not self._app_dir(q.get("app")):
+                return self._json({"error": "no such application"}, 404)
+            return self._json({"job": RUNS.next(q["app"], q.get("page", "")[:40])})
         if self.path.startswith("/__chat/agent"):
             if not self._same_origin():
                 return self._json({"error": "forbidden"}, 403)
@@ -131,7 +141,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         import json
-        if not self.path.startswith(("/__chat/", "/__loop/save", "/__applications/new", "/__applications/import")):
+        if not self.path.startswith(("/__chat/", "/__loop/save", "/__applications/new", "/__applications/import", "/__run/")):
             return self._json({"error": "not found"}, 404)
         if not self._same_origin():
             return self._json({"error": "forbidden"}, 403)
@@ -141,13 +151,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._import()
         try:
             n = int(self.headers.get("Content-Length") or 0)
-            data = json.loads(self.rfile.read(n) or b"{}") if n < 200_000 else None
+            big = 8_000_000 if self.path.startswith("/__run/result") else 200_000      # a result may carry a picture
+            data = json.loads(self.rfile.read(n) or b"{}") if n < big else None
         except ValueError:
             data = None
         if not isinstance(data, dict):
             return self._json({"error": "bad request"}, 400)
         if self.path.startswith("/__applications/new"):
             return self._new_application(data)
+        if self.path.startswith("/__run/request"):
+            return self._run_request(data)
+        if self.path.startswith("/__run/result"):
+            return self._run_result(data)
         if self.path.startswith("/__loop/save"):
             return self._save_loop(data)
         action = self.path[len("/__chat/"):]
@@ -319,6 +334,39 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._json({"error": str(e)}, 500)
         return self._json({"ok": True, "id": app_id})
 
+    def _run_request(self, data):
+        # scripts/run-step.mjs: run steps in the open viewer and wait for what came of it
+        app = str(data.get("app", ""))
+        if not self._app_dir(app):
+            return self._json({"ok": False, "error": f"no application '{app}'"}, 404)
+        steps = [str(x)[:80] for x in (data.get("steps") or [])][:50]
+        job = {"steps": steps, "loop": bool(data.get("loop")), "reset": bool(data.get("reset", True)),
+               "shot": bool(data.get("shot")), "fast": bool(data.get("fast", True))}
+        try:
+            timeout = max(10, min(1800, int(data.get("timeout", 300))))
+        except (TypeError, ValueError):
+            timeout = 300
+        res = dict(RUNS.request(app, job, timeout))
+        # the picture of the scene, if one came back, becomes a file the agent can open
+        shot = res.pop("shot", None)
+        if isinstance(shot, str) and shot.startswith("data:image/png;base64,"):
+            import base64
+            d = os.path.join(ROOT, ".runs")
+            os.makedirs(d, exist_ok=True)
+            path = os.path.join(d, f"{app}.png")
+            try:
+                with open(path, "wb") as f:
+                    f.write(base64.b64decode(shot.split(",", 1)[1]))
+                res["picture"] = os.path.relpath(path, ROOT)
+            except (OSError, ValueError):
+                pass
+        return self._json(res)
+
+    def _run_result(self, data):
+        # the page: what came of the run it was given
+        ok = RUNS.result(str(data.get("id", "")), data.get("result") if isinstance(data.get("result"), dict) else {"ok": False, "error": "the viewer sent no result"})
+        return self._json({"ok": ok})
+
     def _save_loop(self, data):
         # the page dragged a step: write the loop's new order into the manifest
         d = self._app_dir(data.get("app"))
@@ -448,15 +496,38 @@ def _stdio(httpd):
         threading.Thread(target=handle, args=(req,), daemon=True).start()
 
 
+def _say_where():
+    """Leave the port in .server.json, for the tools that talk to this server (scripts/run-step.mjs)."""
+    import atexit
+    import json
+    path = os.path.join(ROOT, ".server.json")
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"port": PORT, "pid": os.getpid()}, f)
+    except OSError:
+        return
+
+    def gone():
+        try:
+            with open(path, encoding="utf-8") as f:
+                if json.load(f).get("pid") == os.getpid():
+                    os.remove(path)
+        except (OSError, ValueError):
+            pass
+    atexit.register(gone)
+
+
 if __name__ == "__main__":
     threading.Thread(target=_watch, daemon=True).start()
     if STDIO:
         # for the installed desktop app: any free port, nothing printed but the protocol
         with Server(("127.0.0.1", 0), Handler) as httpd:
             PORT = httpd.server_address[1]
+            _say_where()
             _stdio(httpd)
         sys.exit(0)
     with Server(("127.0.0.1", PORT), Handler) as httpd:
+        _say_where()
         url = f"http://127.0.0.1:{PORT}/viewer/"
         print(f"viewer: {url}  (live reload on, ctrl-c to stop)")
         if OPEN_BROWSER:

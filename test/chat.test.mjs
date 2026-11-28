@@ -170,3 +170,43 @@ print(json.dumps({'models': chat.Chats(tmp).agent()['models'], 'default': ask('o
   assert.ok(!out.bad.startsWith('['), 'a model the server does not offer was passed to the CLI');
   assert.ok(!out.back.startsWith('['), 'the earlier choice must not stick to the next message');
 });
+
+test('a run the agent asks for is handed to the open viewer, and its result comes back; no viewer, no run', () => {
+  const out = py(`
+import json, threading, time, runs
+r = runs.Runs()
+runs.LISTEN_FOR = 0.5
+got = {}
+# nobody has the application open: the request says so instead of waiting its whole time
+t0 = time.time(); got['closed'] = r.request('demo', {'steps': ['a']}, timeout=11); got['closed_s'] = time.time() - t0
+# a page is listening: it takes the job, runs it, answers
+def page(name, answer):
+    job = r.next('demo', name, timeout=5)
+    got['job_' + name] = job
+    if job and answer: r.result(job['id'], {'ok': True, 'ran': job['steps']})
+threading.Thread(target=page, args=('p1', True)).start()
+time.sleep(0.2)
+got['done'] = r.request('demo', {'steps': ['a', 'b'], 'loop': False}, timeout=10)
+# a page that took a job and was reloaded under it: the next load of the page gets the same job
+threading.Thread(target=page, args=('p2', False)).start()
+time.sleep(0.2)
+box = {}
+threading.Thread(target=lambda: box.update(res=r.request('demo', {'steps': ['c']}, timeout=10))).start()
+time.sleep(0.5)
+got['second_asked_meanwhile'] = r.request('demo', {'steps': ['d']}, timeout=10)
+page('p3', True)
+time.sleep(0.3)
+got['redelivered'] = box.get('res')
+got['same_page_again'] = r.next('demo', 'p3', timeout=0.3)
+print(json.dumps(got))`);
+  assert.equal(out.closed.ok, false);
+  assert.match(out.closed.error, /not open in the viewer/);
+  assert.ok(out.closed_s < 10.5, 'it must not wait its whole time for a viewer that is not there');
+  assert.deepEqual(out.job_p1.steps, ['a', 'b']);
+  assert.deepEqual(out.done, { ok: true, ran: ['a', 'b'] });
+  assert.match(out.second_asked_meanwhile.error, /another run/);
+  assert.deepEqual([out.job_p2.steps, out.job_p3.steps], [['c'], ['c']], 'the job a reloaded page left unfinished goes to the next load');
+  assert.equal(out.job_p2.id, out.job_p3.id);
+  assert.deepEqual(out.redelivered, { ok: true, ran: ['c'] });
+  assert.equal(out.same_page_again, null, 'a finished job is not handed out again');
+});

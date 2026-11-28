@@ -376,6 +376,27 @@ and their paths are given to the agent, which opens them itself. That
 folder is git-ignored: photos and datasheets stay on this machine. A
 STEP a part is really made from belongs in `print/`, not there.
 
+## Running a step from outside the page
+
+The chat's agent (or anyone in a terminal) runs steps in the real
+simulation with `node scripts/run-step.mjs <application> <step> […]`
+(`--loop`, `--keep`, `--shot`, `--slow`, `--timeout N`, `--json`). The
+run happens in the viewer that is open on that application, so the user
+watches it; the command prints the outcome, the log, the parts that moved
+and where they are, what is held, the IO, the joints, and with `--shot`
+the path of a picture of the scene (`.runs/<application>.png`).
+
+How it travels: the script reads the server's port from `.server.json`
+(written by `serve.py` at start) and posts to `/__run/request`;
+`viewer/runs.py` holds the job until the page takes it
+(`/__run/next`, a long poll from `viewer/agent-run.js`), the page runs it
+(`runSteps` in `app.js`) and posts `/__run/result`. One job at a time per
+application; a job whose page was reloaded under it goes to the next load
+of the page; no open page means an error, not a wait. The viewer must be
+on screen (a hidden tab drops its polls). In the installed app the page
+does not reload while the agent works, so a run after a change to the
+layout or items says it used the old files (`stale`).
+
 ## Debugging
 
 - The status line shows the running command with elapsed time; the
