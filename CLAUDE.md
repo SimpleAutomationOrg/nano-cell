@@ -58,6 +58,21 @@ a workspace too. The page reaches the folder through `viewer/desktop.js`
 and `python3 viewer/serve.py --stdio`. Details:
 AGENTS.md, "The installable app".
 
+The installed app works only for the organization that published it. So
+there is a second, SHAREABLE edition for everyone else: the same page as
+an artifact that asks for no access to a computer (`node
+scripts/build-artifact.mjs --share`, published by the same skill as a
+separate artifact). There the page is its own server: `viewer/share.js`
+puts a page engine behind the viewer's requests (`viewer/page-engine.js`),
+answering from the pack the artifact carries plus the person's changes
+kept in their browser (`viewer/page-fs.js`), and the chat's assistant is
+asked through the artifact's `sample` function with the page's own
+functions as tools (`viewer/page-agent.js`). It simulates, runs and
+edits steps and layouts, imports and exports; it has no CAD pipeline, no
+web lookups and no git. The page therefore runs THREE ways — served by
+`serve.py`, installed, shared — and a change to the viewer must keep all
+three working. Details: AGENTS.md, "The shareable edition".
+
 Run it: `python3 viewer/serve.py` (live reload; `/__steps` lists steps).
 Run a step without clicking: `node scripts/run-step.mjs <application> <step>`
 (runs in the open viewer, prints the outcome and where the parts ended up;
@@ -77,6 +92,14 @@ Install procedure and the add/edit-step workflow for agents: `AGENTS.md`.
   `capsules.js` fits the arm/tool capsules; `cell.d.ts` the step API
   types. Collision, touch, corridor heights, measurements and gravity
   settling all derive from the one MuJoCo model.
+  The page's hosts: `desktop.js` + `desktop-bridge.js` +
+  `workspace-install.js` (the installed app: workspace, engine through
+  pipes); `share.js` (the shareable edition's entry) with `page-store.js`
+  + `page-fs.js` (the pack and the person's changes over it), `zip.js`
+  (`.microfactory` files in the page), `page-engine.js` (what `serve.py`
+  answers, answered in the page — keep the two alike:
+  `test/page-engine.test.mjs`) and `page-agent.js` + `page-tools.js` +
+  `page-brief.js` (the assistant there, its tools, its instructions).
 - `cell_fr3/` — the design of the cell, i.e. the robot an application runs
   on: `robot.json` (arm + mount, table, guard, flange stack, cameras, IO),
   `meshes/` (flange stack), `arm/` (FR3 link meshes; the kinematic

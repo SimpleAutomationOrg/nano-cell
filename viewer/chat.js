@@ -6,7 +6,8 @@
 // of everything said and done (on disk, with the application). This file
 // only draws that list and sends what you type — so when the agent saves
 // a file and the page reloads itself, the chat comes back exactly as it
-// was.
+// was. (In the shareable edition the page itself stands in for the server:
+// viewer/page-agent.js behind the same requests.)
 import { pollFetch } from './poll.js';
 import { splitQuestions, answerText, allAnswered } from './ask.js';
 import { rich } from './md.js';
@@ -59,6 +60,11 @@ input.addEventListener('input', () => sessionStorage.setItem(draftKey(), input.v
 
 // ---- drawing ----
 const IMAGE = /\.(png|jpe?g|gif|webp|bmp|svg)$/i;
+// The page edition hands a file out as a blob: address of the page's own
+// origin: only pictures that cannot carry a script are shown or opened from
+// one (an SVG opened in a tab would run there as this page).
+const RASTER = /\.(png|jpe?g|gif|webp|bmp)$/i;
+const said = v => (typeof v === 'string' ? v : v == null ? '' : String(v));
 function draw(ev) {
   if (ev.type === 'done') return;
   const el = document.createElement('div');
@@ -67,21 +73,30 @@ function draw(ev) {
   if (ev.type === 'user') for (const a of log.querySelectorAll('.ask:not(.settled)')) settle(a);
   if (ev.type === 'text') {
     // an agent's questions come as a block at the end of its message: shown as buttons
-    const { text, questions } = splitQuestions(ev.text.trim());
+    const { text, questions } = splitQuestions(said(ev.text).trim());
     el.innerHTML = rich(text);
     if (questions.length) el.appendChild(askBox(questions));
   }
-  else if (ev.type === 'note') el.textContent = `→ ${ev.text}`;      // (in conversations kept from when there were several agents)
-  else el.textContent = ev.type === 'tool' ? `· ${ev.text}` : ev.text;
+  else if (ev.type === 'note') el.textContent = `→ ${said(ev.text)}`;      // (in conversations kept from when there were several agents)
+  else el.textContent = ev.type === 'tool' ? `· ${said(ev.text)}` : said(ev.text);
   // what the user attached: images shown, other files named; both open the saved file
-  for (const path of ev.files ?? []) {
+  // (a conversation can come from a file someone else made: only a list of names is taken as one)
+  const host = window.microfactoryDesktop, onPage = host?.kind === 'page';
+  for (const path of Array.isArray(ev.files) ? ev.files.filter(p => typeof p === 'string') : []) {
     const a = document.createElement('a');
     a.className = 'sent-file';
-    a.href = '/' + path.split('/').map(encodeURIComponent).join('/');
     a.target = '_blank';
     a.title = path;
-    if (IMAGE.test(path)) { const img = document.createElement('img'); img.src = a.href; img.alt = path.split('/').pop(); a.appendChild(img); }
+    const img = (onPage ? RASTER : IMAGE).test(path) ? document.createElement('img') : null;
+    if (img) { img.alt = path.split('/').pop(); a.appendChild(img); }
     else a.textContent = '📎 ' + path.split('/').pop();
+    // Where the file is: at its path on the server — or, when the page has
+    // no server behind it (the shareable edition), wherever its host says.
+    const show = url => { a.href = url; if (img) img.src = url; };
+    // (in the page edition only a picture is a link: another file is named, not opened)
+    if (onPage && !img) a.removeAttribute('target');
+    else if (host?.fileUrl) host.fileUrl(path).then(show).catch(() => { a.removeAttribute('target'); });
+    else show('/' + path.split('/').map(encodeURIComponent).join('/'));
     el.appendChild(a);
   }
   log.appendChild(el);
@@ -326,7 +341,8 @@ async function follow() {
       if (!r.next && !log.children.length)
         hint(r.available
           ? (agent.hint || 'Describe what you want to do.')
-          : 'The `claude` command was not found. Install Claude Code and sign in, then restart viewer/serve.py.');
+          : window.microfactoryDesktop?.kind === 'page' ? 'The assistant is not available in this view.'
+            : 'The `claude` command was not found. Install Claude Code and sign in, then restart viewer/serve.py.');
       else if (r.events.length && log.querySelector('.hint')) log.innerHTML = '';
       r.events.forEach(draw);
       // what it is doing right now: its latest action since the last message

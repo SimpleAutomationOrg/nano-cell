@@ -112,8 +112,72 @@ How the installed app works:
   written to their Downloads folder (`window.microfactoryDesktop.saveFile`), not
   offered as a download link.
 
-Keep the viewer working BOTH ways: served by `serve.py` in a browser, and
-installed. Code that must differ asks `window.microfactoryDesktop`.
+### The shareable edition
+
+The installed app works only for the organization that published it (full
+access is granted to nobody else). So there is a SECOND artifact, built
+from the same page, that asks for no access to anyone's computer and can
+be given to anybody as a link: `node scripts/build-artifact.mjs --share`
+→ `dist/share/`. It declares `sample` (with images) and `downloads`, no
+`desktop`, and carries no desktop manifest. It is published by the same
+skill as a separate artifact with its own address (`artifact.json` →
+`"share"`), never over the installable one.
+
+There is no workspace folder and no local server behind that page. Its
+entry, `viewer/share.js` (in place of `viewer/desktop.js`), puts the same
+things behind the viewer from what a page has:
+
+- **The files are a pack plus the viewer's own changes.** The share pack
+  holds only what the page reads — `cell_fr3/`, the starter
+  application(s), `guides/`, `recipes/`, `viewer/cell.d.ts` — with the
+  meshes gzip'd before the base64. `viewer/page-fs.js` lays the person's
+  changes over it; they are kept in that browser's IndexedDB
+  (`viewer/page-store.js`), in memory where the browser gives none (the
+  page then says that nothing is kept). **Export is the copy that lasts**;
+  "Reset to original" in the application panel drops the changes to an
+  application the page came with.
+- **The server is the page.** `viewer/page-engine.js` answers every
+  request the viewer makes (`/__applications`, `/__steps`, `/__loop/save`,
+  `/__run/…`, `/__chat/…`, `/__reload`, files) with the statuses, shapes
+  and texts of `serve.py`, through the same `engineFetch` the installed
+  app uses. `test/page-engine.test.mjs` runs both against the same
+  requests: when an endpoint of `serve.py` changes, change the page engine
+  with it. `.microfactory` files are read and written in the page
+  (`viewer/zip.js`), so an application moves between the editions.
+- **The assistant is asked through the artifact's `sample` function**, on
+  the viewer's own account (`viewer/page-agent.js`), with the page's
+  functions as its tools (`viewer/page-tools.js`: read, list, write and
+  edit files of the open application, run steps in the viewer, measure the
+  scene, undo) and `viewer/page-brief.js` as its standing instructions —
+  the same guides, minus what needs a computer. Opened outside Claude
+  there is no assistant, and the chat says so.
+- **MuJoCo's compiled physics is carried** (`ws/mujoco.wasm.txt`, from
+  `node_modules` at build time): there is no workspace to `npm install`
+  it into, and a page may not fetch it from the CDN. It is the one
+  third-party file either artifact carries; the module that runs it still
+  comes from the CDN, at exactly that version.
+- **A file for the user** goes through the artifact's `downloads`
+  function, which saves only kinds of file it knows: an export is saved
+  as `<name>.microfactory.zip`, and Import takes either name.
+- **Not in this edition**: the CAD pipeline (STEP to mesh, modelling), web
+  lookups, changing the engine, git. The assistant says so when asked.
+
+`window.microfactoryDesktop` is set there too, with `kind: 'page'` — it
+selects the same branches of `app.js` as the installed app (the
+application to open is remembered and the page reloaded, MuJoCo's module
+from the CDN with the physics as bytes, export through `saveFile`, a
+reload that waits for the assistant), and `kind` marks the few places
+where the words differ because there is no folder and no terminal.
+
+Keep the viewer working ALL THREE ways: served by `serve.py` in a
+browser, installed, and shared. Code that must differ asks
+`window.microfactoryDesktop` (absent in a browser; `kind: 'page'` in the
+shareable edition). Every `viewer/*.js` is shipped in both artifacts
+(bar the installed app's own two modules, left out of the shareable one).
+What cannot be tried from here — the hosted frame's restrictions, the
+real `sample` and `downloads` — has to be tried by opening the published
+page; `test/share.test.mjs` covers the build, the page engine over the
+built pack, and a step of the starter run to its end on it.
 
 ## The architecture in one paragraph
 

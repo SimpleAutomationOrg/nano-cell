@@ -16,7 +16,10 @@ import { ask, choose, tell } from './dialogs.js';
 // When the page runs as the installed desktop app, viewer/desktop.js sets
 // this up before loading us: { saveFile(name, blob) -> where it was saved }.
 // In a browser, served by serve.py, it is undefined.
+// The shareable edition (viewer/share.js) sets it too, with kind: 'page':
+// there the "server" is the page itself, with no folder and no terminal.
 const desktopApp = window.microfactoryDesktop ?? null;
+const pageOnly = desktopApp?.kind === 'page';
 import { physicalKey, shortcutKey, flyDirection, FLY_KEYS } from './keys.js';
 
 const status = m => document.getElementById('status').textContent = m;
@@ -478,8 +481,10 @@ function buildAppUI(apps, current) {
   };
   const pick = document.getElementById('appPick');
   document.getElementById('appImport').onclick = () => pick.click();
+  // (the shareable edition can only save its export as <name>.microfactory.zip: the application's name is read
+  // without that ending, also by a server that knows only .microfactory)
   const send = (file, existing) => fetch(
-    `/__applications/import?name=${encodeURIComponent(file.name)}&existing=${existing}`,
+    `/__applications/import?name=${encodeURIComponent(file.name.replace(/(\.microfactory)( \(\d+\))?\.zip$/i, '$1'))}&existing=${existing}`,
     { method: 'POST', headers: { ...HEAD, 'Content-Type': 'application/octet-stream' }, body: file }).then(r => r.json());
   async function importFile(file) {
     status(`importing ${file.name}…`);
@@ -493,7 +498,7 @@ function buildAppUI(apps, current) {
       // never overwrite silently: replace (the one here is kept as a backup) or keep both
       const what = r.same ? `"${r.name}" is already here (an earlier or later version of this same application).`
         : `Another application is already here under the name "${r.id}".`;
-      const how = await choose(`${what}\n\nReplacing moves the one here to .backups/ — it is not deleted.`, [
+      const how = await choose(`${what}\n\n${pageOnly ? 'Replacing takes the one here out of the list — export it first if you may want it back.' : 'Replacing moves the one here to .backups/ — it is not deleted.'}`, [
         { label: 'Cancel', value: null },
         { label: 'Import as a separate copy', value: 'copy' },
         { label: 'Replace it', value: 'replace', primary: true },
@@ -506,6 +511,27 @@ function buildAppUI(apps, current) {
   }
   pick.addEventListener('change', () => { const f = pick.files[0]; pick.value = ''; if (f) importFile(f); });
   window.importApplication = importFile;    // console access, and for tests
+
+  // The shareable edition keeps the user's changes over the application it
+  // came with, and has no folder to mend a broken file in: this is the way back.
+  if (pageOnly && desktopApp.original?.(current)) {
+    const reset = document.createElement('button');
+    reset.id = 'appReset';
+    reset.textContent = 'Reset to original';
+    reset.title = 'put this application back as it came with the page: your changes to its files are dropped';
+    reset.onclick = async () => {
+      const go = await choose(`Put “${current}” back as it came with the page?\n\nEvery change made to its files here is dropped — the layout, the steps, the loop. The conversation and its attachments stay. Export first if you may want the changes back.`, [
+        { label: 'Cancel', value: null },
+        { label: 'Reset to original', value: true, primary: true },
+      ]);
+      if (!go) return;
+      status(`resetting ${current}…`);
+      try { await desktopApp.resetApplication(current); }
+      catch (e) { status('reset failed: ' + e.message); tell('Reset failed: ' + e.message); }
+    };
+    reset.style.cssText = 'display:block;width:100%;margin:0 0 8px';     // a row of its own under Export and Import
+    document.getElementById('appFile').after(reset);
+  }
 }
 
 async function buildStepUI(cell, mountToolFn) {
@@ -564,7 +590,15 @@ async function main() {
       if (!r.ok) throw new Error(`${p}: not found`);
       return r.json();
     }, appId, query.get('robot'));
-  } catch (e) { status('cannot load the cell: ' + e.message); throw e; }
+  } catch (e) {
+    status('cannot load the cell: ' + e.message);
+    // The page edition has no folder to mend a broken file in: the chat
+    // still opens on this application (it reads which one from here), so
+    // that the assistant can be asked to repair it — the status line above
+    // goes to it with the message, and the page reloads once it has.
+    if (pageOnly) document.documentElement.dataset.application = appId;
+    throw e;
+  }
   document.getElementById('cellName').textContent = cell.name;
   document.documentElement.dataset.application = cell.application;   // the chat panel reads it
   document.title = cell.name;
@@ -683,7 +717,7 @@ async function main() {
     const MJ = '/node_modules/@mujoco/mujoco/';
     let mjModule = MJ + 'mujoco.js', mjOptions = {};
     if (desktopApp) {
-      const pkg = await fetch(MJ + 'package.json').then(r => (r.ok ? r.json() : Promise.reject(new Error('MuJoCo is not installed in the workspace: run `npm install` there'))));
+      const pkg = await fetch(MJ + 'package.json').then(r => (r.ok ? r.json() : Promise.reject(new Error(pageOnly ? 'this page does not carry MuJoCo' : 'MuJoCo is not installed in the workspace: run `npm install` there'))));
       if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) throw new Error(`unexpected MuJoCo version ${pkg.version}`);
       mjModule = `https://cdn.jsdelivr.net/npm/@mujoco/mujoco@${pkg.version}/mujoco.js`;
       mjOptions = { wasmBinary: await fetch(MJ + 'mujoco.wasm').then(r => r.arrayBuffer()) };
@@ -702,9 +736,11 @@ async function main() {
     backendBadge.style.color = '#7fd0a0';
   } catch (e) {
     console.warn('[mj] backend failed to load:', e);
-    backendBadge.textContent = 'physics: UNAVAILABLE — run `npm install`, then reload';
+    // (the shareable edition has no terminal to run anything in: there it is the page or the network that failed)
+    backendBadge.textContent = pageOnly ? 'physics: UNAVAILABLE — reload the page to try again' : 'physics: UNAVAILABLE — run `npm install`, then reload';
+    backendBadge.title = pageOnly ? String(e?.message ?? e) : '';
     backendBadge.style.color = '#ff7f7f';
-    stepLog('MuJoCo failed to load — steps disabled (run `npm install`)');
+    stepLog(pageOnly ? 'MuJoCo failed to load — steps disabled (reload the page to try again)' : 'MuJoCo failed to load — steps disabled (run `npm install`)');
     document.getElementById('steps').classList.add('disabled');
   }
 
