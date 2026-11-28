@@ -10,7 +10,7 @@
 // you type — so when an agent saves a file and the page reloads itself,
 // the chat comes back exactly as it was.
 import { pollFetch } from './poll.js';
-import { splitQuestions, answerText, allAnswered } from './ask.js';
+import { splitQuestions, answerText, allAnswered, splitHandoffs } from './ask.js';
 
 const HEAD = { 'X-Nano-Cell': 'chat', 'Content-Type': 'application/json' };
 
@@ -80,11 +80,28 @@ function draw(ev) {
   if (ev.type === 'user') for (const a of log.querySelectorAll('.ask:not(.settled)')) settle(a);
   if (ev.type === 'text') {
     // an agent's questions come as a block at the end of its message: shown as buttons
-    const { text, questions } = splitQuestions(ev.text.trim());
+    const asked = splitQuestions(ev.text.trim());
+    // ...and work it hands to colleagues as another: shown as who gets what
+    const { text, handoffs } = splitHandoffs(asked.text);
     el.innerHTML = rich(text);
-    if (questions.length) el.appendChild(askBox(questions));
+    for (const h of handoffs) el.appendChild(handoffCard(h));
+    if (asked.questions.length) el.appendChild(askBox(asked.questions));
+  }
+  else if (ev.type === 'note') {
+    // what happened to handed-over work; it names the colleague, whose chat one click opens
+    el.textContent = `→ ${ev.text}`;
+    const a = agents.find(x => x.id === ev.to);
+    if (a) { el.classList.add('link'); el.title = `open the ${a.name}'s chat`; el.addEventListener('click', () => pick(a.id)); }
   }
   else el.textContent = ev.type === 'tool' ? `· ${ev.text}` : ev.text;
+  // a task that came from a colleague, not from the user
+  if (ev.type === 'user' && ev.from) {
+    el.classList.add('handed');
+    const who = document.createElement('div');
+    who.className = 'from';
+    who.textContent = `from the ${ev.from}`;
+    el.prepend(who);
+  }
   // what the user attached: images shown, other files named; both open the saved file
   for (const path of ev.files ?? []) {
     const a = document.createElement('a');
@@ -98,6 +115,19 @@ function draw(ev) {
   }
   log.appendChild(el);
 }
+// a task handed to a colleague: who gets it, and what (click to open their chat)
+function handoffCard(h) {
+  const a = agents.find(x => x.id === h.to);
+  const card = document.createElement('div');
+  card.className = 'handoff';
+  if (a) card.style.setProperty('--c', a.color);
+  card.innerHTML = '<div class="to"></div><div class="task"></div>';
+  card.querySelector('.to').textContent = `→ ${a?.name ?? h.to}`;
+  card.querySelector('.task').textContent = h.task;
+  if (a) { card.title = `open the ${a.name}'s chat`; card.addEventListener('click', () => pick(a.id)); }
+  return card;
+}
+
 // ---- questions with options ----
 // Each question is a card: its options as buttons (the recommended one
 // first and marked), and a field for an answer in the user's own words.

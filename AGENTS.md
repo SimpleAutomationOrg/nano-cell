@@ -237,6 +237,7 @@ picked. Each agent is a Markdown file in `agents/`:
 (the "keeps" files live in the application's folder). A file starts with
 a header — `name`, `role` (one line under the name), `initials`, `color`,
 `order`, `hint` (shown in an empty conversation) and optionally `tools`
+and `hands_off`
 — and the text below it is the agent's description, used as its
 instructions. To add an agent, add a file; to change how one behaves,
 edit its description (it is re-read with every message).
@@ -258,9 +259,20 @@ are git-ignored. Every agent
 may read, search and edit files and run `./scripts/check.sh`; `tools:`
 in its header can add only what `EXTRA_TOOLS` in `chat.py` lists (web
 search for the buyer, `step-to-mesh` for the CAD designer). Agents
-cannot see or drive the viewer, and cannot message each other — the
-Lead engineer writes a task so that the user can paste it to the right one.
+cannot see or drive the viewer.
 The endpoints answer only to the page's own origin.
+
+**Handing work over**: an agent whose header says `hands_off: true`
+(the Lead engineer) gives tasks to colleagues itself, by ending its
+message with a ```` ```handoff ```` block: `[{"to": "<agent id>",
+"task": "..."}]`. The server then sends each task to that agent's own
+chat as a new message — the colleague gets only the task text, nothing
+of the sender's conversation — one after another in the order listed,
+each starting when the one before has finished; a failure stops the
+rest. The sender's chat shows who was handed what and when they
+finished (click to open that chat), the colleague's chat shows the task
+as "from the Lead engineer", and the replies are given to the sender
+with the user's next message. Other agents' handoff blocks do nothing.
 
 **Questions with options**: when an agent needs a decision and can name
 the likely answers, it ends its message with a ```` ```questions ````

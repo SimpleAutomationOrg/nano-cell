@@ -132,3 +132,77 @@ print(json.dumps({'first': first, 'second': second, 'third': third, 'session': s
   assert.equal(out.session, 'live', 'the new session is kept for the next message');
   assert.deepEqual(out.errors, [], 'the failed attempt to continue the old session must not show as an error');
 });
+
+test('handing work over: the Lead engineer starts colleagues itself, each with only its task, one after another', () => {
+  const out = JSON.parse(execFileSync('python3', ['-c', `
+import json, os, shutil, stat, sys, tempfile, time
+tmp = tempfile.mkdtemp()
+fake = os.path.join(tmp, 'bin', 'claude'); os.makedirs(os.path.dirname(fake))
+# stands in for the CLI: plans with a handoff block when asked to PLAN, fails on BREAK, else echoes its prompt
+open(fake, 'w').write('''#!/usr/bin/env python3
+import json, sys, time
+p = sys.stdin.read()
+say = lambda t: print(json.dumps({"type": "assistant", "session_id": "s", "message": {"content": [{"type": "text", "text": t}]}}))
+if "BREAK" in p:
+    say("trying"); print(json.dumps({"type": "result", "is_error": True, "result": "tool exploded"})); sys.exit(0)
+if "PLAN" in p:
+    tasks = [{"to": "cad-designer", "task": "place the tray SECRETLESS"}, {"to": "programmer", "task": "write the pick step" + (" BREAK" if "PLANBAD" in p else "")},
+             {"to": "accountant", "task": "cost it"}, {"to": "nobody", "task": "x"}]
+    say("Handing over.\\\\n\\\\n\`\`\`handoff\\\\n" + json.dumps(tasks) + "\\\\n\`\`\`")
+else:
+    time.sleep(0.15); say("GOT " + p)
+print(json.dumps({"type": "result", "is_error": False}))
+''')
+os.chmod(fake, os.stat(fake).st_mode | stat.S_IEXEC)
+os.environ['PATH'] = os.path.dirname(fake) + os.pathsep + os.environ['PATH']
+import chat
+shutil.copytree('../agents', os.path.join(tmp, 'agents'))
+app = os.path.join(tmp, 'applications', 'demo'); os.makedirs(app)
+open(os.path.join(app, 'application.json'), 'w').write('{}')
+chats = chat.Chats(tmp)
+get = lambda i: chats.get('demo', i)
+def settle(done):
+    # wait for what this part of the test is about, then for everyone to be idle
+    for _ in range(600):
+        if done() and not chats.busy('demo'): return
+        time.sleep(0.05)
+    raise SystemExit('timed out waiting')
+texts = lambda i: [e['text'] for e in get(i).events if e['type'] == 'text']
+notes = lambda: [e['text'] for e in get('lead-engineer').events if e['type'] == 'note']
+ev = lambda i: [(e['type'], e.get('from'), e.get('text', '')) for e in get(i).events if e['type'] != 'done']
+lead = get('lead-engineer')
+lead.send('the user secret is MANGO. PLAN the work', 'application: demo'); settle(lambda: len(notes()) == 6)
+res = {'lead': ev('lead-engineer'), 'cad': ev('cad-designer'), 'prog': ev('programmer'), 'acc': ev('accountant'),
+       'order': [e['to'] for e in lead.events if e['type'] == 'note']}
+lead.send('what came back?', 'application: demo'); settle(lambda: len(texts('lead-engineer')) == 2)
+res['report'] = [e['text'] for e in lead.events if e['type'] == 'text'][-1]
+# a colleague that may not hand off: its block does nothing
+get('programmer').send('PLAN something', 'application: demo'); settle(lambda: len(texts('programmer')) == 2); time.sleep(0.5)
+res['prog_notes'] = [e for e in get('programmer').events if e['type'] == 'note']
+res['cad_after'] = len(get('cad-designer').events)
+# a task that fails stops the ones after it
+get('accountant').new(); n_cad = len(get('cad-designer').events)
+lead.send('PLANBAD', 'application: demo'); settle(lambda: 'did not finish' in (notes() or [''])[-1])
+res['bad_notes'] = [e['text'] for e in lead.events if e['type'] == 'note'][-3:]
+res['acc_untouched'] = get('accountant').events == []
+shutil.rmtree(tmp)
+print(json.dumps(res))`], { cwd: new URL('viewer/', ROOT), encoding: 'utf8' }));
+  // the colleagues got their task, marked as coming from the Lead engineer, and nothing of the lead's conversation
+  assert.deepEqual(out.cad[0].slice(0, 2), ['user', 'Lead engineer']);
+  assert.equal(out.cad[0][2], 'place the tray SECRETLESS');
+  assert.match(out.cad[1][2], /^GOT \[This task was handed to you by the Lead engineer, not typed by the user[\s\S]*place the tray SECRETLESS$/);
+  for (const who of ['cad', 'prog', 'acc']) assert.ok(!JSON.stringify(out[who]).includes('MANGO'), `${who} was given the lead's conversation`);
+  assert.equal(out.prog[0][2], 'write the pick step');
+  assert.equal(out.acc[0][2], 'cost it');
+  // in the lead's chat: who it was handed to and that they finished, in the order listed; an unknown agent is skipped
+  assert.deepEqual(out.order, ['cad-designer', 'cad-designer', 'programmer', 'programmer', 'accountant', 'accountant']);
+  assert.deepEqual(out.lead.filter(e => e[0] === 'note').map(e => e[2]).slice(0, 2), ['handed to the CAD designer', 'the CAD designer has finished']);
+  // the results reach the lead with the user's next message
+  assert.match(out.report, /^GOT \[Since your last message, the colleagues you handed work to have reported:[\s\S]*CAD designer — done with the task “place the tray SECRETLESS”\. Its reply:\nGOT[\s\S]*Accountant — done[\s\S]*what came back\?$/);
+  // only an agent whose file says hands_off may do this
+  assert.deepEqual(out.prog_notes, []);
+  assert.equal(out.cad_after, 3, 'the Programmer\'s handoff block must not start anyone (the CAD designer still has its one task: message, reply, end)');
+  // a failure stops the chain and says what was not started
+  assert.deepEqual(out.bad_notes, ['the CAD designer has finished', 'handed to the Programmer', 'the Programmer did not finish (tool exploded); 1 later task not started']);
+  assert.ok(out.acc_untouched, 'a task after a failed one was started');
+});

@@ -57,3 +57,28 @@ export function answerText(questions, picks) {
 export function allAnswered(questions, picks) {
   return questions.every((q, i) => (picks[i]?.labels?.length ?? 0) > 0 || !!picks[i]?.other?.trim());
 }
+
+// ---- work handed to a colleague ----
+// An agent that may hand work on ends its message with
+//
+//   ```handoff
+//   [{ "to": "cad-designer", "task": "..." }]
+//   ```
+//
+// The server runs those tasks in the colleagues' chats (viewer/chat.py);
+// the page only shows them, in place of the raw block.
+
+const HANDOFF = /```handoff\s*\n([\s\S]*?)```/;
+
+/** Split a message into its text and the tasks it hands over: { text, handoffs: [{ to, task }] }. */
+export function splitHandoffs(message) {
+  const m = HANDOFF.exec(message);
+  if (!m) return { text: message, handoffs: [] };
+  let raw;
+  try { raw = JSON.parse(m[1]); } catch { return { text: message, handoffs: [] }; }
+  const handoffs = (Array.isArray(raw) ? raw : [raw])
+    .filter(h => h && typeof h.to === 'string' && typeof h.task === 'string' && h.task.trim())
+    .map(h => ({ to: h.to, task: h.task.trim() }));
+  if (!handoffs.length) return { text: message, handoffs: [] };
+  return { text: (message.slice(0, m.index) + message.slice(m.index + m[0].length)).trim(), handoffs };
+}

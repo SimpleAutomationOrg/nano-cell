@@ -73,6 +73,53 @@ Your role:
 %(role)s"""
 
 
+HANDOFF = """
+
+Handing work to a colleague. You can give a task to another agent yourself: \
+end your message with a handoff block and the chat runs it — do NOT ask the \
+user to copy a task to another agent. The colleagues you can hand to:
+%(roster)s
+
+```handoff
+[{"to": "cad-designer", "task": "In the application dippackage: ... (everything they need)"},
+ {"to": "programmer", "task": "..."}]
+```
+
+How it works, so write the tasks accordingly: each task is sent to that \
+agent's own chat as a new message. The colleague sees NOTHING of this \
+conversation — only your task text — so name the application, the files, the \
+numbers and decisions they need, and what "done" means. Tasks run one after \
+another in the order you list them, each starting when the one before has \
+finished (so put geometry before the steps that use it); if one fails the \
+rest are not started. You are not woken when they finish: their results are \
+given to you with the user's next message, and the user sees each colleague's \
+reply in that colleague's chat. Hand off only work that is ready to start — \
+if you still need an answer from the user, ask first (a questions block) and \
+hand off after. At most 5 tasks in a block; valid JSON; the block goes last \
+in the message (after it, nothing). Say in a sentence before it what you are \
+handing to whom."""
+
+_HANDOFF_BLOCK = re.compile(r"```handoff\s*\n(.*?)```", re.S)
+
+
+def parse_handoffs(text, allowed):
+    """The tasks an agent's message hands to colleagues: [{to, task}], only
+    for agent ids in `allowed`. A block that cannot be read gives none."""
+    m = _HANDOFF_BLOCK.search(text or "")
+    if not m:
+        return []
+    try:
+        raw = json.loads(m.group(1))
+    except ValueError:
+        return []
+    out = []
+    for h in raw if isinstance(raw, list) else [raw]:
+        if (isinstance(h, dict) and h.get("to") in allowed and isinstance(h.get("task"), str)
+                and h["task"].strip()):
+            out.append({"to": h["to"], "task": h["task"].strip()})
+    return out[:5]
+
+
 def load_agents(root):
     """The agents in agents/*.md, in their order: [{id, name, role, initials, color, hint, tools, brief}]."""
     out = []
@@ -106,9 +153,15 @@ def load_agents(root):
             "color": meta.get("color", "#4da3ff") if re.fullmatch(r"#[0-9a-fA-F]{3,8}", meta.get("color", "#4da3ff")) else "#4da3ff",
             "hint": meta.get("hint", ""), "order": order,
             "tools": [t for t in asked if t in EXTRA_TOOLS],
+            "hands_off": meta.get("hands_off", "").lower() == "true",
             "brief": BRIEF % {"name": name, "role": body.strip()},
         })
     out.sort(key=lambda a: (a["order"], a["id"]))
+    # an agent that may hand work on is told how, and to whom
+    for a in out:
+        if a["hands_off"]:
+            roster = "\n".join(f'- "{o["id"]}" — {o["name"]}: {o["role"]}' for o in out if o["id"] != a["id"])
+            a["brief"] += HANDOFF % {"roster": roster}
     return out
 
 
@@ -151,7 +204,8 @@ class Chats:
             if key not in self.chats:
                 self.chats[key] = Chat(self.root, self.cond,
                                        store=os.path.join(app_dir, "chats", agent_id + ".json"),
-                                       sessions=(self.sessions_path, f"{app}/{agent_id}"))
+                                       sessions=(self.sessions_path, f"{app}/{agent_id}"),
+                                       colleagues=lambda other, app=app: self.get(app, other))
             chat = self.chats[key]
         chat.agent = agent
         return chat
@@ -185,7 +239,7 @@ def _write_json(path, obj):
 
 
 class Chat:
-    def __init__(self, root, cond=None, store=None, sessions=None):
+    def __init__(self, root, cond=None, store=None, sessions=None, colleagues=None):
         self.root = root
         self.agent = None           # set by Chats.get: this conversation's agent
         self.events = []            # everything the page shows, in order
@@ -195,6 +249,9 @@ class Chat:
         self.cond = cond or threading.Condition()
         self.store = store          # the file the events are kept in
         self.sessions = sessions    # (file, key) of this conversation's CLI session id
+        self.colleagues = colleagues  # agent id -> that agent's conversation about the same application
+        self.inbox = []             # what colleagues reported back, for this agent's next turn
+        self.context = ""           # the viewer line of the last message, passed on with a handoff
         self._load()
 
     # ---- on disk ----
@@ -208,7 +265,7 @@ class Chat:
                 self.events = []
             # the server stopped while the agent was working: say so, or the
             # conversation would end in the middle of a sentence
-            if self.events and self.events[-1]["type"] not in ("done", "error"):
+            if self.events and self.events[-1]["type"] not in ("done", "error", "note"):
                 self.events += [{"type": "error", "text": "interrupted: the server was restarted while the agent was working"},
                                 {"type": "done"}]
         if self.sessions:
@@ -294,7 +351,10 @@ class Chat:
             kind, text = e.get("type"), str(e.get("text", "")).strip()
             if kind == "user":
                 files = "".join(f"\n  [attached: {p}]" for p in e.get("files") or [])
-                lines.append(f"USER: {text}{files}")
+                who = f"THE {str(e['from']).upper()} (handing you a task)" if e.get("from") else "USER"
+                lines.append(f"{who}: {text}{files}")
+            elif kind == "note":
+                lines.append(f"  ({text})")
             elif kind == "text":
                 lines.append(f"YOU: {text}")
             elif kind == "tool":
@@ -314,7 +374,9 @@ class Chat:
                 "record." + (" Only the latest part is shown." if cut else "") + "\n\n" + body +
                 "\n\nEnd of the earlier conversation. The user's new message follows.]\n\n")
 
-    def send(self, text, context="", files=()):
+    def send(self, text, context="", files=(), sender=None):
+        """A message for this agent: from the user, or — with `sender`, an
+        agent's name — a task handed over by a colleague."""
         text = (text or "").strip()
         files = list(files)
         if not text and not files:
@@ -330,10 +392,19 @@ class Chat:
             except OSError as e:
                 return f"could not start the agent: {e}"
             proc, resumed = self.proc, bool(self.session)
-            self.events.append({"type": "user", "text": text, "files": files})
+            self.events.append({"type": "user", "text": text, "files": files, **({"from": sender} if sender else {})})
             self._save()
             self.cond.notify_all()
+            reports, self.inbox = self.inbox, []
+        self.context = context
         prompt = f"[viewer: {context}]\n{text}" if context else text
+        if sender:
+            prompt = (f"[This task was handed to you by the {sender}, not typed by the user. Do it as you would a "
+                      f"request from the user; the user reads your reply in this chat.]\n" + prompt)
+        if reports:
+            # what the colleagues it handed work to have answered since its last turn
+            prompt = ("[Since your last message, the colleagues you handed work to have reported:\n\n"
+                      + "\n\n".join(reports) + "]\n\n" + prompt)
         if files:
             # the agent opens them itself (Read shows images)
             prompt += "\n\n[attached by the user, saved in the repository — read them:\n" + \
@@ -347,6 +418,59 @@ class Chat:
         proc = self.proc
         if proc is not None:
             proc.terminate()
+
+    # ---- handing work to colleagues ----
+    def _last_turn(self):
+        """The events of the latest turn: from its user message on."""
+        i = max((k for k, e in enumerate(self.events) if e.get("type") == "user"), default=0)
+        return self.events[i:]
+
+    def _hand_off(self, epoch):
+        """After a clean turn: if this agent may hand work on and its message
+        ends with a handoff block, run those tasks in its colleagues' chats."""
+        if not (self.agent and self.agent.get("hands_off") and self.colleagues):
+            return
+        texts = [e["text"] for e in self._last_turn() if e.get("type") == "text"]
+        allowed = {a["id"] for a in load_agents(self.root)} - {self.agent["id"]}
+        tasks = parse_handoffs(texts[-1] if texts else "", allowed)
+        if tasks:
+            threading.Thread(target=self._relay, args=(tasks, epoch, self.agent["name"], self.context), daemon=True).start()
+
+    def _relay(self, tasks, epoch, me, context, patience=1800):
+        """Give the tasks to the colleagues one after another, each in its own
+        chat with only the task as its prompt; note in this chat what happened
+        and keep each reply for this agent's next turn. Stops at a failure."""
+        import time
+        for n, t in enumerate(tasks):
+            if epoch != self.epoch:
+                return                              # this conversation was cleared
+            other = self.colleagues(t["to"])
+            if other is None:
+                self._add(type="note", text=f"could not hand over to {t['to']}: no such agent")
+                break
+            name = other.agent["name"]
+            waited = 0
+            while other.running() and waited < patience:      # it is busy with something else
+                time.sleep(0.25)
+                waited += 0.25
+            err = other.send(t["task"], context, sender=me)
+            if err:
+                self._add(type="note", text=f"could not hand over to the {name}: {err}", to=t["to"])
+                break
+            self._add(type="note", text=f"handed to the {name}", to=t["to"])
+            while other.running():
+                time.sleep(0.25)
+            turn = other._last_turn()
+            reply = next((e["text"] for e in reversed(turn) if e.get("type") == "text"), "")
+            failed = next((e["text"] for e in turn if e.get("type") == "error"), None)
+            if failed is not None:
+                self.inbox.append(f"{name} — FAILED on the task “{t['task'][:200]}”: {failed}")
+                left = len(tasks) - n - 1
+                self._add(type="note", text=f"the {name} did not finish ({failed[:120]})"
+                          + (f"; {left} later task{'s' if left > 1 else ''} not started" if left else ""), to=t["to"])
+                break
+            self.inbox.append(f"{name} — done with the task “{t['task'][:200]}”. Its reply:\n{reply[:4000]}")
+            self._add(type="note", text=f"the {name} has finished", to=t["to"])
 
     def new(self):
         self.stop()
@@ -375,6 +499,8 @@ class Chat:
                 said, finished, code, tail = self._turn(proc, background + prompt, epoch)
             if epoch == self.epoch and not finished:
                 self._add(type="error", text="stopped" if code in (-15, 143) else f"the agent exited ({code}) {tail}".strip())
+            elif epoch == self.epoch:
+                self._hand_off(epoch)
         except Exception as e:              # never leave the chat stuck "running"
             if epoch == self.epoch:
                 self._add(type="error", text=f"chat failed: {e}")
